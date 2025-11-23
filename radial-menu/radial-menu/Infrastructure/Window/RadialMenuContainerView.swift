@@ -19,6 +19,9 @@ class RadialMenuContainerView: NSView {
     // Event callbacks
     var onMouseMove: ((CGPoint) -> Void)?
     var onMouseClick: ((CGPoint) -> Void)?
+    var onKeyboardNavigation: ((Bool) -> Void)?
+    var onConfirm: (() -> Void)?
+    var onCancel: (() -> Void)?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -42,6 +45,13 @@ class RadialMenuContainerView: NSView {
         // Ensure subviews (the hosting view) fill the container
         subviews.forEach { $0.frame = bounds }
     }
+    
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window != nil {
+            window?.makeFirstResponder(self)
+        }
+    }
 
     /// Update the menu geometry for hit testing
     func updateGeometry(
@@ -62,6 +72,11 @@ class RadialMenuContainerView: NSView {
         if self.isMenuActive != active {
             print("🔄 RadialMenuContainerView: Menu active state changed to \(active)")
             self.isMenuActive = active
+            
+            // Re-assert first responder when menu becomes active
+            if active {
+                window?.makeFirstResponder(self)
+            }
         }
     }
 
@@ -115,6 +130,30 @@ class RadialMenuContainerView: NSView {
         let localPoint = convert(event.locationInWindow, from: nil)
         onMouseClick?(localPoint)
     }
+    
+    // MARK: - Keyboard Events
+    
+    override func keyDown(with event: NSEvent) {
+        guard isMenuActive else {
+            super.keyDown(with: event)
+            return
+        }
+        
+        print("⌨️ RadialMenuContainerView: KeyDown code: \(event.keyCode)")
+        
+        switch event.keyCode {
+        case 123: // Left Arrow
+            onKeyboardNavigation?(false) // Counter-clockwise
+        case 124: // Right Arrow
+            onKeyboardNavigation?(true)  // Clockwise
+        case 36: // Return
+            onConfirm?()
+        case 53: // Escape
+            onCancel?()
+        default:
+            super.keyDown(with: event)
+        }
+    }
 
     /// Allow the view to become first responder for keyboard events
     override var acceptsFirstResponder: Bool {
@@ -132,6 +171,9 @@ struct RadialMenuContainer<Content: View>: NSViewRepresentable {
     let isActive: Bool
     let onMouseMove: (CGPoint) -> Void
     let onMouseClick: (CGPoint) -> Void
+    let onKeyboardNavigation: (Bool) -> Void
+    let onConfirm: () -> Void
+    let onCancel: () -> Void
 
     func makeNSView(context: Context) -> RadialMenuContainerView {
         print("🔨 RadialMenuContainer: makeNSView")
@@ -145,6 +187,9 @@ struct RadialMenuContainer<Content: View>: NSViewRepresentable {
         view.setMenuActive(isActive)
         view.onMouseMove = onMouseMove
         view.onMouseClick = onMouseClick
+        view.onKeyboardNavigation = onKeyboardNavigation
+        view.onConfirm = onConfirm
+        view.onCancel = onCancel
 
         // Add SwiftUI content as subview
         let hostingView = NSHostingView(rootView: content)
@@ -166,6 +211,9 @@ struct RadialMenuContainer<Content: View>: NSViewRepresentable {
         nsView.setMenuActive(isActive)
         nsView.onMouseMove = onMouseMove
         nsView.onMouseClick = onMouseClick
+        nsView.onKeyboardNavigation = onKeyboardNavigation
+        nsView.onConfirm = onConfirm
+        nsView.onCancel = onCancel
 
         // Update SwiftUI content
         if let hostingView = nsView.subviews.first as? NSHostingView<Content> {

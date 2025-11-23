@@ -8,9 +8,20 @@
 import AppKit
 import SwiftUI
 
+/// Custom NSPanel that can become key (receive keyboard input) even when borderless
+class RadialMenuWindow: NSPanel {
+    override var canBecomeKey: Bool {
+        return true
+    }
+    
+    override var canBecomeMain: Bool {
+        return true
+    }
+}
+
 /// Manages the transparent overlay window for the radial menu
 class OverlayWindowController: OverlayWindowProtocol {
-    private var window: NSPanel?
+    private var window: RadialMenuWindow?
     private var hostingView: NSHostingView<AnyView>?
     private let windowSize: CGSize
 
@@ -43,8 +54,8 @@ class OverlayWindowController: OverlayWindowProtocol {
 
         window.setFrameOrigin(windowOrigin)
         
-        // Force activation to ensure SwiftUI renders
-        // NSApp.activate(ignoringOtherApps: true) 
+        // Force activation to ensure SwiftUI renders and we capture keyboard events
+        NSApp.activate(ignoringOtherApps: true) 
         
         window.makeKeyAndOrderFront(nil)
         window.orderFrontRegardless()
@@ -55,6 +66,13 @@ class OverlayWindowController: OverlayWindowProtocol {
     func hide() {
         Log("🪟 OverlayWindowController: Hiding window")
         window?.orderOut(nil)
+        // Optionally deactivate app to return focus to previous app? 
+        // For now, let's just hide the window. The user will likely click elsewhere or the previous app will remain active if we didn't fully steal focus context.
+        // Actually, since we called NSApp.activate, we are now the active app. 
+        // We might want to use `NSApp.hide(nil)` or similar if we want to return focus, 
+        // but typically clicking on another window handles that.
+        // For a strictly keyboard workflow, `NSApp.hide(nil)` might be smoother.
+        NSApp.hide(nil)
     }
 
     func updateContent<Content: View>(_ view: Content) {
@@ -102,10 +120,10 @@ class OverlayWindowController: OverlayWindowProtocol {
     // MARK: - Private Methods
 
     private func createWindow() {
-        Log("🪟 OverlayWindowController: Creating NSPanel with size \(windowSize)")
-        let panel = NSPanel(
+        Log("🪟 OverlayWindowController: Creating RadialMenuWindow with size \(windowSize)")
+        let panel = RadialMenuWindow(
             contentRect: NSRect(origin: .zero, size: windowSize),
-            styleMask: [.borderless, .nonactivatingPanel],
+            styleMask: [.borderless], // Removed .nonactivatingPanel to allow key status
             backing: .buffered,
             defer: false
         )

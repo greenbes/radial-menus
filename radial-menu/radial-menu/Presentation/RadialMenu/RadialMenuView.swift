@@ -53,7 +53,10 @@ struct RadialMenuView: View {
             slices: viewModel.slices,
             isActive: viewModel.isOpen,
             onMouseMove: { point in viewModel.handleMouseMove(at: point) },
-            onMouseClick: { point in viewModel.handleMouseClick(at: point) }
+            onMouseClick: { point in viewModel.handleMouseClick(at: point) },
+            onKeyboardNavigation: { clockwise in viewModel.handleKeyboardNavigation(clockwise: clockwise) },
+            onConfirm: { viewModel.handleConfirm() },
+            onCancel: { viewModel.closeMenu() }
         )
     }
 }
