@@ -1,0 +1,36 @@
+//
+//  ActionType.swift
+//  radial-menu
+//
+//  Created by Steven Greenberg on 11/22/25.
+//
+
+import Foundation
+
+/// Represents the type of action a menu item can perform
+enum ActionType: Codable, Equatable {
+    case launchApp(path: String)
+    case runShellCommand(command: String)
+    case simulateKeyboardShortcut(modifiers: [KeyModifier], key: String)
+
+    enum KeyModifier: String, Codable {
+        case command
+        case option
+        case control
+        case shift
+    }
+}
+
+extension ActionType {
+    var description: String {
+        switch self {
+        case .launchApp(let path):
+            return "Launch app: \(path)"
+        case .runShellCommand(let command):
+            return "Run: \(command)"
+        case .simulateKeyboardShortcut(let modifiers, let key):
+            let modString = modifiers.map { $0.rawValue }.joined(separator: "+")
+            return "\(modString)+\(key)"
+        }
+    }
+}
