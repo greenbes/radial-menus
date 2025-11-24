@@ -93,6 +93,26 @@ class MenuBarController {
                 } catch {
                     print("❌ Failed to save position mode: \(error)")
                 }
+            },
+            onAddItem: { [weak self] newItem in
+                guard let self else { return }
+                var updated = configManager.currentConfiguration
+                updated.items.append(newItem)
+                do {
+                    try configManager.saveConfiguration(updated)
+                } catch {
+                    print("❌ Failed to add menu item: \(error)")
+                }
+            },
+            onRemoveItem: { [weak self] itemId in
+                guard let self else { return }
+                var updated = configManager.currentConfiguration
+                updated.items.removeAll { $0.id == itemId }
+                do {
+                    try configManager.saveConfiguration(updated)
+                } catch {
+                    print("❌ Failed to remove menu item: \(error)")
+                }
             }
         )
 

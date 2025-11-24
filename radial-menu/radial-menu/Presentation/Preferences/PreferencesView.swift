@@ -16,12 +16,15 @@ struct PreferencesView: View {
     let onUpdateForegroundColor: (CodableColor) -> Void
     let onUpdateSelectedItemColor: (CodableColor) -> Void
     let onUpdatePositionMode: (BehaviorSettings.PositionMode) -> Void
+    let onAddItem: (MenuItem) -> Void
+    let onRemoveItem: (UUID) -> Void
 
     @State private var selectedIconSet: IconSet
     @State private var backgroundColor: Color
     @State private var foregroundColor: Color
     @State private var selectedItemColor: Color
     @State private var positionMode: BehaviorSettings.PositionMode
+    @State private var showingAddItemSheet = false
 
     init(
         configuration: MenuConfiguration,
@@ -30,7 +33,9 @@ struct PreferencesView: View {
         onUpdateBackgroundColor: @escaping (CodableColor) -> Void,
         onUpdateForegroundColor: @escaping (CodableColor) -> Void,
         onUpdateSelectedItemColor: @escaping (CodableColor) -> Void,
-        onUpdatePositionMode: @escaping (BehaviorSettings.PositionMode) -> Void
+        onUpdatePositionMode: @escaping (BehaviorSettings.PositionMode) -> Void,
+        onAddItem: @escaping (MenuItem) -> Void,
+        onRemoveItem: @escaping (UUID) -> Void
     ) {
         self.configuration = configuration
         self.onResetToDefault = onResetToDefault
@@ -39,6 +44,8 @@ struct PreferencesView: View {
         self.onUpdateForegroundColor = onUpdateForegroundColor
         self.onUpdateSelectedItemColor = onUpdateSelectedItemColor
         self.onUpdatePositionMode = onUpdatePositionMode
+        self.onAddItem = onAddItem
+        self.onRemoveItem = onRemoveItem
         _selectedIconSet = State(initialValue: configuration.appearanceSettings.iconSet)
         _backgroundColor = State(initialValue: configuration.appearanceSettings.backgroundColor.color)
         _foregroundColor = State(initialValue: configuration.appearanceSettings.foregroundColor.color)
@@ -57,8 +64,17 @@ struct PreferencesView: View {
 
                 // Menu Items Section
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Menu Items")
-                        .font(.headline)
+                    HStack {
+                        Text("Menu Items")
+                            .font(.headline)
+
+                        Spacer()
+
+                        Button(action: { showingAddItemSheet = true }) {
+                            Image(systemName: "plus.circle.fill")
+                            Text("Add")
+                        }
+                    }
 
                     List(configuration.items) { item in
                         HStack {
@@ -75,10 +91,24 @@ struct PreferencesView: View {
                             }
 
                             Spacer()
+
+                            Button(action: { onRemoveItem(item.id) }) {
+                                Image(systemName: "trash")
+                                    .foregroundColor(.red)
+                            }
+                            .buttonStyle(.plain)
                         }
                         .padding(.vertical, 4)
                     }
                     .frame(height: 200)
+                }
+                .sheet(isPresented: $showingAddItemSheet) {
+                    AddMenuItemView(onAdd: { newItem in
+                        onAddItem(newItem)
+                        showingAddItemSheet = false
+                    }, onCancel: {
+                        showingAddItemSheet = false
+                    })
                 }
 
                 // Appearance Settings
@@ -192,6 +222,101 @@ struct PreferencesView: View {
         } else {
             return Image(resolved.name)
         }
+    }
+}
+
+// MARK: - Add Menu Item View
+
+struct AddMenuItemView: View {
+    let onAdd: (MenuItem) -> Void
+    let onCancel: () -> Void
+
+    @State private var title: String = ""
+    @State private var iconName: String = "app.fill"
+    @State private var actionType: ActionTypeSelection = .launchApp
+    @State private var appPath: String = "/System/Applications/"
+    @State private var shellCommand: String = ""
+
+    enum ActionTypeSelection: String, CaseIterable {
+        case launchApp = "Launch Application"
+        case runShellCommand = "Run Shell Command"
+
+        var systemImage: String {
+            switch self {
+            case .launchApp: return "app"
+            case .runShellCommand: return "terminal"
+            }
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("Add Menu Item")
+                .font(.title2)
+                .fontWeight(.bold)
+
+            Form {
+                TextField("Title", text: $title)
+
+                TextField("Icon Name (SF Symbol)", text: $iconName)
+
+                Picker("Action Type", selection: $actionType) {
+                    ForEach(ActionTypeSelection.allCases, id: \.self) { type in
+                        HStack {
+                            Image(systemName: type.systemImage)
+                            Text(type.rawValue)
+                        }
+                        .tag(type)
+                    }
+                }
+
+                switch actionType {
+                case .launchApp:
+                    TextField("Application Path", text: $appPath)
+                    Text("Example: /System/Applications/Safari.app")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                case .runShellCommand:
+                    TextField("Shell Command", text: $shellCommand)
+                    Text("Example: open -a Safari")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding()
+
+            HStack {
+                Button("Cancel") {
+                    onCancel()
+                }
+                .keyboardShortcut(.cancelAction)
+
+                Spacer()
+
+                Button("Add") {
+                    let action: ActionType
+                    switch actionType {
+                    case .launchApp:
+                        action = .launchApp(path: appPath)
+                    case .runShellCommand:
+                        action = .runShellCommand(command: shellCommand)
+                    }
+
+                    let newItem = MenuItem(
+                        title: title.isEmpty ? "New Item" : title,
+                        iconName: iconName,
+                        action: action
+                    )
+                    onAdd(newItem)
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(title.isEmpty || (actionType == .launchApp && appPath.isEmpty) || (actionType == .runShellCommand && shellCommand.isEmpty))
+            }
+            .padding()
+        }
+        .frame(width: 500, height: 400)
+        .padding()
     }
 }
 
