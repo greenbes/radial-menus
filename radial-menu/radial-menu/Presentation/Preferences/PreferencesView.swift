@@ -14,26 +14,31 @@ struct PreferencesView: View {
     let onUpdateIconSet: (IconSet) -> Void
     let onUpdateBackgroundColor: (CodableColor) -> Void
     let onUpdateForegroundColor: (CodableColor) -> Void
+    let onUpdateSelectedItemColor: (CodableColor) -> Void
 
     @State private var selectedIconSet: IconSet
     @State private var backgroundColor: Color
     @State private var foregroundColor: Color
+    @State private var selectedItemColor: Color
 
     init(
         configuration: MenuConfiguration,
         onResetToDefault: @escaping () -> Void,
         onUpdateIconSet: @escaping (IconSet) -> Void,
         onUpdateBackgroundColor: @escaping (CodableColor) -> Void,
-        onUpdateForegroundColor: @escaping (CodableColor) -> Void
+        onUpdateForegroundColor: @escaping (CodableColor) -> Void,
+        onUpdateSelectedItemColor: @escaping (CodableColor) -> Void
     ) {
         self.configuration = configuration
         self.onResetToDefault = onResetToDefault
         self.onUpdateIconSet = onUpdateIconSet
         self.onUpdateBackgroundColor = onUpdateBackgroundColor
         self.onUpdateForegroundColor = onUpdateForegroundColor
+        self.onUpdateSelectedItemColor = onUpdateSelectedItemColor
         _selectedIconSet = State(initialValue: configuration.appearanceSettings.iconSet)
         _backgroundColor = State(initialValue: configuration.appearanceSettings.backgroundColor.color)
         _foregroundColor = State(initialValue: configuration.appearanceSettings.foregroundColor.color)
+        _selectedItemColor = State(initialValue: configuration.appearanceSettings.selectedItemColor.color)
     }
 
     var body: some View {
@@ -103,6 +108,15 @@ struct PreferencesView: View {
                         .labelsHidden()
                         .onChange(of: foregroundColor) { _, newValue in
                             onUpdateForegroundColor(CodableColor(color: newValue))
+                        }
+                }
+
+                HStack {
+                    Text("Selected Item Color:")
+                    ColorPicker("", selection: $selectedItemColor, supportsOpacity: true)
+                        .labelsHidden()
+                        .onChange(of: selectedItemColor) { _, newValue in
+                            onUpdateSelectedItemColor(CodableColor(color: newValue))
                         }
                 }
 

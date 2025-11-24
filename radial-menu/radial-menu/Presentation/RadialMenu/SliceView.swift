@@ -62,6 +62,7 @@ struct SliceView: View, Equatable {
     let radius: Double
     let centerRadius: Double
     let foregroundColor: Color
+    let selectedItemColor: Color
 
     static func == (lhs: SliceView, rhs: SliceView) -> Bool {
         return lhs.isSelected == rhs.isSelected &&
@@ -70,7 +71,8 @@ struct SliceView: View, Equatable {
                lhs.radius == rhs.radius &&
                lhs.centerRadius == rhs.centerRadius &&
                lhs.iconSet == rhs.iconSet &&
-               lhs.foregroundColor == rhs.foregroundColor
+               lhs.foregroundColor == rhs.foregroundColor &&
+               lhs.selectedItemColor == rhs.selectedItemColor
     }
 
     var body: some View {
@@ -132,7 +134,7 @@ struct SliceView: View, Equatable {
 
     private var sliceColor: Color {
         if isSelected {
-            return Color.blue.opacity(0.8)
+            return selectedItemColor
         } else {
             return Color.gray.opacity(0.6)
         }
