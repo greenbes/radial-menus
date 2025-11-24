@@ -33,6 +33,7 @@ struct AppearanceSettings: Codable, Equatable {
     var animationDuration: Double
     var iconSet: IconSet = .outline
     var backgroundColor: CodableColor = CodableColor(color: .black.opacity(0.3))
+    var foregroundColor: CodableColor = CodableColor(color: .white)
 
     static let `default` = AppearanceSettings(
         radius: 150.0,
@@ -40,7 +41,8 @@ struct AppearanceSettings: Codable, Equatable {
         sliceHighlightScale: 1.1,
         animationDuration: 0.15,
         iconSet: .outline,
-        backgroundColor: CodableColor(color: .black.opacity(0.3))
+        backgroundColor: CodableColor(color: .black.opacity(0.3)),
+        foregroundColor: CodableColor(color: .white)
     )
 }
 

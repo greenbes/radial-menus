@@ -13,22 +13,27 @@ struct PreferencesView: View {
     let onResetToDefault: () -> Void
     let onUpdateIconSet: (IconSet) -> Void
     let onUpdateBackgroundColor: (CodableColor) -> Void
+    let onUpdateForegroundColor: (CodableColor) -> Void
 
     @State private var selectedIconSet: IconSet
     @State private var backgroundColor: Color
+    @State private var foregroundColor: Color
 
     init(
         configuration: MenuConfiguration,
         onResetToDefault: @escaping () -> Void,
         onUpdateIconSet: @escaping (IconSet) -> Void,
-        onUpdateBackgroundColor: @escaping (CodableColor) -> Void
+        onUpdateBackgroundColor: @escaping (CodableColor) -> Void,
+        onUpdateForegroundColor: @escaping (CodableColor) -> Void
     ) {
         self.configuration = configuration
         self.onResetToDefault = onResetToDefault
         self.onUpdateIconSet = onUpdateIconSet
         self.onUpdateBackgroundColor = onUpdateBackgroundColor
+        self.onUpdateForegroundColor = onUpdateForegroundColor
         _selectedIconSet = State(initialValue: configuration.appearanceSettings.iconSet)
         _backgroundColor = State(initialValue: configuration.appearanceSettings.backgroundColor.color)
+        _foregroundColor = State(initialValue: configuration.appearanceSettings.foregroundColor.color)
     }
 
     var body: some View {
@@ -89,6 +94,15 @@ struct PreferencesView: View {
                         .labelsHidden()
                         .onChange(of: backgroundColor) { _, newValue in
                             onUpdateBackgroundColor(CodableColor(color: newValue))
+                        }
+                }
+
+                HStack {
+                    Text("Foreground Color:")
+                    ColorPicker("", selection: $foregroundColor, supportsOpacity: true)
+                        .labelsHidden()
+                        .onChange(of: foregroundColor) { _, newValue in
+                            onUpdateForegroundColor(CodableColor(color: newValue))
                         }
                 }
 

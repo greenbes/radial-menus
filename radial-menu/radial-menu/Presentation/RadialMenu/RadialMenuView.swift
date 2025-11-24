@@ -15,6 +15,7 @@ struct RadialMenuView: View {
         let radius = viewModel.configuration.appearanceSettings.radius
         let centerRadius = viewModel.configuration.appearanceSettings.centerRadius
         let backgroundColor = viewModel.configuration.appearanceSettings.backgroundColor.color
+        let foregroundColor = viewModel.configuration.appearanceSettings.foregroundColor.color
         let windowSize: CGFloat = 400.0
         let centerPoint = CGPoint(x: windowSize/2, y: windowSize/2)
 
@@ -35,7 +36,8 @@ struct RadialMenuView: View {
                         slice: slice,
                         isSelected: isSelected,
                         radius: radius,
-                        centerRadius: centerRadius
+                        centerRadius: centerRadius,
+                        foregroundColor: foregroundColor
                     )
                     .equatable() // Only re-render if props change
                     .zIndex(isSelected ? 1 : 0)
@@ -47,14 +49,14 @@ struct RadialMenuView: View {
                     .frame(width: centerRadius * 2, height: centerRadius * 2)
                     .overlay(
                         Circle()
-                            .stroke(Color.white.opacity(0.3), lineWidth: 2)
+                            .stroke(foregroundColor.opacity(0.3), lineWidth: 2)
                     )
                     .position(centerPoint)
 
                 // Center icon
                 Image(systemName: "circle.grid.cross")
                     .font(.system(size: 20))
-                    .foregroundColor(.white)
+                    .foregroundColor(foregroundColor)
                     .position(centerPoint)
             }
             .frame(width: windowSize, height: windowSize)
