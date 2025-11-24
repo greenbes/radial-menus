@@ -57,28 +57,28 @@ final class RadialMenuViewModel: ObservableObject {
     }
 
     func toggleMenu() {
-        print("🎯 RadialMenuViewModel: toggleMenu() called, current state: \(menuState)")
+        Log("🎯 RadialMenuViewModel: toggleMenu() called, current state: \(menuState)")
 
         switch menuState {
         case .closed:
-            print("🎯 RadialMenuViewModel: Menu is closed, opening...")
+            Log("🎯 RadialMenuViewModel: Menu is closed, opening...")
             openMenu()
         case .open:
-            print("🎯 RadialMenuViewModel: Menu is open, closing...")
+            Log("🎯 RadialMenuViewModel: Menu is open, closing...")
             closeMenu()
         default:
-            print("🎯 RadialMenuViewModel: Menu in transition state, ignoring toggle")
+            Log("🎯 RadialMenuViewModel: Menu in transition state, ignoring toggle")
             break
         }
     }
 
     func openMenu(at position: CGPoint? = nil) {
         guard case .closed = menuState else {
-            print("⚠️  RadialMenuViewModel: Cannot open menu, not in closed state")
+            Log("⚠️  RadialMenuViewModel: Cannot open menu, not in closed state")
             return
         }
 
-        print("🎯 RadialMenuViewModel: Opening menu...")
+        Log("🎯 RadialMenuViewModel: Opening menu...")
         menuState = .opening
         selectedIndex = nil
 
@@ -93,15 +93,43 @@ final class RadialMenuViewModel: ObservableObject {
             radius: radius,
             centerPoint: windowCenter
         )
-        print("🎯 RadialMenuViewModel: Calculated \(slices.count) slices with center \(windowCenter)")
+        Log("🎯 RadialMenuViewModel: Calculated \(slices.count) slices with center \(windowCenter)")
+        Log("SLICE LOGGING START")
+
+        if slices.count > 0 {
+            Log("Slice 0: \(configuration.items[0].title) Y=\(slices[0].centerPoint.y)")
+        }
+        if slices.count > 1 {
+            Log("Slice 1: \(configuration.items[1].title) Y=\(slices[1].centerPoint.y)")
+        }
+        if slices.count > 2 {
+            Log("Slice 2: \(configuration.items[2].title) Y=\(slices[2].centerPoint.y)")
+        }
+        if slices.count > 3 {
+            Log("Slice 3: \(configuration.items[3].title) Y=\(slices[3].centerPoint.y)")
+        }
+        if slices.count > 4 {
+            Log("Slice 4: \(configuration.items[4].title) Y=\(slices[4].centerPoint.y)")
+        }
+        if slices.count > 5 {
+            Log("Slice 5: \(configuration.items[5].title) Y=\(slices[5].centerPoint.y)")
+        }
+        if slices.count > 6 {
+            Log("Slice 6: \(configuration.items[6].title) Y=\(slices[6].centerPoint.y)")
+        }
+        if slices.count > 7 {
+            Log("Slice 7: \(configuration.items[7].title) Y=\(slices[7].centerPoint.y)")
+        }
+
+        Log("SLICE LOGGING END")
 
         // Show overlay window
-        print("🎯 RadialMenuViewModel: Showing overlay window...")
+        Log("🎯 RadialMenuViewModel: Showing overlay window...")
         overlayWindow.show(at: position)
 
         // Transition to open state
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            print("🎯 RadialMenuViewModel: Transition to open state complete")
+            Log("🎯 RadialMenuViewModel: Transition to open state complete")
             self.menuState = .open(selectedIndex: nil)
         }
     }
@@ -137,7 +165,10 @@ final class RadialMenuViewModel: ObservableObject {
         // Sticky selection: Only update if cursor is over a valid slice
         if let newIndex = newSelectedIndex {
             if newIndex != selectedIndex {
-                Log("🎯 ViewModel: Selection changed to \(newIndex) (Point: \(point))")
+                let angle = RadialGeometry.angleFromCenter(point: point, center: center)
+                let degrees = angle * 180.0 / .pi
+                let itemName = configuration.items[newIndex].title
+                Log("🎯 Selection changed: \(itemName) (slice \(newIndex)) at point(\(String(format: "%.0f", point.x)),\(String(format: "%.0f", point.y))) angle=\(String(format: "%.0f", degrees))°")
                 selectedIndex = newIndex
                 menuState = .open(selectedIndex: newIndex)
             }

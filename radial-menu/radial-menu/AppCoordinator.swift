@@ -62,7 +62,13 @@ class AppCoordinator {
             modifiers: HotkeyManager.ModifierFlag.control,
             callback: { [weak self] in
                 Log("⌨️  Hotkey pressed!")
-                self?.viewModel.toggleMenu()
+                guard let self = self else {
+                    Log("⚠️  AppCoordinator: self is nil in hotkey callback")
+                    return
+                }
+                Log("⌨️  AppCoordinator: Calling viewModel.toggleMenu()")
+                self.viewModel.toggleMenu()
+                Log("⌨️  AppCoordinator: viewModel.toggleMenu() returned")
             }
         )
 

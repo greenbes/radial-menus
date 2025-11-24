@@ -28,3 +28,9 @@ Lightweight macOS radial menu with configurable actions, icon sets, and keyboard
   - `Presentation/` SwiftUI views + view models (MVVM)
 - Default configuration is in `MenuConfiguration.sample()`. User config persists at `~/Library/Application Support/com.radial-menu/radial-menu-config.json` (not checked in).
 - Preview macros and SwiftData templates were removed to keep CLI builds stable.
+
+## Debugging
+- Use `Log("message")` for debug output (defined in `Logger.swift`).
+- Logs are written to `/tmp/radial-menu-debug.log`.
+- When running with `./run-with-logs.sh`, logs are automatically tailed.
+- Do NOT use `print()` statements - they won't appear in the log file.

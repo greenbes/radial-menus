@@ -75,12 +75,14 @@ struct SliceView: View, Equatable {
         let outerRadius = isSelected ? radius * 1.05 : radius
         let iconOffset = isSelected ? 5.0 : 0.0
         let resolvedIcon = item.resolvedIcon(for: iconSet)
-        
+
+        // Remove per-frame logging as it's too verbose
+
         // Calculate icon position with offset
         let midAngle = (slice.startAngle + slice.endAngle) / 2
         let iconX = slice.centerPoint.x + CGFloat(cos(midAngle) * iconOffset)
         let iconY = slice.centerPoint.y + CGFloat(sin(midAngle) * iconOffset)
-        
+
         ZStack {
             // Slice background (wedge shape)
             SliceShape(
@@ -110,6 +112,14 @@ struct SliceView: View, Equatable {
                     .lineLimit(1)
             }
             .position(x: iconX, y: iconY)
+            .background(
+                GeometryReader { geo in
+                    Color.clear.onAppear {
+                        let frame = geo.frame(in: .global)
+                        Log("🎨 \(item.title) rendered at global Y=\(frame.minY) local Y=\(iconY)")
+                    }
+                }
+            )
         }
         .animation(.easeInOut(duration: 0.15), value: isSelected)
     }

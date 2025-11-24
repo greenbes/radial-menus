@@ -41,7 +41,7 @@ enum RadialGeometry {
             let centerAngle = startAngle + anglePerSlice / 2.0
 
             let centerX = centerPoint.x + CGFloat(cos(centerAngle) * radius * 0.65)
-            let centerY = centerPoint.y - CGFloat(sin(centerAngle) * radius * 0.65) // Flipped Y for SwiftUI
+            let centerY = centerPoint.y + CGFloat(sin(centerAngle) * radius * 0.65)
 
             return Slice(
                 index: index,
