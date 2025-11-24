@@ -14,14 +14,15 @@ struct RadialMenuView: View {
     var body: some View {
         let radius = viewModel.configuration.appearanceSettings.radius
         let centerRadius = viewModel.configuration.appearanceSettings.centerRadius
+        let backgroundColor = viewModel.configuration.appearanceSettings.backgroundColor.color
         let windowSize: CGFloat = 400.0
         let centerPoint = CGPoint(x: windowSize/2, y: windowSize/2)
-        
+
         RadialMenuContainer(
             content: ZStack {
-                // Background blur
+                // Background circle with user-selected color
                 Circle()
-                    .fill(.ultraThinMaterial)
+                    .fill(backgroundColor)
                     .frame(width: radius * 2.1, height: radius * 2.1)
                     .position(centerPoint)
 

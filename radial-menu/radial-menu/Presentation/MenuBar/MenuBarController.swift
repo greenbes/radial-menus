@@ -53,6 +53,16 @@ class MenuBarController {
                 } catch {
                     print("❌ Failed to save icon set: \(error)")
                 }
+            },
+            onUpdateBackgroundColor: { [weak self] newColor in
+                guard let self else { return }
+                var updated = configManager.currentConfiguration
+                updated.appearanceSettings.backgroundColor = newColor
+                do {
+                    try configManager.saveConfiguration(updated)
+                } catch {
+                    print("❌ Failed to save background color: \(error)")
+                }
             }
         )
 

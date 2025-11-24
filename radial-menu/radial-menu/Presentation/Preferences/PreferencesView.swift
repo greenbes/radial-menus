@@ -12,18 +12,23 @@ struct PreferencesView: View {
     let configuration: MenuConfiguration
     let onResetToDefault: () -> Void
     let onUpdateIconSet: (IconSet) -> Void
+    let onUpdateBackgroundColor: (CodableColor) -> Void
 
     @State private var selectedIconSet: IconSet
+    @State private var backgroundColor: Color
 
     init(
         configuration: MenuConfiguration,
         onResetToDefault: @escaping () -> Void,
-        onUpdateIconSet: @escaping (IconSet) -> Void
+        onUpdateIconSet: @escaping (IconSet) -> Void,
+        onUpdateBackgroundColor: @escaping (CodableColor) -> Void
     ) {
         self.configuration = configuration
         self.onResetToDefault = onResetToDefault
         self.onUpdateIconSet = onUpdateIconSet
+        self.onUpdateBackgroundColor = onUpdateBackgroundColor
         _selectedIconSet = State(initialValue: configuration.appearanceSettings.iconSet)
+        _backgroundColor = State(initialValue: configuration.appearanceSettings.backgroundColor.color)
     }
 
     var body: some View {
@@ -76,6 +81,15 @@ struct PreferencesView: View {
                     .onChange(of: selectedIconSet) { _, newValue in
                         onUpdateIconSet(newValue)
                     }
+                }
+
+                HStack {
+                    Text("Background Color:")
+                    ColorPicker("", selection: $backgroundColor, supportsOpacity: true)
+                        .labelsHidden()
+                        .onChange(of: backgroundColor) { _, newValue in
+                            onUpdateBackgroundColor(CodableColor(color: newValue))
+                        }
                 }
 
                 HStack {

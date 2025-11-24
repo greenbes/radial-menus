@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import SwiftUI
 
 /// Configuration for the radial menu
 struct MenuConfiguration: Codable, Equatable {
@@ -31,14 +32,46 @@ struct AppearanceSettings: Codable, Equatable {
     var sliceHighlightScale: Double
     var animationDuration: Double
     var iconSet: IconSet = .outline
+    var backgroundColor: CodableColor = CodableColor(color: .black.opacity(0.3))
 
     static let `default` = AppearanceSettings(
         radius: 150.0,
         centerRadius: 40.0,
         sliceHighlightScale: 1.1,
         animationDuration: 0.15,
-        iconSet: .outline
+        iconSet: .outline,
+        backgroundColor: CodableColor(color: .black.opacity(0.3))
     )
+}
+
+/// Wrapper to make Color codable for storage
+struct CodableColor: Codable, Equatable {
+    var red: Double
+    var green: Double
+    var blue: Double
+    var alpha: Double
+
+    init(color: Color) {
+        // Extract RGBA components from Color
+        let nsColor = NSColor(color)
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        nsColor.getRed(&r, green: &g, blue: &b, alpha: &a)
+        self.red = Double(r)
+        self.green = Double(g)
+        self.blue = Double(b)
+        self.alpha = Double(a)
+    }
+
+    init(red: Double, green: Double, blue: Double, alpha: Double) {
+        self.red = red
+        self.green = green
+        self.blue = blue
+        self.alpha = alpha
+    }
+
+    var color: Color {
+        Color(red: red, green: green, blue: blue, opacity: alpha)
+    }
 }
 
 /// Behavior settings for the radial menu
