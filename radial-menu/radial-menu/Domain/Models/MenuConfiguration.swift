@@ -57,7 +57,8 @@ struct CodableColor: Codable, Equatable {
 
     init(color: Color) {
         // Extract RGBA components from Color
-        let nsColor = NSColor(color)
+        // Convert to RGB color space to ensure getRed works
+        let nsColor = NSColor(color).usingColorSpace(.sRGB) ?? NSColor(color)
         var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
         nsColor.getRed(&r, green: &g, blue: &b, alpha: &a)
         self.red = Double(r)
