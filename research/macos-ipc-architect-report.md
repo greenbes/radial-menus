@@ -33,6 +33,7 @@ macOS provides a sophisticated multi-layered architecture for inter-application 
 ### Strategic Recommendations
 
 For building composable tools on macOS 15:
+
 - **Primary**: Use XPC Services for secure, high-performance communication
 - **Automation**: Implement App Intents for Shortcuts integration
 - **User-Initiated**: Expose Services for text/data transformations
@@ -70,6 +71,7 @@ The diversity of IPC mechanisms on macOS isn't accidental—it's architectural:
 NeXTSTEP introduced revolutionary concepts that still underpin macOS:
 
 #### Distributed Objects
+
 NeXTSTEP's Distributed Objects (DO) system allowed seamless object sharing between processes:
 
 ```objc
@@ -79,12 +81,15 @@ id remoteObject = [connection rootProxy];
 ```
 
 This transparency came with costs:
+
 - Security vulnerabilities from implicit trust
 - Performance overhead from proxy objects
 - Complex lifecycle management
 
 #### Services Architecture
+
 The Services menu, introduced in NeXTSTEP, pioneered system-wide data transformations:
+
 - Any app could provide services to any other app
 - Rich type system through pasteboard types
 - User-discoverable through consistent UI
@@ -94,19 +99,24 @@ The Services menu, introduced in NeXTSTEP, pioneered system-wide data transforma
 Smalltalk's philosophy profoundly influenced macOS through several channels:
 
 #### Message-Passing Paradigm
+
 Objective-C inherited Smalltalk's message-passing approach:
+
 ```objc
 // Not a function call, but a message
 [object doSomethingWith:parameter];
 ```
 
 This enables:
+
 - Runtime introspection and modification
 - Dynamic dispatch and forwarding
 - Loosely coupled component interaction
 
 #### Everything Is An Object
+
 The object-oriented philosophy extends to IPC:
+
 - Distributed Objects treated remote objects as local
 - NSPasteboard exchanges objects, not just data
 - AppleScript views applications as object hierarchies
@@ -114,6 +124,7 @@ The object-oriented philosophy extends to IPC:
 ### The Mac OS X Transition (2001)
 
 Mac OS X merged NeXTSTEP with classic Mac OS, creating tensions:
+
 - Carbon vs. Cocoa APIs
 - AppleScript vs. Distributed Objects
 - Classic IPC vs. Unix mechanisms
@@ -123,18 +134,22 @@ Mac OS X merged NeXTSTEP with classic Mac OS, creating tensions:
 Starting with OS X Mountain Lion (10.8), Apple prioritized security:
 
 #### Gatekeeper and Code Signing (2012)
+
 - Required signed code for IPC trust
 - Introduced Developer ID distribution
 
 #### App Sandbox (2012)
+
 - Restricted IPC to explicit entitlements
 - Ended era of unrestricted communication
 
 #### System Integrity Protection (2015)
+
 - Protected system processes from tampering
 - Limited even root access to system resources
 
 #### TCC - Transparency, Consent, and Control (2018)
+
 - User must grant explicit permissions
 - Applies to Accessibility, Automation, and more
 
@@ -147,6 +162,7 @@ macOS IPC operates across four distinct layers, each with its own abstractions a
 The Mach microkernel provides fundamental IPC primitives:
 
 #### Mach Ports
+
 ```c
 // Low-level Mach port creation
 mach_port_t port;
@@ -158,12 +174,14 @@ kern_return_t kr = mach_port_allocate(
 ```
 
 Characteristics:
+
 - **Performance**: Minimal overhead, kernel-mediated
 - **Security**: Capability-based, unforgeable rights
 - **Complexity**: Manual lifecycle management
 - **Use Cases**: System daemons, drivers, real-time audio
 
 #### Mach Messages
+
 ```c
 typedef struct {
     mach_msg_header_t header;
@@ -187,6 +205,7 @@ mach_msg_return_t result = mach_msg(
 System frameworks wrap kernel primitives in higher-level abstractions:
 
 #### Core Foundation
+
 ```c
 // CFMessagePort - Core Foundation wrapper around Mach ports
 CFMessagePortRef port = CFMessagePortCreateLocal(
@@ -199,6 +218,7 @@ CFMessagePortRef port = CFMessagePortCreateLocal(
 ```
 
 #### Foundation
+
 ```objc
 // NSMachPort - Objective-C wrapper
 NSMachPort *receivePort = [[NSMachPort alloc] init];
@@ -212,6 +232,7 @@ NSMachPort *receivePort = [[NSMachPort alloc] init];
 Application frameworks provide IPC tailored to app development:
 
 #### XPC Services
+
 ```swift
 // Modern Swift XPC service connection
 let connection = NSXPCConnection(serviceName: "com.example.helper")
@@ -225,6 +246,7 @@ helper?.performTask { result in
 ```
 
 #### Distributed Notifications
+
 ```swift
 // Broadcasting notifications between processes
 DistributedNotificationCenter.default().post(
@@ -239,6 +261,7 @@ DistributedNotificationCenter.default().post(
 The highest layer provides user-visible IPC mechanisms:
 
 #### Services Menu
+
 ```swift
 // Registering a service provider
 NSApplication.shared.servicesProvider = self
@@ -271,6 +294,7 @@ NSApplication.shared.servicesProvider = self
 ```
 
 #### App Intents
+
 ```swift
 // Modern App Intents for Shortcuts
 struct OpenDocumentIntent: AppIntent {
@@ -298,6 +322,7 @@ XPC (Cross-Process Communication) represents Apple's modern approach to IPC, emp
 #### Architecture
 
 XPC uses a client-server model with these components:
+
 - **XPC Service**: Separate binary in app bundle
 - **Connection**: Bidirectional communication channel
 - **Protocol**: Objective-C protocol defining the interface
@@ -306,6 +331,7 @@ XPC uses a client-server model with these components:
 #### Implementation Example
 
 **Service Protocol (Shared)**:
+
 ```swift
 @objc protocol ImageProcessorProtocol {
     func processImage(_ imageData: Data,
@@ -315,6 +341,7 @@ XPC uses a client-server model with these components:
 ```
 
 **XPC Service Implementation**:
+
 ```swift
 class ImageProcessor: NSObject, ImageProcessorProtocol {
     func processImage(_ imageData: Data,
@@ -346,6 +373,7 @@ class ServiceDelegate: NSObject, NSXPCListenerDelegate {
 ```
 
 **Client Implementation**:
+
 ```swift
 class ImageProcessorClient {
     private let connection: NSXPCConnection
@@ -385,12 +413,14 @@ class ImageProcessorClient {
 #### Security Considerations
 
 XPC services run in separate sandboxes with:
+
 - Distinct process space
 - Limited entitlements
 - Automatic crash recovery
 - Message filtering
 
 **Info.plist Configuration**:
+
 ```xml
 <key>XPCService</key>
 <dict>
@@ -410,6 +440,7 @@ App Intents framework enables deep Shortcuts integration, representing Apple's v
 #### Architecture
 
 App Intents consists of:
+
 - **Intents**: Discrete actions your app can perform
 - **Parameters**: Typed inputs with validation
 - **Entities**: Custom types for parameters
@@ -418,6 +449,7 @@ App Intents consists of:
 #### Comprehensive Implementation
 
 **Custom Entity**:
+
 ```swift
 struct TodoItem: AppEntity {
     let id: UUID
@@ -448,6 +480,7 @@ struct TodoItemQuery: EntityQuery {
 ```
 
 **Intent Implementation**:
+
 ```swift
 struct CreateTodoIntent: AppIntent {
     static var title: LocalizedStringResource = "Create Todo"
@@ -484,6 +517,7 @@ struct CreateTodoIntent: AppIntent {
 ```
 
 **App Shortcuts Provider**:
+
 ```swift
 struct TodoAppShortcuts: AppShortcutsProvider {
     @AppShortcutsBuilder
@@ -515,6 +549,7 @@ NSPasteboard provides system-wide data exchange through clipboard operations and
 #### Architecture
 
 NSPasteboard operates through:
+
 - **Pasteboard Types**: UTIs defining data formats
 - **Pasteboard Items**: Individual data elements
 - **Lazy Evaluation**: Data provided on demand
@@ -523,6 +558,7 @@ NSPasteboard operates through:
 #### Advanced Implementation
 
 **Custom Pasteboard Type**:
+
 ```swift
 extension NSPasteboard.PasteboardType {
     static let todoItem = NSPasteboard.PasteboardType("com.example.todo-item")
@@ -556,6 +592,7 @@ class TodoPasteboardWriter: NSObject, NSPasteboardWriting {
 ```
 
 **Drag Source Implementation**:
+
 ```swift
 class TodoListView: NSView {
     func mouseDragged(with event: NSEvent) {
@@ -585,6 +622,7 @@ extension TodoListView: NSDraggingSource {
 ```
 
 **Drop Target Implementation**:
+
 ```swift
 class TodoDropView: NSView {
     override func awakeFromNib() {
@@ -619,6 +657,7 @@ The Services menu enables system-wide text and data transformations.
 #### Implementation
 
 **Service Provider**:
+
 ```swift
 class MarkdownService: NSObject {
     @objc func convertToMarkdown(_ pboard: NSPasteboard,
@@ -643,6 +682,7 @@ class MarkdownService: NSObject {
 ```
 
 **Info.plist Configuration**:
+
 ```xml
 <key>NSServices</key>
 <array>
@@ -686,6 +726,7 @@ AppleScript provides user-level application automation through a scripting inter
 #### Making Your App Scriptable
 
 **Scripting Definition (SDEF)**:
+
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE dictionary SYSTEM "file://localhost/System/Library/DTDs/sdef.dtd">
@@ -723,6 +764,7 @@ AppleScript provides user-level application automation through a scripting inter
 ```
 
 **Script Command Implementation**:
+
 ```swift
 class CreateTodoCommand: NSCreateCommand {
     override func performDefaultImplementation() -> Any? {
@@ -753,6 +795,7 @@ extension Todo: NSObjectProtocol {
 ```
 
 **AppleScript Usage**:
+
 ```applescript
 tell application "Todo App"
     set newTodo to create todo with title "Review pull request"
@@ -767,6 +810,7 @@ end tell
 ```
 
 **JavaScript for Automation (JXA)**:
+
 ```javascript
 const TodoApp = Application("Todo App");
 TodoApp.includeStandardAdditions = true;
@@ -790,6 +834,7 @@ Distributed notifications enable broadcast communication between processes.
 #### Implementation
 
 **Posting Notifications**:
+
 ```swift
 class NotificationBroadcaster {
     static func postUpdate(todo: TodoItem) {
@@ -813,6 +858,7 @@ extension Notification.Name {
 ```
 
 **Observing Notifications**:
+
 ```swift
 class NotificationObserver {
     init() {
@@ -849,6 +895,7 @@ URL schemes provide simple app launching and deep linking.
 #### Implementation
 
 **Registering URL Scheme**:
+
 ```xml
 <!-- Info.plist -->
 <key>CFBundleURLTypes</key>
@@ -865,6 +912,7 @@ URL schemes provide simple app launching and deep linking.
 ```
 
 **Handling URLs**:
+
 ```swift
 class AppDelegate: NSObject, NSApplicationDelegate {
     func application(_ application: NSApplication, open urls: [URL]) {
@@ -899,6 +947,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 ```
 
 **Launching URLs from Another App**:
+
 ```swift
 // Open specific todo
 let url = URL(string: "todo://open/123e4567-e89b-12d3-a456-426614174000")!
@@ -916,6 +965,7 @@ Launch Services manages app discovery and file associations.
 #### Registering Document Types
 
 **Info.plist Configuration**:
+
 ```xml
 <key>CFBundleDocumentTypes</key>
 <array>
@@ -956,6 +1006,7 @@ Launch Services manages app discovery and file associations.
 ```
 
 **Programmatic Launch Services Usage**:
+
 ```swift
 // Find apps that can open a file type
 let url = URL(fileURLWithPath: "/path/to/file.todo")
@@ -983,6 +1034,7 @@ Accessibility APIs enable UI automation and assistive technologies.
 #### Implementation
 
 **Requesting Permission**:
+
 ```swift
 func requestAccessibilityPermission() -> Bool {
     let options: NSDictionary = [kAXTrustedCheckOptionPrompt.takeRetainedValue(): true]
@@ -991,6 +1043,7 @@ func requestAccessibilityPermission() -> Bool {
 ```
 
 **UI Automation**:
+
 ```swift
 class UIAutomation {
     func clickMenuItem(appName: String, menuTitle: String, menuItem: String) {
@@ -1035,6 +1088,7 @@ App Groups enable data sharing between related apps from the same developer.
 #### Configuration
 
 **Entitlements**:
+
 ```xml
 <key>com.apple.security.application-groups</key>
 <array>
@@ -1043,6 +1097,7 @@ App Groups enable data sharing between related apps from the same developer.
 ```
 
 **Shared UserDefaults**:
+
 ```swift
 class SharedPreferences {
     static let suiteName = "group.com.example.todo-suite"
@@ -1062,6 +1117,7 @@ class SharedPreferences {
 ```
 
 **Shared File Storage**:
+
 ```swift
 class SharedStorage {
     static var containerURL: URL? {
@@ -1097,6 +1153,7 @@ CloudKit provides cloud-based data synchronization across devices and apps.
 #### Implementation
 
 **Schema Definition**:
+
 ```swift
 class CloudKitManager {
     let container = CKContainer(identifier: "iCloud.com.example.todo")
@@ -1133,6 +1190,7 @@ class CloudKitManager {
 ```
 
 **Subscription for Real-time Updates**:
+
 ```swift
 extension CloudKitManager {
     func setupSubscriptions() async throws {
@@ -1180,6 +1238,7 @@ App Extensions allow embedding functionality from one app into another.
 #### Share Extension Implementation
 
 **Extension Info.plist**:
+
 ```xml
 <key>NSExtension</key>
 <dict>
@@ -1201,6 +1260,7 @@ App Extensions allow embedding functionality from one app into another.
 ```
 
 **Share Extension View Controller**:
+
 ```swift
 class ShareViewController: NSViewController {
     @IBOutlet weak var textView: NSTextView!
@@ -1251,11 +1311,13 @@ ScriptingBridge provides programmatic access to scriptable applications.
 #### Implementation
 
 **Generate Header**:
+
 ```bash
 sdef /System/Applications/Mail.app | sdp -fh --basename Mail
 ```
 
 **Using ScriptingBridge**:
+
 ```swift
 import ScriptingBridge
 
@@ -1353,6 +1415,7 @@ Mach ports provide the foundation for most higher-level IPC mechanisms.
 #### Implementation
 
 **Server**:
+
 ```swift
 class MachPortServer {
     private var receivePort: NSMachPort?
@@ -1423,6 +1486,7 @@ macOS employs defense-in-depth with multiple security layers:
 The App Sandbox significantly impacts IPC capabilities:
 
 #### Sandbox-Compatible IPC Methods
+
 - XPC Services (within same app group)
 - App Groups (shared containers)
 - URL Schemes (with limitations)
@@ -1431,6 +1495,7 @@ The App Sandbox significantly impacts IPC capabilities:
 - CloudKit
 
 #### Restricted in Sandbox
+
 - Direct Mach port communication
 - NSDistributedNotificationCenter (limited)
 - AppleScript (requires entitlement)
@@ -1466,12 +1531,14 @@ Key entitlements enabling IPC:
 ### TCC and User Consent
 
 TCC requires user consent for:
+
 - **Accessibility**: UI automation
 - **Automation**: AppleScript control of other apps
 - **Screen Recording**: Capturing screen content
 - **Input Monitoring**: Global keyboard/mouse events
 
 Implementation:
+
 ```swift
 func requestAutomationPermission() {
     let target = NSAppleEventDescriptor(bundleIdentifier: "com.apple.finder")
@@ -1500,7 +1567,7 @@ func requestAutomationPermission() {
 ### Choosing the Right IPC Mechanism
 
 | Use Case | Recommended Technology | Rationale |
-|----------|----------------------|-----------|
+|----------|------------------------|-----------|
 | **High-performance service** | XPC Services | Process isolation, automatic recovery, optimized serialization |
 | **User automation** | App Intents + Shortcuts | Modern, discoverable, user-friendly |
 | **Text transformation** | Services Menu | System-wide availability, consistent UX |
@@ -1972,6 +2039,7 @@ class TodoPluginManager {
 ## References
 
 ### Apple Documentation
+
 - [Daemons and Services Programming Guide](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/Introduction.html)
 - [App Intents Documentation](https://developer.apple.com/documentation/appintents)
 - [XPC Services](https://developer.apple.com/library/archive/documentation/Security/Conceptual/AppSandboxDesignGuide/AppSandboxInDepth/AppSandboxInDepth.html)
@@ -1979,28 +2047,33 @@ class TodoPluginManager {
 - [Services Implementation Guide](https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/SysServices/introduction.html)
 
 ### Technical Articles
+
 - [Inter-Process Communication - NSHipster](https://nshipster.com/inter-process-communication/)
 - [XPC Services on macOS using Swift](https://rderik.com/blog/xpc-services-on-macos-apps-using-swift/)
 - [Understanding Launch Services](https://eclecticlight.co/2020/04/15/launch-services-database-problems/)
 - [macOS Accessibility API Tutorial](https://www.raywenderlich.com/858325-macos-accessibility-api-tutorial)
 
 ### WWDC Sessions
+
 - [WWDC24: Bring your app to Siri](https://developer.apple.com/videos/play/wwdc2024/10133/)
 - [WWDC23: Explore App Intents](https://developer.apple.com/videos/play/wwdc2023/10032/)
 - [WWDC21: Build apps that share data through CloudKit](https://developer.apple.com/videos/play/wwdc2021/10015/)
 - [WWDC20: Create quick interactions with Shortcuts](https://developer.apple.com/videos/play/wwdc2020/10084/)
 
 ### Books
+
 - "Advanced Mac OS X Programming" by Mark Dalrymple and Aaron Hillegass
 - "macOS Programming for Absolute Beginners" by Wallace Wang
 - "Cocoa Programming for OS X" by Aaron Hillegass and Adam Preble
 
 ### Historical References
+
 - [NeXTSTEP Operating System Software](https://archive.org/details/nextstep_operating_system_software)
 - [Rhapsody Developer Documentation](https://developer.apple.com/library/archive/documentation/LegacyTechnologies/WebObjects/WebObjects_3.5/PDF/Rhapsody.pdf)
 - [The NeXT Computer](https://web.archive.org/web/20080517112450/http://www.next.com/)
 
 ### Open Source Examples
+
 - [Hammerspoon](https://github.com/Hammerspoon/hammerspoon) - Lua automation tool
 - [Phoenix](https://github.com/kasper/phoenix) - Window management via JavaScript
 - [Karabiner-Elements](https://github.com/pqrs-org/Karabiner-Elements) - Keyboard customization
