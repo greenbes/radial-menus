@@ -2,16 +2,31 @@
 default:
   @just --list --justfile {{justfile()}}
 
+# Check development tools availability (text output)
+check-tools:
+  @uv run scripts/check_dev_tools.py --output text
+
+# Check development tools with JSON output
+check-tools-json:
+  @uv run scripts/check_dev_tools.py --output json --pretty
+
+# Internal: Quietly check tools (for use as dependency)
+_check-tools-quiet:
+  @echo "Checking development tools..." && \
+  uv run scripts/check_dev_tools.py --output json 2>/dev/null | \
+  uv run python -c "import sys, json; data=json.load(sys.stdin); sys.exit(0 if data['summary']['all_required_present'] else 1)" || \
+  (echo "" && uv run scripts/check_dev_tools.py --output text && exit 1)
+
 # Project and scheme configuration
 project := "radial-menu/radial-menu.xcodeproj"
 scheme := "radial-menu"
 
 # Build the app in Debug configuration
-build:
+build: _check-tools-quiet
   xcodebuild -project {{project}} -scheme {{scheme}} -configuration Debug build
 
 # Build the app in Release configuration
-build-release:
+build-release: _check-tools-quiet
   xcodebuild -project {{project}} -scheme {{scheme}} -configuration Release build
 
 # Clean build artifacts
@@ -20,19 +35,19 @@ clean:
   rm -rf radial-menu/radial-menu/DerivedData
 
 # Resolve package dependencies
-deps:
+deps: _check-tools-quiet
   xcodebuild -resolvePackageDependencies -scheme {{scheme}} -project {{project}}
 
 # Run all tests
-test:
+test: _check-tools-quiet
   xcodebuild test -project {{project}} -scheme {{scheme}}
 
 # Run tests for a specific file (example: just test-file RadialGeometryTests)
-test-file FILE:
+test-file FILE: _check-tools-quiet
   xcodebuild test -project {{project}} -scheme {{scheme}} -only-testing:radial-menuTests/{{FILE}}
 
 # Run a single test (example: just test-single RadialGeometryTests/testCalculateSlices)
-test-single TEST:
+test-single TEST: _check-tools-quiet
   xcodebuild test -project {{project}} -scheme {{scheme}} -only-testing:radial-menuTests/{{TEST}}
 
 # Build and run the app with logging
@@ -69,7 +84,7 @@ xcode:
   open {{project}}
 
 # Archive the app for distribution
-archive:
+archive: _check-tools-quiet
   xcodebuild -project {{project}} -scheme {{scheme}} -configuration Release -archivePath build/radial-menu.xcarchive archive
 
 # Export the archived app
