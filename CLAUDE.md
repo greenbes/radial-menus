@@ -12,13 +12,16 @@ Radial Menu is a macOS menu bar application that displays a configurable radial 
 
 ```bash
 # Resolve dependencies (if needed)
-xcodebuild -resolvePackageDependencies -scheme radial-menu
+xcodebuild -resolvePackageDependencies -scheme radial-menu -project radial-menu/radial-menu.xcodeproj
 
-# Build Debug (code signing disabled for local builds)
-xcodebuild -scheme radial-menu -configuration Debug build -derivedDataPath ./radial-menu/DerivedData
+# Build Debug (uses system DerivedData location)
+xcodebuild -project radial-menu/radial-menu.xcodeproj -scheme radial-menu -configuration Debug build
 
 # Build Release
-xcodebuild -scheme radial-menu -configuration Release build -derivedDataPath ./radial-menu/DerivedData
+xcodebuild -project radial-menu/radial-menu.xcodeproj -scheme radial-menu -configuration Release build
+
+# Note: If you encounter "Multiple commands produce" errors, remove any local DerivedData:
+# rm -rf radial-menu/radial-menu/DerivedData
 ```
 
 ### Running
