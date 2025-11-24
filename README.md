@@ -3,11 +3,12 @@
 Lightweight macOS radial menu with configurable actions, icon sets, and keyboard/controller navigation.
 
 ## Features
-- Radial menu overlay with 4–8 configurable items.
+- Radial menu overlay with configurable items (add/remove via Preferences).
 - Actions: launch apps, run shell commands, simulate keyboard shortcuts.
-- Input: mouse/trackpad, keyboard navigation, optional controller navigation.
-- Appearance: selectable icon sets (Outline, Filled, Simple, Bootstrap), consistent monochrome tinting, light/dark friendly.
-- Menu bar item with Preferences window for configuring items, hotkey, and icon set.
+- Input: mouse/trackpad, keyboard navigation (arrow keys), optional controller navigation.
+- Appearance: selectable icon sets (Outline, Filled, Simple, Bootstrap), customizable colors (background, foreground, selected item), adjustable radius and center radius.
+- Position: configurable launch location (at cursor or screen center).
+- Menu bar item with Preferences window for full configuration.
 
 ## Icon Sets
 - Assets live in `radial-menu/Assets.xcassets`. Bootstrap icons use the converted PDFs under `bootstrap_*.imageset/`.
@@ -16,9 +17,10 @@ Lightweight macOS radial menu with configurable actions, icon sets, and keyboard
 
 ## Build & Run (CLI only)
 - Resolve dependencies (if needed): `xcodebuild -resolvePackageDependencies -scheme radial-menu`.
-- Build Debug: `xcodebuild -scheme radial-menu -configuration Debug build -derivedDataPath ./DerivedData`.
+- Build Debug: `xcodebuild -project radial-menu/radial-menu.xcodeproj -scheme radial-menu -configuration Debug build`.
   - Code signing is disabled for local Debug/Release in the project settings.
-- Launch with logging: `./run-with-logs.sh` (uses the latest Debug build in DerivedData and tails `/tmp/radial-menu-debug.log`).
+  - Uses system DerivedData location (typically `~/Library/Developer/Xcode/DerivedData`).
+- Launch with logging: `./run-with-logs.sh` (finds the latest Debug build and tails `/tmp/radial-menu-debug.log`).
 - Hotkey test helper: `./test-hotkey.sh`.
 
 ## Development Notes
