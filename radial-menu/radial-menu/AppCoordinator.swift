@@ -24,6 +24,11 @@ class AppCoordinator {
     private let viewModel: RadialMenuViewModel
     private let menuBarController: MenuBarController
 
+    // MARK: - Controller State Tracking
+
+    private var previousDpadLeft = false
+    private var previousDpadRight = false
+
     // MARK: - Initialization
 
     init() {
@@ -116,6 +121,16 @@ class AppCoordinator {
             viewModel.toggleMenu()
             return
         }
+
+        // Handle d-pad for navigation (edge-triggered, like keyboard arrows)
+        if state.dpadRight && !previousDpadRight {
+            viewModel.handleKeyboardNavigation(clockwise: true)
+        }
+        if state.dpadLeft && !previousDpadLeft {
+            viewModel.handleKeyboardNavigation(clockwise: false)
+        }
+        previousDpadRight = state.dpadRight
+        previousDpadLeft = state.dpadLeft
 
         // Handle analog stick for selection
         viewModel.handleControllerInput(

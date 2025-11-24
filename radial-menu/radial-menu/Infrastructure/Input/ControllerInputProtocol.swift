@@ -13,6 +13,8 @@ struct ControllerState: Equatable {
     let leftStickY: Double
     let buttonAPressed: Bool
     let menuButtonPressed: Bool
+    let dpadLeft: Bool
+    let dpadRight: Bool
 }
 
 /// Protocol for controller input management

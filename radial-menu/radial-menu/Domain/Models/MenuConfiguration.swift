@@ -101,11 +101,13 @@ struct BehaviorSettings: Codable, Equatable {
     var positionMode: PositionMode
     var fixedPosition: CGPoint?
     var showOnAllSpaces: Bool
+    var joystickDeadzone: Double
 
     static let `default` = BehaviorSettings(
         positionMode: .atCursor,
         fixedPosition: nil,
-        showOnAllSpaces: false
+        showOnAllSpaces: false,
+        joystickDeadzone: 0.3
     )
 }
 

@@ -133,6 +133,16 @@ class MenuBarController {
                 } catch {
                     print("❌ Failed to save center radius: \(error)")
                 }
+            },
+            onUpdateJoystickDeadzone: { [weak self] newDeadzone in
+                guard let self else { return }
+                var updated = configManager.currentConfiguration
+                updated.behaviorSettings.joystickDeadzone = newDeadzone
+                do {
+                    try configManager.saveConfiguration(updated)
+                } catch {
+                    print("❌ Failed to save joystick deadzone: \(error)")
+                }
             }
         )
 

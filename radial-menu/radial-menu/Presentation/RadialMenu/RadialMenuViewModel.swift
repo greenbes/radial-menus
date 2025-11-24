@@ -266,11 +266,13 @@ final class RadialMenuViewModel: ObservableObject {
         let newIndex = SelectionCalculator.selectedSlice(
             fromAnalogStick: x,
             y: y,
-            deadzone: 0.3,
+            deadzone: configuration.behaviorSettings.joystickDeadzone,
             slices: slices
         )
 
-        if newIndex != selectedIndex {
+        // Only update selection if stick is outside deadzone (newIndex != nil)
+        // This preserves selection from d-pad or keyboard when stick is at rest
+        if let newIndex = newIndex, newIndex != selectedIndex {
             selectedIndex = newIndex
             menuState = .open(selectedIndex: newIndex)
         }

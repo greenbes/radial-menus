@@ -70,7 +70,9 @@ class ControllerInputManager: ControllerInputProtocol {
                 leftStickX: 0,
                 leftStickY: 0,
                 buttonAPressed: false,
-                menuButtonPressed: false
+                menuButtonPressed: false,
+                dpadLeft: false,
+                dpadRight: false
             )
         }
 
@@ -78,7 +80,9 @@ class ControllerInputManager: ControllerInputProtocol {
             leftStickX: Double(gamepad.leftThumbstick.xAxis.value),
             leftStickY: Double(gamepad.leftThumbstick.yAxis.value),
             buttonAPressed: gamepad.buttonA.isPressed,
-            menuButtonPressed: gamepad.buttonMenu.isPressed
+            menuButtonPressed: gamepad.buttonMenu.isPressed,
+            dpadLeft: gamepad.dpad.left.isPressed,
+            dpadRight: gamepad.dpad.right.isPressed
         )
     }
 

@@ -20,6 +20,7 @@ struct PreferencesView: View {
     let onRemoveItem: (UUID) -> Void
     let onUpdateRadius: (Double) -> Void
     let onUpdateCenterRadius: (Double) -> Void
+    let onUpdateJoystickDeadzone: (Double) -> Void
 
     @State private var selectedIconSet: IconSet
     @State private var backgroundColor: Color
@@ -31,6 +32,7 @@ struct PreferencesView: View {
     @State private var radiusText: String
     @State private var centerRadius: Double
     @State private var centerRadiusText: String
+    @State private var joystickDeadzone: Double
 
     init(
         configuration: MenuConfiguration,
@@ -43,7 +45,8 @@ struct PreferencesView: View {
         onAddItem: @escaping (MenuItem) -> Void,
         onRemoveItem: @escaping (UUID) -> Void,
         onUpdateRadius: @escaping (Double) -> Void,
-        onUpdateCenterRadius: @escaping (Double) -> Void
+        onUpdateCenterRadius: @escaping (Double) -> Void,
+        onUpdateJoystickDeadzone: @escaping (Double) -> Void
     ) {
         self.configuration = configuration
         self.onResetToDefault = onResetToDefault
@@ -56,6 +59,7 @@ struct PreferencesView: View {
         self.onRemoveItem = onRemoveItem
         self.onUpdateRadius = onUpdateRadius
         self.onUpdateCenterRadius = onUpdateCenterRadius
+        self.onUpdateJoystickDeadzone = onUpdateJoystickDeadzone
         _selectedIconSet = State(initialValue: configuration.appearanceSettings.iconSet)
         _backgroundColor = State(initialValue: configuration.appearanceSettings.backgroundColor.color)
         _foregroundColor = State(initialValue: configuration.appearanceSettings.foregroundColor.color)
@@ -65,6 +69,7 @@ struct PreferencesView: View {
         _radiusText = State(initialValue: String(Int(configuration.appearanceSettings.radius)))
         _centerRadius = State(initialValue: configuration.appearanceSettings.centerRadius)
         _centerRadiusText = State(initialValue: String(Int(configuration.appearanceSettings.centerRadius)))
+        _joystickDeadzone = State(initialValue: configuration.behaviorSettings.joystickDeadzone)
     }
 
     var body: some View {
@@ -253,6 +258,24 @@ struct PreferencesView: View {
                     HStack {
                         Text("Show on All Spaces:")
                         Text(configuration.behaviorSettings.showOnAllSpaces ? "Yes" : "No")
+                            .foregroundColor(.secondary)
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("Joystick Deadzone:")
+                            Text(String(format: "%.0f%%", joystickDeadzone * 100))
+                                .frame(width: 40)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Slider(value: $joystickDeadzone, in: 0.1...0.5, step: 0.05)
+                            .onChange(of: joystickDeadzone) { _, newValue in
+                                onUpdateJoystickDeadzone(newValue)
+                            }
+
+                        Text("Higher values ignore more stick drift (10-50%)")
+                            .font(.caption)
                             .foregroundColor(.secondary)
                     }
                 }
