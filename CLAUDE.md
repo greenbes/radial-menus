@@ -28,10 +28,10 @@ xcodebuild -project radial-menu/radial-menu.xcodeproj -scheme radial-menu -confi
 
 ```bash
 # Launch with logging (finds latest Debug build, tails /tmp/radial-menu-debug.log)
-./run-with-logs.sh
+./scripts/run-with-logs.sh
 
 # Test hotkey detection with verbose logging
-./test-hotkey.sh
+./scripts/test-hotkey.sh
 
 # Kill running instances
 killall radial-menu
@@ -124,7 +124,7 @@ Default menu items and settings are defined in `MenuConfiguration.sample()` (Dom
 
 ### Log Files
 
-Debug logging writes to `/tmp/radial-menu-debug.log` when launched via `run-with-logs.sh`.
+Debug logging writes to `/tmp/radial-menu-debug.log` when launched via `scripts/run-with-logs.sh`.
 
 **IMPORTANT**: Always use `Log("message")` for debug output (defined in `Logger.swift`). Do NOT use `print()` statements - they won't appear in the log file. The `Log()` function writes timestamped messages to both stderr and the log file.
 
@@ -251,4 +251,4 @@ The app requires Accessibility permissions to register global hotkeys. If hotkey
 3. Add radial-menu.app to the allowed list
 4. Restart the app
 
-The `test-hotkey.sh` script provides detailed feedback if permissions are missing.
+The `scripts/test-hotkey.sh` script provides detailed feedback if permissions are missing.

@@ -1,0 +1,275 @@
+{
+  "version": "1.0.0",
+  "tools": [
+    {
+      "id": "xcode_clt",
+      "name": "Xcode Command Line Tools",
+      "category": "required",
+      "check": {
+        "type": "custom",
+        "function": "check_xcode_clt"
+      },
+      "installation": {
+        "primary": {
+          "method": "xcode-select",
+          "command": "xcode-select --install",
+          "notes": "Basic compiler tools for macOS development"
+        }
+      }
+    },
+    {
+      "id": "xcode",
+      "name": "Xcode",
+      "category": "required",
+      "check": {
+        "type": "custom",
+        "function": "check_xcode"
+      },
+      "installation": {
+        "primary": {
+          "method": "Mac App Store",
+          "url": "https://apps.apple.com/us/app/xcode/id497799835",
+          "notes": "Full IDE required for macOS app development"
+        },
+        "alternatives": [
+          {
+            "method": "Apple Developer",
+            "url": "https://developer.apple.com/xcode/",
+            "notes": "Download directly from Apple Developer portal"
+          }
+        ]
+      },
+      "post_checks": [
+        {
+          "type": "first_launch",
+          "command": "xcodebuild -checkFirstLaunchStatus",
+          "success_condition": "exit_code_0"
+        }
+      ]
+    },
+    {
+      "id": "xcodebuild",
+      "name": "xcodebuild",
+      "category": "required",
+      "check": {
+        "type": "custom",
+        "function": "check_xcodebuild"
+      },
+      "installation": {
+        "primary": {
+          "method": "Included with Xcode",
+          "notes": "Comes with full Xcode installation"
+        }
+      },
+      "dependencies": ["xcode"]
+    },
+    {
+      "id": "swift",
+      "name": "Swift",
+      "category": "required",
+      "check": {
+        "type": "command",
+        "command": "swift",
+        "version_flag": "--version",
+        "version_regex": "Swift version ([0-9.]+)"
+      },
+      "installation": {
+        "primary": {
+          "method": "Included with Xcode",
+          "notes": "Comes with Xcode installation"
+        }
+      },
+      "dependencies": ["xcode"]
+    },
+    {
+      "id": "git",
+      "name": "Git",
+      "category": "required",
+      "check": {
+        "type": "command",
+        "command": "git",
+        "version_flag": "--version",
+        "version_regex": "git version ([0-9.]+)"
+      },
+      "installation": {
+        "primary": {
+          "method": "xcode-select",
+          "command": "xcode-select --install",
+          "notes": "Included with Command Line Tools"
+        },
+        "alternatives": [
+          {
+            "method": "Homebrew",
+            "command": "brew install git"
+          }
+        ]
+      }
+    },
+    {
+      "id": "just",
+      "name": "Just (command runner)",
+      "category": "required",
+      "check": {
+        "type": "command",
+        "command": "just",
+        "version_flag": "--version",
+        "version_regex": "just ([0-9.]+)"
+      },
+      "installation": {
+        "primary": {
+          "method": "Homebrew",
+          "command": "brew install just"
+        },
+        "alternatives": [
+          {
+            "method": "Cargo",
+            "command": "cargo install just",
+            "notes": "Requires Rust toolchain"
+          }
+        ]
+      }
+    },
+    {
+      "id": "homebrew",
+      "name": "Homebrew",
+      "category": "optional",
+      "check": {
+        "type": "command",
+        "command": "brew",
+        "version_flag": "--version",
+        "version_regex": "Homebrew ([0-9.]+)"
+      },
+      "installation": {
+        "primary": {
+          "method": "Install script",
+          "command": "/bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"",
+          "url": "https://brew.sh",
+          "notes": "Package manager for macOS"
+        }
+      }
+    },
+    {
+      "id": "swiftlint",
+      "name": "SwiftLint",
+      "category": "optional",
+      "check": {
+        "type": "command",
+        "command": "swiftlint",
+        "version_flag": "--version",
+        "version_regex": "([0-9.]+)"
+      },
+      "installation": {
+        "primary": {
+          "method": "Homebrew",
+          "command": "brew install swiftlint",
+          "notes": "Linting tool for Swift code"
+        }
+      }
+    },
+    {
+      "id": "swiftformat",
+      "name": "SwiftFormat",
+      "category": "optional",
+      "check": {
+        "type": "command",
+        "command": "swiftformat",
+        "version_flag": "--version",
+        "version_regex": "([0-9.]+)"
+      },
+      "installation": {
+        "primary": {
+          "method": "Homebrew",
+          "command": "brew install swiftformat",
+          "notes": "Code formatter for Swift"
+        }
+      }
+    },
+    {
+      "id": "rsvg_convert",
+      "name": "rsvg-convert (for SVG→PDF)",
+      "category": "optional",
+      "check": {
+        "type": "command",
+        "command": "rsvg-convert",
+        "version_flag": "--version",
+        "version_regex": "rsvg-convert version ([0-9.]+)"
+      },
+      "installation": {
+        "primary": {
+          "method": "Homebrew",
+          "command": "brew install librsvg",
+          "notes": "Tool for converting SVG icons to PDF"
+        }
+      }
+    },
+    {
+      "id": "gh",
+      "name": "GitHub CLI",
+      "category": "optional",
+      "check": {
+        "type": "command",
+        "command": "gh",
+        "version_flag": "version",
+        "version_regex": "gh version ([0-9.]+)"
+      },
+      "installation": {
+        "primary": {
+          "method": "Homebrew",
+          "command": "brew install gh",
+          "notes": "CLI for GitHub operations"
+        }
+      }
+    },
+    {
+      "id": "jq",
+      "name": "jq (JSON processor)",
+      "category": "optional",
+      "check": {
+        "type": "command",
+        "command": "jq",
+        "version_flag": "--version",
+        "version_regex": "jq-([0-9.]+)"
+      },
+      "installation": {
+        "primary": {
+          "method": "Homebrew",
+          "command": "brew install jq",
+          "notes": "Command-line JSON processor"
+        }
+      }
+    },
+    {
+      "id": "game_controller",
+      "name": "GameController Framework",
+      "category": "project-specific",
+      "check": {
+        "type": "framework",
+        "paths": [
+          "/System/Library/Frameworks/GameController.framework",
+          "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks/GameController.framework"
+        ]
+      },
+      "installation": {
+        "primary": {
+          "method": "Included with macOS/Xcode",
+          "notes": "Required for controller support in the app"
+        }
+      }
+    }
+  ],
+  "system_requirements": {
+    "min_macos_version": "13.0",
+    "supported_architectures": ["arm64", "x86_64"]
+  },
+  "project_specific": {
+    "name": "Radial Menu",
+    "description": "macOS menu bar application with radial overlay menu",
+    "additional_checks": [
+      {
+        "name": "Accessibility Permissions",
+        "description": "Required for global hotkey functionality",
+        "notes": "Grant in System Settings → Privacy & Security → Accessibility"
+      }
+    ]
+  }
+}
