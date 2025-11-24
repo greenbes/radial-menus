@@ -13,6 +13,7 @@ struct ControllerState: Equatable {
     let leftStickY: Double
     let buttonAPressed: Bool
     let menuButtonPressed: Bool
+    let homeButtonPressed: Bool
     let dpadLeft: Bool
     let dpadRight: Bool
 }

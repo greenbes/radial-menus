@@ -22,6 +22,10 @@ class ControllerInputManager: ControllerInputProtocol {
     func startMonitoring(callback: @escaping StateChangeCallback) {
         self.callback = callback
 
+        // Enable background event monitoring so controller works when app isn't focused
+        // This is required on macOS 11.3+ where the default is false
+        GCController.shouldMonitorBackgroundEvents = true
+
         // Observe controller connections
         NotificationCenter.default.addObserver(
             self,
@@ -43,12 +47,12 @@ class ControllerInputManager: ControllerInputProtocol {
         }
 
         // Start polling timer for state changes (60Hz)
-        pollTimer = Timer.scheduledTimer(
-            withTimeInterval: 1.0 / 60.0,
-            repeats: true
-        ) { [weak self] _ in
+        // Add to .common modes so it fires even when app doesn't have focus
+        let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
             self?.pollControllerState()
         }
+        RunLoop.current.add(timer, forMode: .common)
+        pollTimer = timer
     }
 
     func stopMonitoring() {
@@ -71,6 +75,7 @@ class ControllerInputManager: ControllerInputProtocol {
                 leftStickY: 0,
                 buttonAPressed: false,
                 menuButtonPressed: false,
+                homeButtonPressed: false,
                 dpadLeft: false,
                 dpadRight: false
             )
@@ -81,6 +86,7 @@ class ControllerInputManager: ControllerInputProtocol {
             leftStickY: Double(gamepad.leftThumbstick.yAxis.value),
             buttonAPressed: gamepad.buttonA.isPressed,
             menuButtonPressed: gamepad.buttonMenu.isPressed,
+            homeButtonPressed: gamepad.buttonHome?.isPressed ?? false,
             dpadLeft: gamepad.dpad.left.isPressed,
             dpadRight: gamepad.dpad.right.isPressed
         )

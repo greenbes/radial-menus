@@ -28,6 +28,7 @@ class AppCoordinator {
 
     private var previousDpadLeft = false
     private var previousDpadRight = false
+    private var previousHomeButton = false
 
     // MARK: - Initialization
 
@@ -116,11 +117,11 @@ class AppCoordinator {
     }
 
     private func handleControllerInput(_ state: ControllerState) {
-        // Handle menu button to toggle menu
-        if state.menuButtonPressed {
+        // Handle Home button to toggle menu (edge-triggered)
+        if state.homeButtonPressed && !previousHomeButton {
             viewModel.toggleMenu()
-            return
         }
+        previousHomeButton = state.homeButtonPressed
 
         // Handle d-pad for navigation (edge-triggered, like keyboard arrows)
         if state.dpadRight && !previousDpadRight {
