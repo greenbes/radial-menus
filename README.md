@@ -18,8 +18,10 @@ Lightweight macOS radial menu with configurable actions, icon sets, and keyboard
 - Resolve dependencies (if needed): `xcodebuild -resolvePackageDependencies -scheme radial-menu`.
 - Build Debug: `xcodebuild -scheme radial-menu -configuration Debug build -derivedDataPath ./DerivedData`.
   - Code signing is disabled for local Debug/Release in the project settings.
-- Launch with logging: `./run-with-logs.sh` (uses the latest Debug build in DerivedData and tails `/tmp/radial-menu-debug.log`).
-- Hotkey test helper: `./test-hotkey.sh`.
+- Launch with logging: `./scripts/run-with-logs.sh` (uses the latest Debug build in DerivedData and tails `/tmp/radial-menu-debug.log`).
+- Hotkey test helper: `./scripts/test-hotkey.sh`.
+
+**Note:** All build and utility scripts should be created in the `scripts/` directory to keep the project root clean.
 
 ## Development Notes
 - Files follow Clean Architecture:
@@ -32,5 +34,5 @@ Lightweight macOS radial menu with configurable actions, icon sets, and keyboard
 ## Debugging
 - Use `Log("message")` for debug output (defined in `Logger.swift`).
 - Logs are written to `/tmp/radial-menu-debug.log`.
-- When running with `./run-with-logs.sh`, logs are automatically tailed.
+- When running with `./scripts/run-with-logs.sh`, logs are automatically tailed.
 - Do NOT use `print()` statements - they won't appear in the log file.

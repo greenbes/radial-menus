@@ -37,11 +37,11 @@ test-single TEST:
 
 # Build and run the app with logging
 run: build
-  ./run-with-logs.sh
+  ./scripts/run-with-logs.sh
 
 # Test hotkey detection with verbose logging
 test-hotkey: build
-  ./test-hotkey.sh
+  ./scripts/test-hotkey.sh
 
 # Kill any running instances of the app
 kill:
