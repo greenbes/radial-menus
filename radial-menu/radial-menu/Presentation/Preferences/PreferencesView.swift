@@ -42,134 +42,135 @@ struct PreferencesView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Text("Radial Menu Preferences")
-                .font(.title2)
-                .fontWeight(.bold)
+        ScrollView(.vertical, showsIndicators: true) {
+            VStack(alignment: .leading, spacing: 20) {
+                Text("Radial Menu Preferences")
+                    .font(.title2)
+                    .fontWeight(.bold)
 
-            Divider()
+                Divider()
 
-            // Menu Items Section
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Menu Items")
-                    .font(.headline)
+                // Menu Items Section
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Menu Items")
+                        .font(.headline)
 
-                List(configuration.items) { item in
+                    List(configuration.items) { item in
+                        HStack {
+                            iconImage(for: item)
+                                .frame(width: 24)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(item.title)
+                                    .font(.body)
+
+                                Text(item.action.description)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            Spacer()
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    .frame(height: 200)
+                }
+
+                // Appearance Settings
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Appearance")
+                        .font(.headline)
+
                     HStack {
-                        iconImage(for: item)
-                            .frame(width: 24)
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(item.title)
-                                .font(.body)
-
-                            Text(item.action.description)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                        Text("Icon Set:")
+                        Picker("Icon Set", selection: $selectedIconSet) {
+                            ForEach(IconSet.allCases, id: \.self) { set in
+                                Text(set.displayName).tag(set)
+                            }
                         }
-
-                        Spacer()
-                    }
-                    .padding(.vertical, 4)
-                }
-                .frame(height: 200)
-            }
-
-            // Appearance Settings
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Appearance")
-                    .font(.headline)
-
-                HStack {
-                    Text("Icon Set:")
-                    Picker("Icon Set", selection: $selectedIconSet) {
-                        ForEach(IconSet.allCases, id: \.self) { set in
-                            Text(set.displayName).tag(set)
+                        .labelsHidden()
+                        .onChange(of: selectedIconSet) { _, newValue in
+                            onUpdateIconSet(newValue)
                         }
                     }
-                    .labelsHidden()
-                    .onChange(of: selectedIconSet) { _, newValue in
-                        onUpdateIconSet(newValue)
+
+                    HStack {
+                        Text("Background Color:")
+                        ColorPicker("", selection: $backgroundColor, supportsOpacity: true)
+                            .labelsHidden()
+                            .onChange(of: backgroundColor) { _, newValue in
+                                onUpdateBackgroundColor(CodableColor(color: newValue))
+                            }
+                    }
+
+                    HStack {
+                        Text("Foreground Color:")
+                        ColorPicker("", selection: $foregroundColor, supportsOpacity: true)
+                            .labelsHidden()
+                            .onChange(of: foregroundColor) { _, newValue in
+                                onUpdateForegroundColor(CodableColor(color: newValue))
+                            }
+                    }
+
+                    HStack {
+                        Text("Selected Item Color:")
+                        ColorPicker("", selection: $selectedItemColor, supportsOpacity: true)
+                            .labelsHidden()
+                            .onChange(of: selectedItemColor) { _, newValue in
+                                onUpdateSelectedItemColor(CodableColor(color: newValue))
+                            }
+                    }
+
+                    HStack {
+                        Text("Radius:")
+                        Text("\(Int(configuration.appearanceSettings.radius))px")
+                            .foregroundColor(.secondary)
+                    }
+
+                    HStack {
+                        Text("Center Radius:")
+                        Text("\(Int(configuration.appearanceSettings.centerRadius))px")
+                            .foregroundColor(.secondary)
                     }
                 }
 
-                HStack {
-                    Text("Background Color:")
-                    ColorPicker("", selection: $backgroundColor, supportsOpacity: true)
-                        .labelsHidden()
-                        .onChange(of: backgroundColor) { _, newValue in
-                            onUpdateBackgroundColor(CodableColor(color: newValue))
-                        }
+                // Behavior Settings
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Behavior")
+                        .font(.headline)
+
+                    HStack {
+                        Text("Position Mode:")
+                        Text(configuration.behaviorSettings.positionMode == .atCursor ? "At Cursor" : "Fixed")
+                            .foregroundColor(.secondary)
+                    }
+
+                    HStack {
+                        Text("Show on All Spaces:")
+                        Text(configuration.behaviorSettings.showOnAllSpaces ? "Yes" : "No")
+                            .foregroundColor(.secondary)
+                    }
                 }
 
-                HStack {
-                    Text("Foreground Color:")
-                    ColorPicker("", selection: $foregroundColor, supportsOpacity: true)
-                        .labelsHidden()
-                        .onChange(of: foregroundColor) { _, newValue in
-                            onUpdateForegroundColor(CodableColor(color: newValue))
-                        }
-                }
+                Divider()
 
+                // Action Buttons
                 HStack {
-                    Text("Selected Item Color:")
-                    ColorPicker("", selection: $selectedItemColor, supportsOpacity: true)
-                        .labelsHidden()
-                        .onChange(of: selectedItemColor) { _, newValue in
-                            onUpdateSelectedItemColor(CodableColor(color: newValue))
-                        }
-                }
+                    Button("Reset to Default") {
+                        onResetToDefault()
+                    }
 
-                HStack {
-                    Text("Radius:")
-                    Text("\(Int(configuration.appearanceSettings.radius))px")
-                        .foregroundColor(.secondary)
-                }
+                    Spacer()
 
-                HStack {
-                    Text("Center Radius:")
-                    Text("\(Int(configuration.appearanceSettings.centerRadius))px")
-                        .foregroundColor(.secondary)
+                    Button("Close") {
+                        NSApplication.shared.keyWindow?.close()
+                    }
+                    .keyboardShortcut(.defaultAction)
                 }
+                .padding(.bottom, 20)
             }
-
-            // Behavior Settings
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Behavior")
-                    .font(.headline)
-
-                HStack {
-                    Text("Position Mode:")
-                    Text(configuration.behaviorSettings.positionMode == .atCursor ? "At Cursor" : "Fixed")
-                        .foregroundColor(.secondary)
-                }
-
-                HStack {
-                    Text("Show on All Spaces:")
-                    Text(configuration.behaviorSettings.showOnAllSpaces ? "Yes" : "No")
-                        .foregroundColor(.secondary)
-                }
-            }
-
-            Spacer()
-
-            Divider()
-
-            // Action Buttons
-            HStack {
-                Button("Reset to Default") {
-                    onResetToDefault()
-                }
-
-                Spacer()
-
-                Button("Close") {
-                    NSApplication.shared.keyWindow?.close()
-                }
-                .keyboardShortcut(.defaultAction)
-            }
+            .padding(20)
         }
-        .padding(20)
         .frame(width: 500, height: 600)
     }
 
