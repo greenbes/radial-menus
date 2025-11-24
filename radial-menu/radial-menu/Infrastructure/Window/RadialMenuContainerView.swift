@@ -111,6 +111,7 @@ class RadialMenuContainerView: NSView {
     override func mouseMoved(with event: NSEvent) {
         guard isMenuActive else { return }
         let localPoint = convert(event.locationInWindow, from: nil)
+        // Log("🖱️ ContainerView: Raw \(event.locationInWindow) -> Local \(localPoint)")
         onMouseMove?(localPoint)
     }
     
@@ -157,6 +158,11 @@ class RadialMenuContainerView: NSView {
 
     /// Allow the view to become first responder for keyboard events
     override var acceptsFirstResponder: Bool {
+        return true
+    }
+    
+    /// Flip coordinate system to match SwiftUI/Screen coordinates (Top-Left origin)
+    override var isFlipped: Bool {
         return true
     }
 }

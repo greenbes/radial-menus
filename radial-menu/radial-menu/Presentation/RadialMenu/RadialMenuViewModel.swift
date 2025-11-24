@@ -10,8 +10,7 @@ import Combine
 import CoreGraphics
 
 /// ViewModel for the radial menu, coordinating state and actions
-@Observable
-class RadialMenuViewModel {
+final class RadialMenuViewModel: ObservableObject {
     // MARK: - Dependencies
 
     private let configManager: ConfigurationManagerProtocol
@@ -20,12 +19,12 @@ class RadialMenuViewModel {
 
     // MARK: - Published State
 
-    private(set) var menuState: MenuState = .closed
-    private(set) var selectedIndex: Int? = nil
-    private(set) var configuration: MenuConfiguration
+    @Published private(set) var menuState: MenuState = .closed
+    @Published private(set) var selectedIndex: Int? = nil
+    @Published private(set) var configuration: MenuConfiguration
     
     // Exposed for View to render slices without recalculating
-    private(set) var slices: [RadialGeometry.Slice] = []
+    @Published private(set) var slices: [RadialGeometry.Slice] = []
 
     // MARK: - Private State
 
@@ -84,14 +83,17 @@ class RadialMenuViewModel {
         selectedIndex = nil
 
         // Calculate slices
+        // The window is 400x400, so the center is (200, 200).
+        // Ideally this should be injected, but for v1 we'll align with OverlayWindowController defaults.
         let radius = configuration.appearanceSettings.radius
-        let center = CGPoint(x: radius, y: radius)
+        let windowCenter = CGPoint(x: 200, y: 200)
+        
         slices = RadialGeometry.calculateSlices(
             itemCount: configuration.items.count,
             radius: radius,
-            centerPoint: center
+            centerPoint: windowCenter
         )
-        print("🎯 RadialMenuViewModel: Calculated \(slices.count) slices")
+        print("🎯 RadialMenuViewModel: Calculated \(slices.count) slices with center \(windowCenter)")
 
         // Show overlay window
         print("🎯 RadialMenuViewModel: Showing overlay window...")
@@ -117,32 +119,57 @@ class RadialMenuViewModel {
     func handleMouseMove(at point: CGPoint) {
         guard case .open = menuState else { return }
 
-        let center = overlayWindow.centerPosition
         let radius = configuration.appearanceSettings.radius
+        let center = CGPoint(x: 200, y: 200) // Window center
         let centerRadius = configuration.appearanceSettings.centerRadius
+
+        // Log("🖱️ ViewModel: handleMouseMove at \(point), Center: \(center), Radius: \(radius)")
 
         // Calculate selected slice
         let newSelectedIndex = SelectionCalculator.selectedSlice(
             fromPoint: point,
             center: center,
             centerRadius: centerRadius,
+            outerRadius: radius,
             slices: slices
         )
 
-        if newSelectedIndex != selectedIndex {
-            selectedIndex = newSelectedIndex
-            menuState = .open(selectedIndex: newSelectedIndex)
+        // Sticky selection: Only update if cursor is over a valid slice
+        if let newIndex = newSelectedIndex {
+            if newIndex != selectedIndex {
+                Log("🎯 ViewModel: Selection changed to \(newIndex) (Point: \(point))")
+                selectedIndex = newIndex
+                menuState = .open(selectedIndex: newIndex)
+            }
+        } else {
+            // Log("🎯 ViewModel: No valid slice selected at \(point)")
         }
     }
 
     func handleMouseClick(at point: CGPoint) {
-        guard case .open(let selected) = menuState,
-              let index = selected,
-              index < configuration.items.count else {
+        let radius = configuration.appearanceSettings.radius
+        let center = CGPoint(x: 200, y: 200) // Window center
+        let centerRadius = configuration.appearanceSettings.centerRadius
+        
+        Log("🖱️ ViewModel: handleMouseClick at \(point)")
+
+        // Verify we are clicking on a valid slice
+        let hitIndex = SelectionCalculator.selectedSlice(
+            fromPoint: point,
+            center: center,
+            centerRadius: centerRadius,
+            outerRadius: radius,
+            slices: slices
+        )
+        
+        guard let index = hitIndex, index < configuration.items.count else {
+            Log("❌ ViewModel: Click ignored (Index: \(String(describing: hitIndex)))")
+            // Clicked outside valid slice (e.g., center hole), close menu
             closeMenu()
             return
         }
 
+        Log("✅ ViewModel: Executing action for index \(index)")
         executeAction(at: index)
     }
 
@@ -219,4 +246,3 @@ class RadialMenuViewModel {
             .store(in: &cancellables)
     }
 }
-

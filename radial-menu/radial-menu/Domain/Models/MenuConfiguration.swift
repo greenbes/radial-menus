@@ -30,12 +30,14 @@ struct AppearanceSettings: Codable, Equatable {
     var centerRadius: Double
     var sliceHighlightScale: Double
     var animationDuration: Double
+    var iconSet: IconSet = .outline
 
     static let `default` = AppearanceSettings(
         radius: 150.0,
         centerRadius: 40.0,
         sliceHighlightScale: 1.1,
-        animationDuration: 0.15
+        animationDuration: 0.15,
+        iconSet: .outline
     )
 }
 
@@ -84,6 +86,26 @@ extension MenuConfiguration {
                     title: "Mute",
                     iconName: "speaker.slash",
                     action: .runShellCommand(command: "osascript -e 'set volume output muted true'")
+                ),
+                MenuItem(
+                    title: "Calendar",
+                    iconName: "calendar",
+                    action: .launchApp(path: "/System/Applications/Calendar.app")
+                ),
+                MenuItem(
+                    title: "Notes",
+                    iconName: "note.text",
+                    action: .launchApp(path: "/System/Applications/Notes.app")
+                ),
+                MenuItem(
+                    title: "Reminders",
+                    iconName: "list.bullet.rectangle",
+                    action: .launchApp(path: "/System/Applications/Reminders.app")
+                ),
+                MenuItem(
+                    title: "Files",
+                    iconName: "folder",
+                    action: .launchApp(path: "/System/Applications/Finder.app")
                 )
             ]
         )

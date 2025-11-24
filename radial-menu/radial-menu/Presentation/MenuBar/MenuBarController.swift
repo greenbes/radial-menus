@@ -43,6 +43,16 @@ class MenuBarController {
             configuration: configManager.currentConfiguration,
             onResetToDefault: { [weak self] in
                 self?.configManager.resetToDefault()
+            },
+            onUpdateIconSet: { [weak self] newSet in
+                guard let self else { return }
+                var updated = configManager.currentConfiguration
+                updated.appearanceSettings.iconSet = newSet
+                do {
+                    try configManager.saveConfiguration(updated)
+                } catch {
+                    print("❌ Failed to save icon set: \(error)")
+                }
             }
         )
 

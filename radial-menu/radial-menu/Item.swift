@@ -6,13 +6,9 @@
 //
 
 import Foundation
-import SwiftData
 
-@Model
-final class Item {
-    var timestamp: Date
-    
-    init(timestamp: Date) {
-        self.timestamp = timestamp
-    }
+/// Placeholder model kept to satisfy the generated template; not used in the app runtime.
+struct Item: Identifiable {
+    let id = UUID()
+    let timestamp: Date
 }

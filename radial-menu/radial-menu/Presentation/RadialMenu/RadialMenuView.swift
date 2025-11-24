@@ -9,23 +9,35 @@ import SwiftUI
 
 /// Main view for the radial menu overlay
 struct RadialMenuView: View {
-    var viewModel: RadialMenuViewModel
+    @ObservedObject var viewModel: RadialMenuViewModel
 
     var body: some View {
         let radius = viewModel.configuration.appearanceSettings.radius
         let centerRadius = viewModel.configuration.appearanceSettings.centerRadius
+        let windowSize: CGFloat = 400.0
+        let centerPoint = CGPoint(x: windowSize/2, y: windowSize/2)
         
         RadialMenuContainer(
             content: ZStack {
+                // Background blur
+                Circle()
+                    .fill(.ultraThinMaterial)
+                    .frame(width: radius * 2.1, height: radius * 2.1)
+                    .position(centerPoint)
+
                 // Render each slice
                 ForEach(Array(zip(viewModel.configuration.items, viewModel.slices)), id: \.0.id) { item, slice in
+                    let isSelected = slice.index == viewModel.selectedIndex
                     SliceView(
                         item: item,
+                        iconSet: viewModel.configuration.appearanceSettings.iconSet,
                         slice: slice,
-                        isSelected: slice.index == viewModel.selectedIndex,
+                        isSelected: isSelected,
                         radius: radius,
                         centerRadius: centerRadius
                     )
+                    .equatable() // Only re-render if props change
+                    .zIndex(isSelected ? 1 : 0)
                 }
 
                 // Center circle
@@ -36,18 +48,18 @@ struct RadialMenuView: View {
                         Circle()
                             .stroke(Color.white.opacity(0.3), lineWidth: 2)
                     )
-                    .position(x: radius, y: radius)
+                    .position(centerPoint)
 
                 // Center icon
                 Image(systemName: "circle.grid.cross")
                     .font(.system(size: 20))
                     .foregroundColor(.white)
-                    .position(x: radius, y: radius)
+                    .position(centerPoint)
             }
-            .frame(width: radius * 2, height: radius * 2)
+            .frame(width: windowSize, height: windowSize)
             .background(Color.clear),
             
-            menuCenter: CGPoint(x: radius, y: radius),
+            menuCenter: centerPoint,
             menuRadius: radius,
             centerRadius: centerRadius,
             slices: viewModel.slices,
@@ -60,10 +72,3 @@ struct RadialMenuView: View {
         )
     }
 }
-
-// Preview commented out to avoid dependency injection complexity in CLI build
-/*
-#Preview {
-    RadialMenuView(viewModel: ...)
-}
-*/

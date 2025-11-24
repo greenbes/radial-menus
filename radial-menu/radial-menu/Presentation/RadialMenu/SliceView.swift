@@ -7,66 +7,17 @@
 
 import SwiftUI
 
-/// View for a single slice in the radial menu
-struct SliceView: View {
-    let item: MenuItem
-    let slice: RadialGeometry.Slice
-    let isSelected: Bool
-    let radius: Double
-    let centerRadius: Double
-
-    var body: some View {
-        ZStack {
-            // Slice background (wedge shape)
-            SliceShape(
-                startAngle: Angle(radians: slice.startAngle),
-                endAngle: Angle(radians: slice.endAngle),
-                innerRadius: centerRadius,
-                outerRadius: radius
-            )
-            .fill(sliceColor)
-            .overlay(
-                SliceShape(
-                    startAngle: Angle(radians: slice.startAngle),
-                    endAngle: Angle(radians: slice.endAngle),
-                    innerRadius: centerRadius,
-                    outerRadius: radius
-                )
-                .stroke(Color.white.opacity(0.3), lineWidth: 1)
-            )
-
-            // Icon and label
-            VStack(spacing: 4) {
-                Image(systemName: item.iconName)
-                    .font(.system(size: 24))
-                    .foregroundColor(.white)
-
-                Text(item.title)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.white)
-                    .lineLimit(1)
-            }
-            .position(slice.centerPoint)
-        }
-        .scaleEffect(isSelected ? 1.1 : 1.0)
-        .animation(.easeInOut(duration: 0.15), value: isSelected)
-    }
-
-    private var sliceColor: Color {
-        if isSelected {
-            return Color.blue.opacity(0.8)
-        } else {
-            return Color.gray.opacity(0.6)
-        }
-    }
-}
-
 /// Custom shape for a radial slice (wedge)
 struct SliceShape: Shape {
     let startAngle: Angle
     let endAngle: Angle
     let innerRadius: Double
-    let outerRadius: Double
+    var outerRadius: Double
+
+    var animatableData: Double {
+        get { outerRadius }
+        set { outerRadius = newValue }
+    }
 
     func path(in rect: CGRect) -> Path {
         var path = Path()
@@ -102,23 +53,104 @@ struct SliceShape: Shape {
     }
 }
 
-#Preview {
-    let item = MenuItem.sample()
-    let slice = RadialGeometry.Slice(
-        index: 0,
-        startAngle: -.pi / 2,
-        endAngle: 0,
-        centerAngle: -.pi / 4,
-        centerPoint: CGPoint(x: 250, y: 150)
-    )
+/// View for a single slice in the radial menu
+struct SliceView: View, Equatable {
+    let item: MenuItem
+    let iconSet: IconSet
+    let slice: RadialGeometry.Slice
+    let isSelected: Bool
+    let radius: Double
+    let centerRadius: Double
+    
+    static func == (lhs: SliceView, rhs: SliceView) -> Bool {
+        return lhs.isSelected == rhs.isSelected &&
+               lhs.item.id == rhs.item.id &&
+               lhs.slice == rhs.slice &&
+               lhs.radius == rhs.radius &&
+               lhs.centerRadius == rhs.centerRadius &&
+               lhs.iconSet == rhs.iconSet
+    }
 
-    SliceView(
-        item: item,
-        slice: slice,
-        isSelected: true,
-        radius: 150,
-        centerRadius: 40
-    )
-    .frame(width: 400, height: 400)
-    .background(Color.black.opacity(0.1))
+    var body: some View {
+        let outerRadius = isSelected ? radius * 1.05 : radius
+        let iconOffset = isSelected ? 5.0 : 0.0
+        let resolvedIcon = item.resolvedIcon(for: iconSet)
+        
+        // Calculate icon position with offset
+        let midAngle = (slice.startAngle + slice.endAngle) / 2
+        let iconX = slice.centerPoint.x + CGFloat(cos(midAngle) * iconOffset)
+        let iconY = slice.centerPoint.y + CGFloat(sin(midAngle) * iconOffset)
+        
+        ZStack {
+            // Slice background (wedge shape)
+            SliceShape(
+                startAngle: Angle(radians: slice.startAngle),
+                endAngle: Angle(radians: slice.endAngle),
+                innerRadius: centerRadius,
+                outerRadius: outerRadius
+            )
+            .fill(sliceColor)
+            .overlay(
+                SliceShape(
+                    startAngle: Angle(radians: slice.startAngle),
+                    endAngle: Angle(radians: slice.endAngle),
+                    innerRadius: centerRadius,
+                    outerRadius: outerRadius
+                )
+                .stroke(Color.white.opacity(0.3), lineWidth: 1)
+            )
+
+            // Icon and label
+            VStack(spacing: 4) {
+                iconView(for: resolvedIcon)
+
+                Text(item.title)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(iconColor)
+                    .lineLimit(1)
+            }
+            .position(x: iconX, y: iconY)
+        }
+        .animation(.easeInOut(duration: 0.15), value: isSelected)
+    }
+
+    private var iconColor: Color {
+        isSelected ? .white : .orange
+    }
+
+    private var sliceColor: Color {
+        if isSelected {
+            return Color.blue.opacity(0.8)
+        } else {
+            return Color.gray.opacity(0.6)
+        }
+    }
 }
+
+private extension SliceView {
+    func iconImage(for resolved: IconSet.Icon) -> Image {
+        resolved.isSystem ? Image(systemName: resolved.name) : Image(resolved.name)
+    }
+
+    @ViewBuilder
+    func iconView(for resolvedIcon: IconSet.Icon) -> some View {
+        let baseImage = iconImage(for: resolvedIcon)
+
+        if resolvedIcon.isSystem {
+            // Force monochrome rendering so every symbol uses the same tint rather than the
+            // hierarchical palette that caused gray/orange mismatches.
+            baseImage
+                .symbolRenderingMode(.monochrome)
+                .foregroundStyle(iconColor)
+                .font(.system(size: 24, weight: .semibold))
+        } else {
+            // Treat asset images as templates to respect the tint color.
+            baseImage
+                .renderingMode(.template)
+                .foregroundColor(iconColor)
+                .font(.system(size: 24, weight: .semibold))
+        }
+    }
+}
+
+// Preview removed in CLI build to avoid macro plugin dependency.

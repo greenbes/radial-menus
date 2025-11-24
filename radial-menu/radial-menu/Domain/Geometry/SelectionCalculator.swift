@@ -21,17 +21,23 @@ enum SelectionCalculator {
         fromPoint point: CGPoint,
         center: CGPoint,
         centerRadius: Double,
+        outerRadius: Double,
         slices: [RadialGeometry.Slice]
     ) -> Int? {
         let distance = RadialGeometry.distance(from: center, to: point)
 
-        // If in center circle, no selection
-        if distance < centerRadius {
+        // If in center circle or outside outer radius, no selection
+        if distance < centerRadius || distance > outerRadius {
+            // Log("📏 SelectionCalculator: Distance \(distance) out of bounds (\(centerRadius)-\(outerRadius))")
             return nil
         }
 
         let angle = RadialGeometry.angleFromCenter(point: point, center: center)
         let normalizedAngle = RadialGeometry.normalizeAngle(angle)
+        
+        // Log("📐 SelectionCalculator: Center: \(center), Point \(point) -> Dist: \(distance), Angle: \(angle) (Norm: \(normalizedAngle))")
+        
+        // 1. Check distance (Ring check)
 
         return selectedSlice(fromAngle: normalizedAngle, slices: slices)
     }
@@ -48,6 +54,8 @@ enum SelectionCalculator {
         for slice in slices {
             let normalizedStart = RadialGeometry.normalizeAngle(slice.startAngle)
             let normalizedEnd = RadialGeometry.normalizeAngle(slice.endAngle)
+            
+            // Log("🍰 Checking slice \(slice.index): \(normalizedStart) -> \(normalizedEnd) vs \(angle)")
 
             // Handle wrap-around case
             if normalizedEnd < normalizedStart {

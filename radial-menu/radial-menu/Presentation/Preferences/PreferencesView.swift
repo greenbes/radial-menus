@@ -11,6 +11,20 @@ import SwiftUI
 struct PreferencesView: View {
     let configuration: MenuConfiguration
     let onResetToDefault: () -> Void
+    let onUpdateIconSet: (IconSet) -> Void
+
+    @State private var selectedIconSet: IconSet
+
+    init(
+        configuration: MenuConfiguration,
+        onResetToDefault: @escaping () -> Void,
+        onUpdateIconSet: @escaping (IconSet) -> Void
+    ) {
+        self.configuration = configuration
+        self.onResetToDefault = onResetToDefault
+        self.onUpdateIconSet = onUpdateIconSet
+        _selectedIconSet = State(initialValue: configuration.appearanceSettings.iconSet)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -27,7 +41,7 @@ struct PreferencesView: View {
 
                 List(configuration.items) { item in
                     HStack {
-                        Image(systemName: item.iconName)
+                        iconImage(for: item)
                             .frame(width: 24)
 
                         VStack(alignment: .leading, spacing: 2) {
@@ -50,6 +64,19 @@ struct PreferencesView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Appearance")
                     .font(.headline)
+
+                HStack {
+                    Text("Icon Set:")
+                    Picker("Icon Set", selection: $selectedIconSet) {
+                        ForEach(IconSet.allCases, id: \.self) { set in
+                            Text(set.displayName).tag(set)
+                        }
+                    }
+                    .labelsHidden()
+                    .onChange(of: selectedIconSet) { _, newValue in
+                        onUpdateIconSet(newValue)
+                    }
+                }
 
                 HStack {
                     Text("Radius:")
@@ -103,13 +130,15 @@ struct PreferencesView: View {
         .padding(20)
         .frame(width: 500, height: 600)
     }
+
+    private func iconImage(for item: MenuItem) -> Image {
+        let resolved = item.resolvedIcon(for: selectedIconSet)
+        if resolved.isSystem {
+            return Image(systemName: resolved.name)
+        } else {
+            return Image(resolved.name)
+        }
+    }
 }
 
-#Preview {
-    PreferencesView(
-        configuration: .sample(),
-        onResetToDefault: {
-            print("Reset to default")
-        }
-    )
-}
+// Preview removed in CLI build to avoid macro plugin dependency.
