@@ -86,6 +86,17 @@ Network Trash Folder
 Temporary Items
 .apdisk
 
+# Emacs
+*~
+*.~*~
+\#*\#
+.\#*
+*.elc
+auto-save-list
+.dir-locals.el
+.projectile
+.emacsconfig
+
 # Project specific
 .tmp/
 default.profraw
