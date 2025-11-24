@@ -11,7 +11,8 @@ import Foundation
 struct ControllerState: Equatable {
     let leftStickX: Double
     let leftStickY: Double
-    let buttonAPressed: Bool
+    let buttonAPressed: Bool  // Bottom button: X on PlayStation, A on Xbox
+    let buttonBPressed: Bool  // Right button: Circle on PlayStation, B on Xbox
     let menuButtonPressed: Bool
     let homeButtonPressed: Bool
     let dpadLeft: Bool

@@ -29,6 +29,8 @@ class AppCoordinator {
     private var previousDpadLeft = false
     private var previousDpadRight = false
     private var previousHomeButton = false
+    private var previousButtonA = false
+    private var previousButtonB = false
 
     // MARK: - Initialization
 
@@ -139,9 +141,18 @@ class AppCoordinator {
             y: state.leftStickY
         )
 
-        // Handle A button for confirmation
-        if state.buttonAPressed {
+        // Handle A button for confirmation (edge-triggered)
+        // A is bottom button: X on PlayStation, A on Xbox
+        if state.buttonAPressed && !previousButtonA {
             viewModel.handleConfirm()
         }
+        previousButtonA = state.buttonAPressed
+
+        // Handle B button to cancel/close menu (edge-triggered)
+        // B is right button: Circle on PlayStation, B on Xbox
+        if state.buttonBPressed && !previousButtonB {
+            viewModel.closeMenu()
+        }
+        previousButtonB = state.buttonBPressed
     }
 }
