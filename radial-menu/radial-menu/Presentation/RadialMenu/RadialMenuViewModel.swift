@@ -8,6 +8,7 @@
 import Foundation
 import Combine
 import CoreGraphics
+import AppKit
 
 /// ViewModel for the radial menu, coordinating state and actions
 final class RadialMenuViewModel: ObservableObject {
@@ -87,7 +88,7 @@ final class RadialMenuViewModel: ObservableObject {
         // Ideally this should be injected, but for v1 we'll align with OverlayWindowController defaults.
         let radius = configuration.appearanceSettings.radius
         let windowCenter = CGPoint(x: 200, y: 200)
-        
+
         slices = RadialGeometry.calculateSlices(
             itemCount: configuration.items.count,
             radius: radius,
@@ -123,9 +124,32 @@ final class RadialMenuViewModel: ObservableObject {
 
         Log("SLICE LOGGING END")
 
+        // Determine window position based on configuration
+        let windowPosition: CGPoint?
+        switch configuration.behaviorSettings.positionMode {
+        case .center:
+            // Center the menu on the main screen
+            if let screen = NSScreen.main {
+                let screenFrame = screen.frame
+                let centerX = screenFrame.origin.x + screenFrame.width / 2
+                let centerY = screenFrame.origin.y + screenFrame.height / 2
+                windowPosition = CGPoint(x: centerX, y: centerY)
+                Log("🎯 RadialMenuViewModel: Using center position mode at \(windowPosition!)")
+            } else {
+                windowPosition = position
+                Log("⚠️  RadialMenuViewModel: No main screen found, using provided position")
+            }
+        case .atCursor:
+            windowPosition = position
+            Log("🎯 RadialMenuViewModel: Using cursor position mode")
+        case .fixedPosition:
+            windowPosition = configuration.behaviorSettings.fixedPosition ?? position
+            Log("🎯 RadialMenuViewModel: Using fixed position mode")
+        }
+
         // Show overlay window
         Log("🎯 RadialMenuViewModel: Showing overlay window...")
-        overlayWindow.show(at: position)
+        overlayWindow.show(at: windowPosition)
 
         // Transition to open state
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {

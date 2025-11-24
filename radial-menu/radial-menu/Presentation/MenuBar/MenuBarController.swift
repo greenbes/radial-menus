@@ -83,6 +83,16 @@ class MenuBarController {
                 } catch {
                     print("❌ Failed to save selected item color: \(error)")
                 }
+            },
+            onUpdatePositionMode: { [weak self] newMode in
+                guard let self else { return }
+                var updated = configManager.currentConfiguration
+                updated.behaviorSettings.positionMode = newMode
+                do {
+                    try configManager.saveConfiguration(updated)
+                } catch {
+                    print("❌ Failed to save position mode: \(error)")
+                }
             }
         )
 

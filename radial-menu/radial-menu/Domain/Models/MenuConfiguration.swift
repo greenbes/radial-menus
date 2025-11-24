@@ -83,7 +83,19 @@ struct CodableColor: Codable, Equatable {
 struct BehaviorSettings: Codable, Equatable {
     enum PositionMode: String, Codable {
         case atCursor
+        case center
         case fixedPosition
+
+        var displayName: String {
+            switch self {
+            case .atCursor:
+                return "Cursor"
+            case .center:
+                return "Center"
+            case .fixedPosition:
+                return "Fixed Position"
+            }
+        }
     }
 
     var positionMode: PositionMode

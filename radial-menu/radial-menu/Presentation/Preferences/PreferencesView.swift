@@ -15,11 +15,13 @@ struct PreferencesView: View {
     let onUpdateBackgroundColor: (CodableColor) -> Void
     let onUpdateForegroundColor: (CodableColor) -> Void
     let onUpdateSelectedItemColor: (CodableColor) -> Void
+    let onUpdatePositionMode: (BehaviorSettings.PositionMode) -> Void
 
     @State private var selectedIconSet: IconSet
     @State private var backgroundColor: Color
     @State private var foregroundColor: Color
     @State private var selectedItemColor: Color
+    @State private var positionMode: BehaviorSettings.PositionMode
 
     init(
         configuration: MenuConfiguration,
@@ -27,7 +29,8 @@ struct PreferencesView: View {
         onUpdateIconSet: @escaping (IconSet) -> Void,
         onUpdateBackgroundColor: @escaping (CodableColor) -> Void,
         onUpdateForegroundColor: @escaping (CodableColor) -> Void,
-        onUpdateSelectedItemColor: @escaping (CodableColor) -> Void
+        onUpdateSelectedItemColor: @escaping (CodableColor) -> Void,
+        onUpdatePositionMode: @escaping (BehaviorSettings.PositionMode) -> Void
     ) {
         self.configuration = configuration
         self.onResetToDefault = onResetToDefault
@@ -35,10 +38,12 @@ struct PreferencesView: View {
         self.onUpdateBackgroundColor = onUpdateBackgroundColor
         self.onUpdateForegroundColor = onUpdateForegroundColor
         self.onUpdateSelectedItemColor = onUpdateSelectedItemColor
+        self.onUpdatePositionMode = onUpdatePositionMode
         _selectedIconSet = State(initialValue: configuration.appearanceSettings.iconSet)
         _backgroundColor = State(initialValue: configuration.appearanceSettings.backgroundColor.color)
         _foregroundColor = State(initialValue: configuration.appearanceSettings.foregroundColor.color)
         _selectedItemColor = State(initialValue: configuration.appearanceSettings.selectedItemColor.color)
+        _positionMode = State(initialValue: configuration.behaviorSettings.positionMode)
     }
 
     var body: some View {
@@ -140,9 +145,15 @@ struct PreferencesView: View {
                         .font(.headline)
 
                     HStack {
-                        Text("Position Mode:")
-                        Text(configuration.behaviorSettings.positionMode == .atCursor ? "At Cursor" : "Fixed")
-                            .foregroundColor(.secondary)
+                        Text("Location at Launch:")
+                        Picker("Location at Launch", selection: $positionMode) {
+                            Text("Cursor").tag(BehaviorSettings.PositionMode.atCursor)
+                            Text("Center").tag(BehaviorSettings.PositionMode.center)
+                        }
+                        .labelsHidden()
+                        .onChange(of: positionMode) { _, newValue in
+                            onUpdatePositionMode(newValue)
+                        }
                     }
 
                     HStack {
