@@ -46,17 +46,13 @@ class ActionExecutor: ActionExecutorProtocol {
             return .failure(ActionExecutionError.applicationNotFound(path: path))
         }
 
-        do {
-            let configuration = NSWorkspace.OpenConfiguration()
-            NSWorkspace.shared.openApplication(at: url, configuration: configuration) { app, error in
-                if let error = error {
-                    print("Failed to launch app: \(error)")
-                }
+        let configuration = NSWorkspace.OpenConfiguration()
+        NSWorkspace.shared.openApplication(at: url, configuration: configuration) { app, error in
+            if let error = error {
+                print("Failed to launch app: \(error)")
             }
-            return .success
-        } catch {
-            return .failure(error)
         }
+        return .success
     }
 
     private func executeShellCommand(command: String) -> ActionResult {
