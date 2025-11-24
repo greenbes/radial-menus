@@ -32,7 +32,13 @@ class AppCoordinator {
         self.actionExecutor = ActionExecutor()
         self.hotkeyManager = HotkeyManager()
         self.controllerInput = ControllerInputManager()
-        self.overlayWindow = OverlayWindowController()
+
+        // Calculate initial window size based on configuration radius
+        let initialRadius = configManager.currentConfiguration.appearanceSettings.radius
+        let initialWindowSize = initialRadius * 2.2
+        self.overlayWindow = OverlayWindowController(
+            windowSize: CGSize(width: initialWindowSize, height: initialWindowSize)
+        )
 
         // Create view model
         self.viewModel = RadialMenuViewModel(

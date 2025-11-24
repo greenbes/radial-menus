@@ -23,10 +23,44 @@ class RadialMenuWindow: NSPanel {
 class OverlayWindowController: OverlayWindowProtocol {
     private var window: RadialMenuWindow?
     private var hostingView: NSHostingView<AnyView>?
-    private let windowSize: CGSize
+    private var windowSize: CGSize
 
     init(windowSize: CGSize = CGSize(width: 400, height: 400)) {
         self.windowSize = windowSize
+    }
+
+    /// Update the window size based on radius
+    func updateWindowSize(forRadius radius: Double) {
+        // Window needs to be large enough to contain the full radius + some padding
+        // Formula: diameter + 2 * (margin for labels and padding)
+        let size = radius * 2.2  // 2.1x used in RadialMenuView, adding a bit more for safety
+        let newSize = CGSize(width: size, height: size)
+
+        guard newSize != windowSize else { return }
+
+        windowSize = newSize
+
+        // If window exists, update its size
+        if let window = window, window.isVisible {
+            let currentCenter = CGPoint(
+                x: window.frame.origin.x + window.frame.width / 2,
+                y: window.frame.origin.y + window.frame.height / 2
+            )
+
+            let newOrigin = CGPoint(
+                x: currentCenter.x - newSize.width / 2,
+                y: currentCenter.y - newSize.height / 2
+            )
+
+            window.setFrame(
+                NSRect(origin: newOrigin, size: newSize),
+                display: true,
+                animate: false
+            )
+
+            // Update hosting view frame
+            hostingView?.frame = NSRect(origin: .zero, size: newSize)
+        }
     }
 
     func show(at position: CGPoint?) {

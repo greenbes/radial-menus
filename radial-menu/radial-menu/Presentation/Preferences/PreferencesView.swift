@@ -18,6 +18,8 @@ struct PreferencesView: View {
     let onUpdatePositionMode: (BehaviorSettings.PositionMode) -> Void
     let onAddItem: (MenuItem) -> Void
     let onRemoveItem: (UUID) -> Void
+    let onUpdateRadius: (Double) -> Void
+    let onUpdateCenterRadius: (Double) -> Void
 
     @State private var selectedIconSet: IconSet
     @State private var backgroundColor: Color
@@ -25,6 +27,10 @@ struct PreferencesView: View {
     @State private var selectedItemColor: Color
     @State private var positionMode: BehaviorSettings.PositionMode
     @State private var showingAddItemSheet = false
+    @State private var radius: Double
+    @State private var radiusText: String
+    @State private var centerRadius: Double
+    @State private var centerRadiusText: String
 
     init(
         configuration: MenuConfiguration,
@@ -35,7 +41,9 @@ struct PreferencesView: View {
         onUpdateSelectedItemColor: @escaping (CodableColor) -> Void,
         onUpdatePositionMode: @escaping (BehaviorSettings.PositionMode) -> Void,
         onAddItem: @escaping (MenuItem) -> Void,
-        onRemoveItem: @escaping (UUID) -> Void
+        onRemoveItem: @escaping (UUID) -> Void,
+        onUpdateRadius: @escaping (Double) -> Void,
+        onUpdateCenterRadius: @escaping (Double) -> Void
     ) {
         self.configuration = configuration
         self.onResetToDefault = onResetToDefault
@@ -46,11 +54,17 @@ struct PreferencesView: View {
         self.onUpdatePositionMode = onUpdatePositionMode
         self.onAddItem = onAddItem
         self.onRemoveItem = onRemoveItem
+        self.onUpdateRadius = onUpdateRadius
+        self.onUpdateCenterRadius = onUpdateCenterRadius
         _selectedIconSet = State(initialValue: configuration.appearanceSettings.iconSet)
         _backgroundColor = State(initialValue: configuration.appearanceSettings.backgroundColor.color)
         _foregroundColor = State(initialValue: configuration.appearanceSettings.foregroundColor.color)
         _selectedItemColor = State(initialValue: configuration.appearanceSettings.selectedItemColor.color)
         _positionMode = State(initialValue: configuration.behaviorSettings.positionMode)
+        _radius = State(initialValue: configuration.appearanceSettings.radius)
+        _radiusText = State(initialValue: String(Int(configuration.appearanceSettings.radius)))
+        _centerRadius = State(initialValue: configuration.appearanceSettings.centerRadius)
+        _centerRadiusText = State(initialValue: String(Int(configuration.appearanceSettings.centerRadius)))
     }
 
     var body: some View {
@@ -156,15 +170,65 @@ struct PreferencesView: View {
                             }
                     }
 
-                    HStack {
-                        Text("Radius:")
-                        Text("\(Int(configuration.appearanceSettings.radius))px")
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("Radius:")
+                            TextField("", text: $radiusText)
+                                .frame(width: 60)
+                                .textFieldStyle(.roundedBorder)
+                                .onSubmit {
+                                    if let value = Double(radiusText) {
+                                        let clampedValue = min(max(value, 50), 300)
+                                        radius = clampedValue
+                                        radiusText = String(Int(clampedValue))
+                                        onUpdateRadius(clampedValue)
+                                    } else {
+                                        radiusText = String(Int(radius))
+                                    }
+                                }
+                            Text("px")
+                                .foregroundColor(.secondary)
+                        }
+
+                        Slider(value: $radius, in: 50...300, step: 1)
+                            .onChange(of: radius) { _, newValue in
+                                radiusText = String(Int(newValue))
+                                onUpdateRadius(newValue)
+                            }
+
+                        Text("Range: 50-300 pixels")
+                            .font(.caption)
                             .foregroundColor(.secondary)
                     }
 
-                    HStack {
-                        Text("Center Radius:")
-                        Text("\(Int(configuration.appearanceSettings.centerRadius))px")
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("Center Radius:")
+                            TextField("", text: $centerRadiusText)
+                                .frame(width: 60)
+                                .textFieldStyle(.roundedBorder)
+                                .onSubmit {
+                                    if let value = Double(centerRadiusText) {
+                                        let clampedValue = min(max(value, 20), 100)
+                                        centerRadius = clampedValue
+                                        centerRadiusText = String(Int(clampedValue))
+                                        onUpdateCenterRadius(clampedValue)
+                                    } else {
+                                        centerRadiusText = String(Int(centerRadius))
+                                    }
+                                }
+                            Text("px")
+                                .foregroundColor(.secondary)
+                        }
+
+                        Slider(value: $centerRadius, in: 20...100, step: 1)
+                            .onChange(of: centerRadius) { _, newValue in
+                                centerRadiusText = String(Int(newValue))
+                                onUpdateCenterRadius(newValue)
+                            }
+
+                        Text("Range: 20-100 pixels")
+                            .font(.caption)
                             .foregroundColor(.secondary)
                     }
                 }

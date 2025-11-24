@@ -84,17 +84,20 @@ final class RadialMenuViewModel: ObservableObject {
         selectedIndex = nil
 
         // Calculate slices
-        // The window is 400x400, so the center is (200, 200).
-        // Ideally this should be injected, but for v1 we'll align with OverlayWindowController defaults.
+        // Window size is dynamic based on radius (radius * 2.2)
         let radius = configuration.appearanceSettings.radius
-        let windowCenter = CGPoint(x: 200, y: 200)
+        let windowSize = radius * 2.2
+        let windowCenter = CGPoint(x: windowSize / 2, y: windowSize / 2)
+
+        // Update window size before showing
+        overlayWindow.updateWindowSize(forRadius: radius)
 
         slices = RadialGeometry.calculateSlices(
             itemCount: configuration.items.count,
             radius: radius,
             centerPoint: windowCenter
         )
-        Log("🎯 RadialMenuViewModel: Calculated \(slices.count) slices with center \(windowCenter)")
+        Log("🎯 RadialMenuViewModel: Calculated \(slices.count) slices with windowSize=\(windowSize) center=\(windowCenter)")
         Log("SLICE LOGGING START")
 
         if slices.count > 0 {
@@ -172,7 +175,8 @@ final class RadialMenuViewModel: ObservableObject {
         guard case .open = menuState else { return }
 
         let radius = configuration.appearanceSettings.radius
-        let center = CGPoint(x: 200, y: 200) // Window center
+        let windowSize = radius * 2.2
+        let center = CGPoint(x: windowSize / 2, y: windowSize / 2)
         let centerRadius = configuration.appearanceSettings.centerRadius
 
         // Log("🖱️ ViewModel: handleMouseMove at \(point), Center: \(center), Radius: \(radius)")
@@ -203,7 +207,8 @@ final class RadialMenuViewModel: ObservableObject {
 
     func handleMouseClick(at point: CGPoint) {
         let radius = configuration.appearanceSettings.radius
-        let center = CGPoint(x: 200, y: 200) // Window center
+        let windowSize = radius * 2.2
+        let center = CGPoint(x: windowSize / 2, y: windowSize / 2)
         let centerRadius = configuration.appearanceSettings.centerRadius
         
         Log("🖱️ ViewModel: handleMouseClick at \(point)")
@@ -296,7 +301,28 @@ final class RadialMenuViewModel: ObservableObject {
     private func setupConfigurationObserver() {
         configManager.configurationPublisher
             .sink { [weak self] newConfig in
-                self?.configuration = newConfig
+                guard let self = self else { return }
+                let oldRadius = self.configuration.appearanceSettings.radius
+                self.configuration = newConfig
+                let newRadius = newConfig.appearanceSettings.radius
+
+                // If radius changed and menu is open, update window size and recalculate slices
+                if oldRadius != newRadius {
+                    Log("🎯 RadialMenuViewModel: Radius changed from \(oldRadius) to \(newRadius)")
+                    self.overlayWindow.updateWindowSize(forRadius: newRadius)
+
+                    // Recalculate slices with new radius if menu is open
+                    if case .open = self.menuState {
+                        let windowSize = newRadius * 2.2
+                        let windowCenter = CGPoint(x: windowSize / 2, y: windowSize / 2)
+                        self.slices = RadialGeometry.calculateSlices(
+                            itemCount: newConfig.items.count,
+                            radius: newRadius,
+                            centerPoint: windowCenter
+                        )
+                        Log("🎯 RadialMenuViewModel: Recalculated slices for new radius")
+                    }
+                }
             }
             .store(in: &cancellables)
     }

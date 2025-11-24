@@ -26,6 +26,10 @@ protocol OverlayWindowProtocol {
     /// - Parameter enabled: True to enable click-through
     func setClickThrough(_ enabled: Bool)
 
+    /// Update the window size based on radius
+    /// - Parameter radius: The menu radius
+    func updateWindowSize(forRadius radius: Double)
+
     /// Check if window is currently visible
     var isVisible: Bool { get }
 

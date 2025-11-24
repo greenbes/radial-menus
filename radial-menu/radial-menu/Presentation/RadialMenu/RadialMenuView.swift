@@ -17,7 +17,7 @@ struct RadialMenuView: View {
         let backgroundColor = viewModel.configuration.appearanceSettings.backgroundColor.color
         let foregroundColor = viewModel.configuration.appearanceSettings.foregroundColor.color
         let selectedItemColor = viewModel.configuration.appearanceSettings.selectedItemColor.color
-        let windowSize: CGFloat = 400.0
+        let windowSize: CGFloat = radius * 2.2  // Dynamic window size based on radius
         let centerPoint = CGPoint(x: windowSize/2, y: windowSize/2)
 
         RadialMenuContainer(

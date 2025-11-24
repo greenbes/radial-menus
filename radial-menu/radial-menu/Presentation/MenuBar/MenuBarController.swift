@@ -113,6 +113,26 @@ class MenuBarController {
                 } catch {
                     print("❌ Failed to remove menu item: \(error)")
                 }
+            },
+            onUpdateRadius: { [weak self] newRadius in
+                guard let self else { return }
+                var updated = configManager.currentConfiguration
+                updated.appearanceSettings.radius = newRadius
+                do {
+                    try configManager.saveConfiguration(updated)
+                } catch {
+                    print("❌ Failed to save radius: \(error)")
+                }
+            },
+            onUpdateCenterRadius: { [weak self] newCenterRadius in
+                guard let self else { return }
+                var updated = configManager.currentConfiguration
+                updated.appearanceSettings.centerRadius = newCenterRadius
+                do {
+                    try configManager.saveConfiguration(updated)
+                } catch {
+                    print("❌ Failed to save center radius: \(error)")
+                }
             }
         )
 
