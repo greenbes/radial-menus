@@ -53,6 +53,28 @@ struct SliceShape: Shape {
     }
 }
 
+/// Shape for just the inner and outer arcs of a slice (no side lines)
+struct SliceArcShape: Shape {
+    let startAngle: Angle
+    let endAngle: Angle
+    let radius: Double
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+
+        path.addArc(
+            center: center,
+            radius: radius,
+            startAngle: startAngle,
+            endAngle: endAngle,
+            clockwise: false
+        )
+
+        return path
+    }
+}
+
 /// View for a single slice in the radial menu
 struct SliceView: View, Equatable {
     let item: MenuItem
@@ -106,6 +128,25 @@ struct SliceView: View, Equatable {
                 .stroke(Color.white.opacity(0.3), lineWidth: 1)
             )
 
+            // Thick borders on inner and outer arcs when selected
+            if isSelected {
+                // Outer arc border
+                SliceArcShape(
+                    startAngle: Angle(radians: slice.startAngle),
+                    endAngle: Angle(radians: slice.endAngle),
+                    radius: outerRadius
+                )
+                .stroke(foregroundColor, lineWidth: 10)
+
+                // Inner arc border
+                SliceArcShape(
+                    startAngle: Angle(radians: slice.startAngle),
+                    endAngle: Angle(radians: slice.endAngle),
+                    radius: centerRadius
+                )
+                .stroke(foregroundColor, lineWidth: 10)
+            }
+
             // Icon and label
             VStack(spacing: 4) {
                 iconView(for: resolvedIcon)
@@ -125,7 +166,7 @@ struct SliceView: View, Equatable {
                 }
             )
         }
-        .animation(.easeInOut(duration: 0.15), value: isSelected)
+        .animation(.linear(duration: 0.05), value: isSelected)
     }
 
     private var iconColor: Color {
