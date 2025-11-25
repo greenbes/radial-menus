@@ -21,6 +21,7 @@ final class ShortcutsServiceLocator: @unchecked Sendable {
     private let lock = NSLock()
     private var _configManager: ConfigurationManagerProtocol?
     private var _actionExecutor: ActionExecutorProtocol?
+    private var _menuProvider: MenuProviderProtocol?
     private weak var _viewModel: RadialMenuViewModel?
     private var _lastSelectedItemTitle: String?
 
@@ -63,6 +64,23 @@ final class ShortcutsServiceLocator: @unchecked Sendable {
         let executor = ActionExecutor()
         _actionExecutor = executor
         return executor
+    }
+
+    /// Menu provider for resolving menu configurations from various sources.
+    /// Creates a new instance if not registered (handles cold-start).
+    var menuProvider: MenuProviderProtocol {
+        lock.lock()
+        defer { lock.unlock() }
+
+        if let provider = _menuProvider {
+            return provider
+        }
+
+        // Fallback: create new instance if not registered
+        LogShortcuts("Creating fallback MenuProvider for cold start", level: .info)
+        let provider = MenuProvider(configManager: configManager)
+        _menuProvider = provider
+        return provider
     }
 
     /// ViewModel for menu control (optional - only available when app UI is running).
@@ -127,10 +145,12 @@ final class ShortcutsServiceLocator: @unchecked Sendable {
     /// - Parameters:
     ///   - configManager: The configuration manager instance
     ///   - actionExecutor: The action executor instance
+    ///   - menuProvider: The menu provider instance
     ///   - viewModel: The radial menu view model
     func register(
         configManager: ConfigurationManagerProtocol,
         actionExecutor: ActionExecutorProtocol,
+        menuProvider: MenuProviderProtocol,
         viewModel: RadialMenuViewModel
     ) {
         lock.lock()
@@ -138,6 +158,7 @@ final class ShortcutsServiceLocator: @unchecked Sendable {
 
         _configManager = configManager
         _actionExecutor = actionExecutor
+        _menuProvider = menuProvider
         _viewModel = viewModel
 
         LogShortcuts("Dependencies registered with ShortcutsServiceLocator")

@@ -20,6 +20,7 @@ class AppCoordinator {
     private let overlayWindow: OverlayWindowProtocol
     private let accessibilityManager: AccessibilityManager
     private let iconSetProvider: IconSetProviderProtocol
+    private let menuProvider: MenuProviderProtocol
 
     // MARK: - Presentation Components
 
@@ -44,6 +45,7 @@ class AppCoordinator {
         self.controllerInput = ControllerInputManager()
         self.accessibilityManager = AccessibilityManager()
         self.iconSetProvider = IconSetProvider()
+        self.menuProvider = MenuProvider(configManager: configManager)
 
         // Calculate initial window size based on configuration radius
         let initialRadius = configManager.currentConfiguration.appearanceSettings.radius
@@ -120,6 +122,7 @@ class AppCoordinator {
         ShortcutsServiceLocator.shared.register(
             configManager: configManager,
             actionExecutor: actionExecutor,
+            menuProvider: menuProvider,
             viewModel: viewModel
         )
         LogLifecycle("Registered with ShortcutsServiceLocator")

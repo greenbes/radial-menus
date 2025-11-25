@@ -38,6 +38,12 @@ final class RadialMenuViewModel: ObservableObject {
     /// Returns the selected MenuItem if an action was executed, nil if dismissed
     private var menuCompletionHandler: ((MenuItem?) -> Void)?
 
+    /// Whether the current menu is using an override configuration
+    private var isUsingOverrideConfiguration = false
+
+    /// The original configuration to restore after override menu closes
+    private var originalConfiguration: MenuConfiguration?
+
     // MARK: - Initialization
 
     init(
@@ -109,6 +115,42 @@ final class RadialMenuViewModel: ObservableObject {
     ///   - position: Optional position to show menu (uses config default if nil)
     ///   - completion: Called when menu closes with the selected item (nil if dismissed)
     func openMenu(at position: CGPoint? = nil, completion: ((MenuItem?) -> Void)? = nil) {
+        openMenuInternal(at: position, completion: completion)
+    }
+
+    /// Opens the menu with a specific configuration (temporary override).
+    ///
+    /// The original configuration is restored when the menu closes.
+    /// Use this for dynamic/ephemeral menus loaded from external sources.
+    ///
+    /// - Parameters:
+    ///   - configuration: The menu configuration to display
+    ///   - position: Optional position to show menu (uses config default if nil)
+    ///   - completion: Called when menu closes with the selected item (nil if dismissed)
+    func openMenu(
+        with configuration: MenuConfiguration,
+        at position: CGPoint? = nil,
+        completion: ((MenuItem?) -> Void)? = nil
+    ) {
+        guard case .closed = menuState else {
+            LogMenu("Cannot open menu with override, not in closed state", level: .debug)
+            completion?(nil)
+            return
+        }
+
+        // Store original configuration for restoration
+        originalConfiguration = self.configuration
+        isUsingOverrideConfiguration = true
+
+        // Apply override configuration
+        self.configuration = configuration
+        LogMenu("Applied override configuration with \(configuration.items.count) items")
+
+        openMenuInternal(at: position, completion: completion)
+    }
+
+    /// Internal implementation of menu opening logic.
+    private func openMenuInternal(at position: CGPoint?, completion: ((MenuItem?) -> Void)?) {
         guard case .closed = menuState else {
             LogMenu("Cannot open menu, not in closed state", level: .debug)
             completion?(nil)
@@ -199,11 +241,23 @@ final class RadialMenuViewModel: ObservableObject {
         // Update ShortcutsServiceLocator with selection for polling-based intents
         ShortcutsServiceLocator.shared.lastSelectedItemTitle = selectedItem?.title
 
+        // Capture override state before clearing
+        let wasUsingOverride = isUsingOverrideConfiguration
+        let originalConfig = originalConfiguration
+
         let animationDuration = configuration.appearanceSettings.animationDuration
         DispatchQueue.main.asyncAfter(deadline: .now() + animationDuration) {
             self.overlayWindow.hide()
             self.menuState = .closed
             self.selectedIndex = nil
+
+            // Restore original configuration if we were using an override
+            if wasUsingOverride, let original = originalConfig {
+                self.configuration = original
+                LogMenu("Restored original configuration")
+            }
+            self.isUsingOverrideConfiguration = false
+            self.originalConfiguration = nil
 
             // Call completion handler after menu is fully closed
             completion?(selectedItem)

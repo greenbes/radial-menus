@@ -11,7 +11,10 @@ import AppKit
 /// Handles radial-menu:// URL scheme commands.
 ///
 /// Supported URLs:
-/// - `radial-menu://show` - Show the menu
+/// - `radial-menu://show` - Show the default menu
+/// - `radial-menu://show?menu=<name>` - Show a named menu
+/// - `radial-menu://show?file=<path>` - Show a menu from a file (ephemeral)
+/// - `radial-menu://show?json=<encoded-json>` - Show a menu from inline JSON (ephemeral)
 /// - `radial-menu://hide` - Hide the menu
 /// - `radial-menu://toggle` - Toggle menu visibility
 /// - `radial-menu://execute?item=<uuid>` - Execute item by UUID
@@ -20,6 +23,8 @@ import AppKit
 /// Usage from shell:
 /// ```bash
 /// open "radial-menu://show"
+/// open "radial-menu://show?menu=development"
+/// open "radial-menu://show?file=/path/to/menu.json"
 /// open "radial-menu://execute?title=Terminal"
 /// ```
 final class URLSchemeHandler {
@@ -54,7 +59,7 @@ final class URLSchemeHandler {
 
         switch host.lowercased() {
         case "show":
-            return handleShow()
+            return handleShow(url)
 
         case "hide":
             return handleHide()
@@ -74,18 +79,73 @@ final class URLSchemeHandler {
     // MARK: - Command Handlers
 
     @MainActor
-    private func handleShow() -> Bool {
+    private func handleShow(_ url: URL) -> Bool {
         guard let viewModel = ShortcutsServiceLocator.shared.viewModel else {
             LogShortcuts("URLSchemeHandler: ViewModel not available for show", level: .error)
             return false
         }
 
-        if !viewModel.isOpen {
-            viewModel.openMenu()
+        // If menu is already open, don't reopen
+        if viewModel.isOpen {
+            LogShortcuts("URLSchemeHandler: Menu already open")
+            return true
         }
 
-        LogShortcuts("URLSchemeHandler: Menu shown")
-        return true
+        // Parse menu source from URL parameters
+        let source = parseMenuSource(from: url)
+
+        // For default source, just open the menu normally
+        if case .default = source {
+            viewModel.openMenu()
+            LogShortcuts("URLSchemeHandler: Default menu shown")
+            return true
+        }
+
+        // For other sources, resolve via MenuProvider
+        let menuProvider = ShortcutsServiceLocator.shared.menuProvider
+
+        switch menuProvider.resolve(source) {
+        case .success(let config):
+            viewModel.openMenu(with: config)
+            LogShortcuts("URLSchemeHandler: Menu shown from source \(source)")
+            return true
+
+        case .failure(let error):
+            LogShortcuts("URLSchemeHandler: Failed to resolve menu - \(error.localizedDescription)", level: .error)
+            return false
+        }
+    }
+
+    /// Parses a MenuSource from URL query parameters.
+    ///
+    /// Priority: json > file > menu > default
+    private func parseMenuSource(from url: URL) -> MenuSource {
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return .default
+        }
+
+        let queryItems = components.queryItems ?? []
+
+        // Check for inline JSON (highest priority)
+        if let jsonString = queryItems.first(where: { $0.name == "json" })?.value {
+            LogShortcuts("URLSchemeHandler: Using inline JSON source")
+            return .json(jsonString)
+        }
+
+        // Check for file path
+        if let filePath = queryItems.first(where: { $0.name == "file" })?.value {
+            LogShortcuts("URLSchemeHandler: Using file source: \(filePath)")
+            return .file(URL(fileURLWithPath: filePath))
+        }
+
+        // Check for named menu
+        if let menuName = queryItems.first(where: { $0.name == "menu" })?.value {
+            LogShortcuts("URLSchemeHandler: Using named menu: \(menuName)")
+            return .named(menuName)
+        }
+
+        // Default menu
+        return .default
     }
 
     @MainActor

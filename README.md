@@ -12,6 +12,8 @@ Lightweight macOS radial menu with configurable actions, icon sets, and keyboard
 - Visual feedback: menu dims when losing keyboard focus
 - User-defined icon sets: import custom icon sets with PDF/SVG icons
 - Full accessibility support: VoiceOver announcements, keyboard navigation, reduce motion
+- Shortcuts integration: App Intents for Siri, Shortcuts app, and Spotlight
+- URL scheme for scripting: `radial-menu://` protocol for shell/AppleScript automation
 
 ## Input Methods
 
@@ -166,6 +168,7 @@ The app uses Apple's Unified Logging System (os_log). Use category-specific log 
 - `LogAction()` - Action execution
 - `LogConfig()` - Configuration
 - `LogError()` - Errors (specify category)
+- `LogShortcuts()` - App Intents, URL scheme
 
 View logs:
 ```bash
@@ -180,3 +183,93 @@ log stream --predicate 'subsystem == "Six-Gables-Software.radial-menu" AND categ
 ```
 
 Do NOT use `print()` statements.
+
+## Shortcuts & Automation
+
+### App Intents (Shortcuts App)
+
+The app integrates with macOS Shortcuts via App Intents. Available actions:
+
+| Action | Description |
+|--------|-------------|
+| Execute Menu Item | Run any configured menu item's action |
+| Toggle Radial Menu | Show, hide, or toggle menu visibility |
+| Get Menu Items | List all configured menu items |
+| Add Menu Item | Create a new menu item |
+| Remove Menu Item | Delete a menu item |
+| Update Menu Settings | Change radius, icon set, position mode |
+
+Siri phrases:
+- "Run Terminal in Radial Menu"
+- "Toggle Radial Menu"
+- "List Radial Menu items"
+
+### URL Scheme
+
+Control the app from shell scripts, AppleScript, or other automation tools:
+
+```bash
+# Show/hide/toggle menu
+open "radial-menu://show"
+open "radial-menu://hide"
+open "radial-menu://toggle"
+
+# Show a named menu (stored in ~/Library/Application Support/com.radial-menu/menus/)
+open "radial-menu://show?menu=development"
+
+# Show menu from a file path (ephemeral, one-time use)
+open "radial-menu://show?file=/path/to/menu.json"
+
+# Show menu from inline JSON (ephemeral, URL-encoded)
+open "radial-menu://show?json=%7B%22version%22%3A1%2C%22name%22%3A%22temp%22%2C%22items%22%3A%5B...%5D%7D"
+
+# Execute menu item by title
+open "radial-menu://execute?title=Terminal"
+
+# Execute menu item by UUID
+open "radial-menu://execute?item=<uuid>"
+```
+
+AppleScript example:
+```applescript
+do shell script "open 'radial-menu://execute?title=Screenshot'"
+```
+
+### Named Menus
+
+Store custom menus as JSON files in:
+```
+~/Library/Application Support/com.radial-menu/menus/<name>.json
+```
+
+**Named menu JSON format:**
+```json
+{
+  "version": 1,
+  "name": "development",
+  "description": "Development tools and apps",
+  "items": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "title": "VS Code",
+      "iconName": "chevron.left.forwardslash.chevron.right",
+      "action": {
+        "launchApp": {
+          "path": "/Applications/Visual Studio Code.app"
+        }
+      }
+    }
+  ],
+  "appearanceSettings": {
+    "radius": 180.0,
+    "iconSetIdentifier": "filled"
+  }
+}
+```
+
+- `version`: Schema version (required, use 1)
+- `name`: Menu identifier for invocation (required)
+- `description`: Human-readable description (optional)
+- `items`: Array of MenuItem (required, non-empty)
+- `appearanceSettings`: Overrides (optional, uses defaults if omitted)
+- `behaviorSettings`: Overrides (optional, uses defaults if omitted)
