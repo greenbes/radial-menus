@@ -7,8 +7,9 @@ Lightweight macOS radial menu with configurable actions, icon sets, and keyboard
 - Radial menu overlay with configurable items (add/remove via Preferences)
 - Actions: launch apps, run shell commands, simulate keyboard shortcuts
 - Appearance: selectable icon sets (Outline, Filled, Simple, Bootstrap), customizable colors (background, foreground, selected item), adjustable radius and center radius
-- Position: configurable launch location (at cursor or screen center)
-- Menu bar item with Preferences window for full configuration
+- Position: configurable launch location (at cursor or screen center), drag to reposition
+- Menu bar only app (no Dock icon) with Preferences window for full configuration
+- Visual feedback: menu dims when losing keyboard focus
 - User-defined icon sets: import custom icon sets with PDF/SVG icons
 - Full accessibility support: VoiceOver announcements, keyboard navigation, reduce motion
 
@@ -26,6 +27,7 @@ Lightweight macOS radial menu with configurable actions, icon sets, and keyboard
 - Move cursor to select slice
 - Click to activate selected item
 - Click outside menu to close
+- Drag from center circle to reposition menu
 
 ### Game Controller
 
@@ -125,6 +127,9 @@ Full VoiceOver support:
 # Resolve dependencies (if needed)
 xcodebuild -resolvePackageDependencies -scheme radial-menu
 
+# Generate build info (includes git commit hash and timestamp)
+./scripts/generate-build-info.sh
+
 # Build Debug
 xcodebuild -project radial-menu/radial-menu.xcodeproj -scheme radial-menu -configuration Debug build
 
@@ -134,6 +139,8 @@ xcodebuild -project radial-menu/radial-menu.xcodeproj -scheme radial-menu -confi
 # Hotkey test helper
 ./scripts/test-hotkey.sh
 ```
+
+Each build includes a unique build ID (git commit hash + dirty flag), visible in the About dialog.
 
 Code signing is disabled for local Debug/Release in the project settings.
 
