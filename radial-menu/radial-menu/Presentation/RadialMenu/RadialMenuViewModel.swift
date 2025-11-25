@@ -148,8 +148,9 @@ final class RadialMenuViewModel: ObservableObject {
         LogMenu("Showing overlay window", level: .debug)
         overlayWindow.show(at: windowPosition)
 
-        // Transition to open state
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+        // Transition to open state after animation completes
+        let animationDuration = configuration.appearanceSettings.animationDuration
+        DispatchQueue.main.asyncAfter(deadline: .now() + animationDuration) {
             LogMenu("Transition to open state complete", level: .debug)
             self.menuState = .open(selectedIndex: nil)
             self.announceMenuOpened()
@@ -160,7 +161,8 @@ final class RadialMenuViewModel: ObservableObject {
         menuState = .closing
         announceMenuClosed()
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+        let animationDuration = configuration.appearanceSettings.animationDuration
+        DispatchQueue.main.asyncAfter(deadline: .now() + animationDuration) {
             self.overlayWindow.hide()
             self.menuState = .closed
             self.selectedIndex = nil

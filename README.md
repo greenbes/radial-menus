@@ -9,6 +9,8 @@ Lightweight macOS radial menu with configurable actions, icon sets, and keyboard
 - Appearance: selectable icon sets (Outline, Filled, Simple, Bootstrap), customizable colors (background, foreground, selected item), adjustable radius and center radius
 - Position: configurable launch location (at cursor or screen center)
 - Menu bar item with Preferences window for full configuration
+- User-defined icon sets: import custom icon sets with PDF/SVG icons
+- Full accessibility support: VoiceOver announcements, keyboard navigation, reduce motion
 
 ## Input Methods
 
@@ -45,9 +47,77 @@ Controller settings:
 
 ## Icon Sets
 
-- Assets live in `radial-menu/Assets.xcassets`. Bootstrap icons use the converted PDFs under `bootstrap_*.imageset/`.
-- Icon set is selectable in Preferences. All icons are rendered in a single tint to avoid inconsistent palette issues.
-- Use `rsvg-convert` to convert SVG to PDF.
+### Built-in Icon Sets
+
+Four built-in icon sets (selectable in Preferences):
+
+| Icon Set | Description |
+|----------|-------------|
+| Outline | SF Symbols in outline style (default) |
+| Filled | SF Symbols in filled style |
+| Simple | Single-tone, high-contrast SF Symbols |
+| Bootstrap | Bootstrap-style icons with special full-color accents |
+
+All icons are rendered with monochrome tinting unless `preserveColors` is set.
+
+### User-Defined Icon Sets
+
+Import custom icon sets via Preferences → Icon Sets → Import. User icon sets are stored at:
+```
+~/Library/Application Support/com.radial-menu/icon-sets/<identifier>/
+```
+
+Each icon set requires a `manifest.json` and an `icons/` directory:
+
+```
+my-icon-set/
+├── manifest.json
+└── icons/
+    ├── terminal.pdf
+    ├── safari.pdf
+    └── ...
+```
+
+**manifest.json format:**
+```json
+{
+  "version": 1,
+  "identifier": "my-icon-set",
+  "name": "My Icon Set",
+  "description": "Custom icons for my workflow",
+  "author": {
+    "name": "Your Name",
+    "url": "https://example.com"
+  },
+  "icons": {
+    "terminal": "terminal.pdf",
+    "safari": { "file": "safari.pdf" },
+    "camera": { "systemSymbol": "camera.fill" },
+    "special": { "file": "special.pdf", "preserveColors": true }
+  },
+  "fallback": {
+    "strategy": "system"
+  }
+}
+```
+
+- Icons can be PDF files (converted from SVG) or SF Symbol references
+- Use `rsvg-convert -f pdf -o icon.pdf icon.svg` to convert SVG to PDF
+- `preserveColors: true` renders the icon in its original colors instead of tinting
+
+### Asset Location
+
+Built-in assets live in `radial-menu/Assets.xcassets/`.
+
+## Accessibility
+
+Full VoiceOver support:
+
+- Menu items announce their label and position ("Terminal, 1 of 8")
+- State changes announced ("Radial menu opened with 8 items")
+- Custom accessibility labels and hints can be set per menu item
+- Respects system "Reduce Motion" preference
+- Keyboard navigation works with VoiceOver focus tracking
 
 ## Build & Run (CLI only)
 

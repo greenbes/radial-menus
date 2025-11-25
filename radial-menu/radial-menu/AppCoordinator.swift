@@ -71,7 +71,7 @@ class AppCoordinator {
     // MARK: - Lifecycle
 
     func start() {
-        LogLifecycle("AppCoordinator starting")
+        LogLifecycle("AppCoordinator starting - Build: \(BuildInfo.buildID)")
 
         // Start accessibility monitoring
         LogLifecycle("Starting accessibility observation", level: .debug)

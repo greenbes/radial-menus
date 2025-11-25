@@ -50,8 +50,12 @@ test-file FILE: _check-tools-quiet
 test-single TEST: _check-tools-quiet
   xcodebuild test -project {{project}} -scheme {{scheme}} -only-testing:radial-menuTests/{{TEST}}
 
-# Build and run the app with logging
+# Build and run the app
 run: build
+  ./scripts/run-app.sh
+
+# Build and run the app with logging
+run-logging: build
   ./scripts/run-with-logs.sh
 
 # Test hotkey detection with verbose logging

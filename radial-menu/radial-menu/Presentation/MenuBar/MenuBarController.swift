@@ -182,6 +182,16 @@ class MenuBarController {
     private func setupMenu() {
         let menu = NSMenu()
 
+        // About item with build ID
+        let aboutItem = NSMenuItem(
+            title: "About Radial Menu",
+            action: #selector(aboutMenuItemClicked),
+            keyEquivalent: ""
+        )
+        menu.addItem(aboutItem)
+
+        menu.addItem(NSMenuItem.separator())
+
         menu.addItem(NSMenuItem(
             title: "Preferences...",
             action: #selector(preferencesMenuItemClicked),
@@ -200,6 +210,21 @@ class MenuBarController {
         menu.items.forEach { $0.target = self }
 
         statusItem?.menu = menu
+    }
+
+    @objc private func aboutMenuItemClicked() {
+        let alert = NSAlert()
+        alert.messageText = "Radial Menu"
+        alert.informativeText = """
+            A configurable radial overlay menu for macOS.
+
+            Build: \(BuildInfo.buildID)
+            Branch: \(BuildInfo.branch)
+            Built: \(BuildInfo.buildTimestamp)
+            """
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
 
     @objc private func preferencesMenuItemClicked() {

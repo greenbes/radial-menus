@@ -103,5 +103,8 @@ default.profraw
 radial-menu/DerivedData/
 radial-menu/bootstrap-icons/
 
+# Generated build info (regenerated at build time)
+radial-menu/radial-menu/BuildInfo.generated.swift
+
 # Debug logs
 /tmp/radial-menu-debug.log
