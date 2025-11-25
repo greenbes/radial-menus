@@ -85,6 +85,10 @@ struct SliceView: View, Equatable {
     let centerRadius: Double
     let foregroundColor: Color
     let selectedItemColor: Color
+    let totalItems: Int
+
+    // System accessibility preference
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     static func == (lhs: SliceView, rhs: SliceView) -> Bool {
         return lhs.isSelected == rhs.isSelected &&
@@ -94,7 +98,8 @@ struct SliceView: View, Equatable {
                lhs.centerRadius == rhs.centerRadius &&
                lhs.iconSet == rhs.iconSet &&
                lhs.foregroundColor == rhs.foregroundColor &&
-               lhs.selectedItemColor == rhs.selectedItemColor
+               lhs.selectedItemColor == rhs.selectedItemColor &&
+               lhs.totalItems == rhs.totalItems
     }
 
     var body: some View {
@@ -166,7 +171,16 @@ struct SliceView: View, Equatable {
                 }
             )
         }
-        .animation(.linear(duration: 0.05), value: isSelected)
+        // Respect system reduce motion preference
+        .animation(reduceMotion ? nil : .linear(duration: 0.05), value: isSelected)
+        // MARK: - Accessibility
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(item.effectiveAccessibilityLabel)
+        .accessibilityHint(item.effectiveAccessibilityHint)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityValue(isSelected ? "Selected, \(slice.index + 1) of \(totalItems)" : "\(slice.index + 1) of \(totalItems)")
+        .accessibilityIdentifier("slice-\(item.id)")
     }
 
     private var iconColor: Color {

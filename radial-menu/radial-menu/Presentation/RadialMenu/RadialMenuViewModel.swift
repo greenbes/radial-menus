@@ -17,13 +17,14 @@ final class RadialMenuViewModel: ObservableObject {
     private let configManager: ConfigurationManagerProtocol
     private let actionExecutor: ActionExecutorProtocol
     private let overlayWindow: OverlayWindowProtocol
+    private let accessibilityManager: AccessibilityManagerProtocol?
 
     // MARK: - Published State
 
     @Published private(set) var menuState: MenuState = .closed
-    @Published private(set) var selectedIndex: Int? = nil
+    @Published var selectedIndex: Int? = nil
     @Published private(set) var configuration: MenuConfiguration
-    
+
     // Exposed for View to render slices without recalculating
     @Published private(set) var slices: [RadialGeometry.Slice] = []
 
@@ -36,14 +37,17 @@ final class RadialMenuViewModel: ObservableObject {
     init(
         configManager: ConfigurationManagerProtocol,
         actionExecutor: ActionExecutorProtocol,
-        overlayWindow: OverlayWindowProtocol
+        overlayWindow: OverlayWindowProtocol,
+        accessibilityManager: AccessibilityManagerProtocol? = nil
     ) {
         self.configManager = configManager
         self.actionExecutor = actionExecutor
         self.overlayWindow = overlayWindow
+        self.accessibilityManager = accessibilityManager
         self.configuration = configManager.currentConfiguration
 
         setupConfigurationObserver()
+        setupSelectionAnnouncements()
     }
 
     // MARK: - Public Methods
@@ -135,11 +139,13 @@ final class RadialMenuViewModel: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             LogMenu("Transition to open state complete", level: .debug)
             self.menuState = .open(selectedIndex: nil)
+            self.announceMenuOpened()
         }
     }
 
     func closeMenu() {
         menuState = .closing
+        announceMenuClosed()
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             self.overlayWindow.hide()
@@ -279,6 +285,7 @@ final class RadialMenuViewModel: ObservableObject {
 
         let item = configuration.items[index]
         menuState = .executing(itemIndex: index)
+        announceActionExecuted(for: item)
 
         actionExecutor.executeAsync(item.action) { [weak self] result in
             guard let self = self else { return }
@@ -321,5 +328,45 @@ final class RadialMenuViewModel: ObservableObject {
                 }
             }
             .store(in: &cancellables)
+    }
+
+    // MARK: - Accessibility
+
+    private func setupSelectionAnnouncements() {
+        // Announce selection changes for VoiceOver users
+        $selectedIndex
+            .dropFirst() // Skip initial nil value
+            .removeDuplicates()
+            .sink { [weak self] newIndex in
+                guard let self = self,
+                      let index = newIndex,
+                      index < self.configuration.items.count,
+                      self.accessibilityManager?.preferences.voiceOverEnabled == true else {
+                    return
+                }
+
+                let item = self.configuration.items[index]
+                let announcement = "\(item.effectiveAccessibilityLabel), \(index + 1) of \(self.configuration.items.count)"
+                self.accessibilityManager?.announce(announcement, priority: .medium)
+            }
+            .store(in: &cancellables)
+    }
+
+    private func announceMenuOpened() {
+        guard accessibilityManager?.preferences.voiceOverEnabled == true else { return }
+
+        let itemCount = configuration.items.count
+        let announcement = "Radial menu opened with \(itemCount) items. Use arrow keys to navigate."
+        accessibilityManager?.announce(announcement, priority: .high)
+    }
+
+    private func announceMenuClosed() {
+        guard accessibilityManager?.preferences.voiceOverEnabled == true else { return }
+        accessibilityManager?.announce("Radial menu closed", priority: .low)
+    }
+
+    private func announceActionExecuted(for item: MenuItem) {
+        guard accessibilityManager?.preferences.voiceOverEnabled == true else { return }
+        accessibilityManager?.announce("Activated \(item.effectiveAccessibilityLabel)", priority: .high)
     }
 }

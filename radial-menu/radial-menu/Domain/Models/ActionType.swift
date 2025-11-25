@@ -33,4 +33,21 @@ extension ActionType {
             return "\(modString)+\(key)"
         }
     }
+
+    /// Accessibility hint describing what the action will do
+    var accessibilityHint: String {
+        switch self {
+        case .launchApp(let path):
+            let appName = URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent
+            return "Double tap to launch \(appName)"
+        case .runShellCommand:
+            return "Double tap to run command"
+        case .simulateKeyboardShortcut(let modifiers, let key):
+            let modString = modifiers.map { $0.rawValue.capitalized }.joined(separator: "+")
+            if modString.isEmpty {
+                return "Double tap to press \(key)"
+            }
+            return "Double tap to press \(modString)+\(key)"
+        }
+    }
 }

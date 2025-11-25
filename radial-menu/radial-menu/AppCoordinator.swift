@@ -18,6 +18,7 @@ class AppCoordinator {
     private let hotkeyManager: HotkeyManagerProtocol
     private let controllerInput: ControllerInputProtocol
     private let overlayWindow: OverlayWindowProtocol
+    private let accessibilityManager: AccessibilityManager
 
     // MARK: - Presentation Components
 
@@ -40,6 +41,7 @@ class AppCoordinator {
         self.actionExecutor = ActionExecutor()
         self.hotkeyManager = HotkeyManager()
         self.controllerInput = ControllerInputManager()
+        self.accessibilityManager = AccessibilityManager()
 
         // Calculate initial window size based on configuration radius
         let initialRadius = configManager.currentConfiguration.appearanceSettings.radius
@@ -52,7 +54,8 @@ class AppCoordinator {
         self.viewModel = RadialMenuViewModel(
             configManager: configManager,
             actionExecutor: actionExecutor,
-            overlayWindow: overlayWindow
+            overlayWindow: overlayWindow,
+            accessibilityManager: accessibilityManager
         )
 
         // Create menu bar controller
@@ -63,6 +66,10 @@ class AppCoordinator {
 
     func start() {
         LogLifecycle("AppCoordinator starting")
+
+        // Start accessibility monitoring
+        LogLifecycle("Starting accessibility observation", level: .debug)
+        accessibilityManager.startObserving()
 
         // Setup menu bar
         LogLifecycle("Setting up menu bar", level: .debug)
@@ -108,6 +115,7 @@ class AppCoordinator {
     func stop() {
         hotkeyManager.unregisterHotkey()
         controllerInput.stopMonitoring()
+        accessibilityManager.stopObserving()
     }
 
     // MARK: - Private Methods

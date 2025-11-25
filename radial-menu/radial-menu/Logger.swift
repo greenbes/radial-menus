@@ -36,13 +36,14 @@ enum LogLevel {
 // MARK: - Log Categories
 
 enum LogCategory: String {
-    case lifecycle = "Lifecycle"   // App startup, shutdown, coordinator
-    case input = "Input"           // Hotkey, keyboard, mouse, controller
-    case menu = "Menu"             // Menu state, selection changes
-    case window = "Window"         // Window management, positioning
-    case geometry = "Geometry"     // Hit detection, angle calculations
-    case action = "Action"         // Action execution
-    case config = "Config"         // Configuration loading/saving
+    case lifecycle = "Lifecycle"       // App startup, shutdown, coordinator
+    case input = "Input"               // Hotkey, keyboard, mouse, controller
+    case menu = "Menu"                 // Menu state, selection changes
+    case window = "Window"             // Window management, positioning
+    case geometry = "Geometry"         // Hit detection, angle calculations
+    case action = "Action"             // Action execution
+    case config = "Config"             // Configuration loading/saving
+    case accessibility = "Accessibility" // VoiceOver, accessibility features
 
     var logger: os.Logger {
         os.Logger(subsystem: subsystem, category: rawValue)
@@ -89,4 +90,9 @@ func LogConfig(_ message: String, level: LogLevel = .info) {
 /// Log errors with specified category
 func LogError(_ message: String, category: LogCategory = .lifecycle) {
     category.logger.log(level: .error, "\(message, privacy: .public)")
+}
+
+/// Log accessibility events (VoiceOver, announcements, focus)
+func LogAccessibility(_ message: String, level: LogLevel = .debug) {
+    LogCategory.accessibility.logger.log(level: level.osLogType, "\(message, privacy: .public)")
 }

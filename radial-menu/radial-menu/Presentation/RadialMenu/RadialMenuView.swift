@@ -11,6 +11,9 @@ import SwiftUI
 struct RadialMenuView: View {
     @ObservedObject var viewModel: RadialMenuViewModel
 
+    // Accessibility focus state for VoiceOver navigation
+    @AccessibilityFocusState private var accessibilityFocusedItem: UUID?
+
     var body: some View {
         let radius = viewModel.configuration.appearanceSettings.radius
         let centerRadius = viewModel.configuration.appearanceSettings.centerRadius
@@ -39,10 +42,12 @@ struct RadialMenuView: View {
                         radius: radius,
                         centerRadius: centerRadius,
                         foregroundColor: foregroundColor,
-                        selectedItemColor: selectedItemColor
+                        selectedItemColor: selectedItemColor,
+                        totalItems: viewModel.configuration.items.count
                     )
                     .equatable() // Only re-render if props change
                     .zIndex(isSelected ? 1 : 0)
+                    .accessibilityFocused($accessibilityFocusedItem, equals: item.id)
                 }
 
                 // Center circle
@@ -62,8 +67,12 @@ struct RadialMenuView: View {
                     .position(centerPoint)
             }
             .frame(width: windowSize, height: windowSize)
-            .background(Color.clear),
-            
+            .background(Color.clear)
+            // MARK: - Container Accessibility
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Radial Menu")
+            .accessibilityHint("Use arrow keys to navigate, Return to select, Escape to close"),
+
             menuCenter: centerPoint,
             menuRadius: radius,
             centerRadius: centerRadius,
@@ -75,5 +84,25 @@ struct RadialMenuView: View {
             onConfirm: { viewModel.handleConfirm() },
             onCancel: { viewModel.closeMenu() }
         )
+        // Sync accessibility focus with selection changes
+        .onChange(of: viewModel.selectedIndex) { _, newIndex in
+            if let newIndex = newIndex, newIndex < viewModel.configuration.items.count {
+                accessibilityFocusedItem = viewModel.configuration.items[newIndex].id
+            }
+        }
+        // Sync selection with accessibility focus changes (VoiceOver navigation)
+        .onChange(of: accessibilityFocusedItem) { _, newFocusedId in
+            guard let focusedId = newFocusedId else { return }
+            if let index = viewModel.configuration.items.firstIndex(where: { $0.id == focusedId }) {
+                viewModel.selectedIndex = index
+            }
+        }
+        // Set initial focus when menu opens
+        .onChange(of: viewModel.isOpen) { _, isOpen in
+            if isOpen, let selectedIndex = viewModel.selectedIndex,
+               selectedIndex < viewModel.configuration.items.count {
+                accessibilityFocusedItem = viewModel.configuration.items[selectedIndex].id
+            }
+        }
     }
 }

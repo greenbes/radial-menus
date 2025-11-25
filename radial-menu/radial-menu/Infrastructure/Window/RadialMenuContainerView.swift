@@ -133,27 +133,62 @@ class RadialMenuContainerView: NSView {
     }
     
     // MARK: - Keyboard Events
-    
+
     override func keyDown(with event: NSEvent) {
         guard isMenuActive else {
             super.keyDown(with: event)
             return
         }
 
-        LogInput("KeyDown code: \(event.keyCode)")
-        
-        switch event.keyCode {
-        case 123: // Left Arrow
-            onKeyboardNavigation?(false) // Counter-clockwise
-        case 124: // Right Arrow
-            onKeyboardNavigation?(true)  // Clockwise
-        case 36: // Return
-            onConfirm?()
-        case 53: // Escape
-            onCancel?()
-        default:
-            super.keyDown(with: event)
-        }
+        LogInput("KeyDown: interpreting via standard key bindings (keyCode: \(event.keyCode))")
+        interpretKeyEvents([event])
+    }
+
+    // MARK: - NSStandardKeyBindingResponding
+
+    override func moveLeft(_ sender: Any?) {
+        LogInput("moveLeft: (standard key binding)")
+        onKeyboardNavigation?(false) // Counter-clockwise
+    }
+
+    override func moveRight(_ sender: Any?) {
+        LogInput("moveRight: (standard key binding)")
+        onKeyboardNavigation?(true) // Clockwise
+    }
+
+    override func moveUp(_ sender: Any?) {
+        LogInput("moveUp: (standard key binding)")
+        onKeyboardNavigation?(false) // Counter-clockwise toward top
+    }
+
+    override func moveDown(_ sender: Any?) {
+        LogInput("moveDown: (standard key binding)")
+        onKeyboardNavigation?(true) // Clockwise toward bottom
+    }
+
+    override func insertNewline(_ sender: Any?) {
+        LogInput("insertNewline: confirming selection")
+        onConfirm?()
+    }
+
+    override func cancelOperation(_ sender: Any?) {
+        LogInput("cancelOperation: closing menu")
+        onCancel?()
+    }
+
+    override func insertTab(_ sender: Any?) {
+        LogInput("insertTab: moving clockwise")
+        onKeyboardNavigation?(true)
+    }
+
+    override func insertBacktab(_ sender: Any?) {
+        LogInput("insertBacktab: moving counter-clockwise")
+        onKeyboardNavigation?(false)
+    }
+
+    override func doCommand(by selector: Selector) {
+        LogInput("Unhandled key command: \(selector)")
+        // Don't call super - prevents system beep for unhandled keys
     }
 
     /// Allow the view to become first responder for keyboard events
