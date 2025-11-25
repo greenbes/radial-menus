@@ -90,9 +90,4 @@ extension MenuItem {
             action: .launchApp(path: "/System/Applications/Utilities/Terminal.app")
         )
     }
-
-    /// Returns the resolved icon (system or asset) for the current icon set
-    func resolvedIcon(for iconSet: IconSet) -> IconSet.Icon {
-        iconSet.resolvedIcon(for: iconName)
-    }
 }

@@ -26,26 +26,83 @@ struct MenuConfiguration: Codable, Equatable {
 }
 
 /// Appearance settings for the radial menu
-struct AppearanceSettings: Codable, Equatable {
+struct AppearanceSettings: Equatable {
     var radius: Double
     var centerRadius: Double
     var sliceHighlightScale: Double
     var animationDuration: Double
-    var iconSet: IconSet = .outline
-    var backgroundColor: CodableColor = CodableColor(color: .black.opacity(0.3))
-    var foregroundColor: CodableColor = CodableColor(color: .white)
-    var selectedItemColor: CodableColor = CodableColor(color: .blue.opacity(0.8))
+    var iconSetIdentifier: String
+    var backgroundColor: CodableColor
+    var foregroundColor: CodableColor
+    var selectedItemColor: CodableColor
 
-    static let `default` = AppearanceSettings(
-        radius: 150.0,
-        centerRadius: 40.0,
-        sliceHighlightScale: 1.1,
-        animationDuration: 0.15,
-        iconSet: .outline,
-        backgroundColor: CodableColor(color: .black.opacity(0.3)),
-        foregroundColor: CodableColor(color: .white),
-        selectedItemColor: CodableColor(color: .blue.opacity(0.8))
-    )
+    init(
+        radius: Double = 150.0,
+        centerRadius: Double = 40.0,
+        sliceHighlightScale: Double = 1.1,
+        animationDuration: Double = 0.15,
+        iconSetIdentifier: String = "outline",
+        backgroundColor: CodableColor = CodableColor(color: .black.opacity(0.3)),
+        foregroundColor: CodableColor = CodableColor(color: .white),
+        selectedItemColor: CodableColor = CodableColor(color: .blue.opacity(0.8))
+    ) {
+        self.radius = radius
+        self.centerRadius = centerRadius
+        self.sliceHighlightScale = sliceHighlightScale
+        self.animationDuration = animationDuration
+        self.iconSetIdentifier = iconSetIdentifier
+        self.backgroundColor = backgroundColor
+        self.foregroundColor = foregroundColor
+        self.selectedItemColor = selectedItemColor
+    }
+
+    static let `default` = AppearanceSettings()
+}
+
+// MARK: - AppearanceSettings Codable (with migration)
+
+extension AppearanceSettings: Codable {
+    private enum CodingKeys: String, CodingKey {
+        case radius, centerRadius, sliceHighlightScale, animationDuration
+        case iconSetIdentifier, iconSet  // Support both new and old keys
+        case backgroundColor, foregroundColor, selectedItemColor
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        radius = try container.decode(Double.self, forKey: .radius)
+        centerRadius = try container.decode(Double.self, forKey: .centerRadius)
+        sliceHighlightScale = try container.decode(Double.self, forKey: .sliceHighlightScale)
+        animationDuration = try container.decode(Double.self, forKey: .animationDuration)
+
+        // Migration: try new key first, then fall back to old IconSet enum
+        if let identifier = try? container.decode(String.self, forKey: .iconSetIdentifier) {
+            iconSetIdentifier = identifier
+        } else if let oldIconSet = try? container.decode(String.self, forKey: .iconSet) {
+            // Old format stored IconSet enum as its raw string value
+            iconSetIdentifier = oldIconSet
+        } else {
+            iconSetIdentifier = "outline"
+        }
+
+        backgroundColor = try container.decode(CodableColor.self, forKey: .backgroundColor)
+        foregroundColor = try container.decode(CodableColor.self, forKey: .foregroundColor)
+        selectedItemColor = try container.decode(CodableColor.self, forKey: .selectedItemColor)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+
+        try container.encode(radius, forKey: .radius)
+        try container.encode(centerRadius, forKey: .centerRadius)
+        try container.encode(sliceHighlightScale, forKey: .sliceHighlightScale)
+        try container.encode(animationDuration, forKey: .animationDuration)
+        try container.encode(iconSetIdentifier, forKey: .iconSetIdentifier)
+        try container.encode(backgroundColor, forKey: .backgroundColor)
+        try container.encode(foregroundColor, forKey: .foregroundColor)
+        try container.encode(selectedItemColor, forKey: .selectedItemColor)
+    }
 }
 
 /// Wrapper to make Color codable for storage

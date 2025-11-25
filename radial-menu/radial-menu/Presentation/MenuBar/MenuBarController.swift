@@ -14,9 +14,11 @@ class MenuBarController {
     private var statusItem: NSStatusItem?
     private var preferencesWindow: NSWindow?
     private let configManager: ConfigurationManagerProtocol
+    private let iconSetProvider: IconSetProviderProtocol
 
-    init(configManager: ConfigurationManagerProtocol) {
+    init(configManager: ConfigurationManagerProtocol, iconSetProvider: IconSetProviderProtocol) {
         self.configManager = configManager
+        self.iconSetProvider = iconSetProvider
     }
 
     func setupMenuBar() {
@@ -41,13 +43,14 @@ class MenuBarController {
 
         let preferencesView = PreferencesView(
             configuration: configManager.currentConfiguration,
+            iconSetProvider: iconSetProvider,
             onResetToDefault: { [weak self] in
                 self?.configManager.resetToDefault()
             },
-            onUpdateIconSet: { [weak self] newSet in
+            onUpdateIconSetIdentifier: { [weak self] newIdentifier in
                 guard let self else { return }
                 var updated = configManager.currentConfiguration
-                updated.appearanceSettings.iconSet = newSet
+                updated.appearanceSettings.iconSetIdentifier = newIdentifier
                 do {
                     try configManager.saveConfiguration(updated)
                 } catch {

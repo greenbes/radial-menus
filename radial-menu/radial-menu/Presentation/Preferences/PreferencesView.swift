@@ -10,8 +10,9 @@ import SwiftUI
 /// Preferences window view
 struct PreferencesView: View {
     let configuration: MenuConfiguration
+    let iconSetProvider: IconSetProviderProtocol
     let onResetToDefault: () -> Void
-    let onUpdateIconSet: (IconSet) -> Void
+    let onUpdateIconSetIdentifier: (String) -> Void
     let onUpdateBackgroundColor: (CodableColor) -> Void
     let onUpdateForegroundColor: (CodableColor) -> Void
     let onUpdateSelectedItemColor: (CodableColor) -> Void
@@ -22,12 +23,13 @@ struct PreferencesView: View {
     let onUpdateCenterRadius: (Double) -> Void
     let onUpdateJoystickDeadzone: (Double) -> Void
 
-    @State private var selectedIconSet: IconSet
+    @State private var selectedIconSetIdentifier: String
     @State private var backgroundColor: Color
     @State private var foregroundColor: Color
     @State private var selectedItemColor: Color
     @State private var positionMode: BehaviorSettings.PositionMode
     @State private var showingAddItemSheet = false
+    @State private var showingImportSheet = false
     @State private var radius: Double
     @State private var radiusText: String
     @State private var centerRadius: Double
@@ -36,8 +38,9 @@ struct PreferencesView: View {
 
     init(
         configuration: MenuConfiguration,
+        iconSetProvider: IconSetProviderProtocol,
         onResetToDefault: @escaping () -> Void,
-        onUpdateIconSet: @escaping (IconSet) -> Void,
+        onUpdateIconSetIdentifier: @escaping (String) -> Void,
         onUpdateBackgroundColor: @escaping (CodableColor) -> Void,
         onUpdateForegroundColor: @escaping (CodableColor) -> Void,
         onUpdateSelectedItemColor: @escaping (CodableColor) -> Void,
@@ -49,8 +52,9 @@ struct PreferencesView: View {
         onUpdateJoystickDeadzone: @escaping (Double) -> Void
     ) {
         self.configuration = configuration
+        self.iconSetProvider = iconSetProvider
         self.onResetToDefault = onResetToDefault
-        self.onUpdateIconSet = onUpdateIconSet
+        self.onUpdateIconSetIdentifier = onUpdateIconSetIdentifier
         self.onUpdateBackgroundColor = onUpdateBackgroundColor
         self.onUpdateForegroundColor = onUpdateForegroundColor
         self.onUpdateSelectedItemColor = onUpdateSelectedItemColor
@@ -60,7 +64,7 @@ struct PreferencesView: View {
         self.onUpdateRadius = onUpdateRadius
         self.onUpdateCenterRadius = onUpdateCenterRadius
         self.onUpdateJoystickDeadzone = onUpdateJoystickDeadzone
-        _selectedIconSet = State(initialValue: configuration.appearanceSettings.iconSet)
+        _selectedIconSetIdentifier = State(initialValue: configuration.appearanceSettings.iconSetIdentifier)
         _backgroundColor = State(initialValue: configuration.appearanceSettings.backgroundColor.color)
         _foregroundColor = State(initialValue: configuration.appearanceSettings.foregroundColor.color)
         _selectedItemColor = State(initialValue: configuration.appearanceSettings.selectedItemColor.color)
@@ -137,15 +141,27 @@ struct PreferencesView: View {
 
                     HStack {
                         Text("Icon Set:")
-                        Picker("Icon Set", selection: $selectedIconSet) {
-                            ForEach(IconSet.allCases, id: \.self) { set in
-                                Text(set.displayName).tag(set)
+                        Picker("Icon Set", selection: $selectedIconSetIdentifier) {
+                            ForEach(iconSetProvider.availableIconSets, id: \.identifier) { descriptor in
+                                Text(descriptor.name).tag(descriptor.identifier)
                             }
                         }
                         .labelsHidden()
-                        .onChange(of: selectedIconSet) { _, newValue in
-                            onUpdateIconSet(newValue)
+                        .onChange(of: selectedIconSetIdentifier) { _, newValue in
+                            onUpdateIconSetIdentifier(newValue)
                         }
+
+                        Button(action: { showingImportSheet = true }) {
+                            Image(systemName: "plus.circle")
+                        }
+                        .buttonStyle(.plain)
+                        .help("Import custom icon set")
+                    }
+                    .sheet(isPresented: $showingImportSheet) {
+                        IconSetImportView(
+                            iconSetProvider: iconSetProvider,
+                            onDismiss: { showingImportSheet = false }
+                        )
                     }
 
                     HStack {
@@ -303,11 +319,21 @@ struct PreferencesView: View {
     }
 
     private func iconImage(for item: MenuItem) -> Image {
-        let resolved = item.resolvedIcon(for: selectedIconSet)
-        if resolved.isSystem {
+        let resolved = iconSetProvider.resolveIcon(
+            iconName: item.iconName,
+            iconSetIdentifier: selectedIconSetIdentifier
+        )
+        if resolved.isSystemSymbol {
             return Image(systemName: resolved.name)
-        } else {
+        } else if let fileURL = resolved.fileURL {
+            if let nsImage = NSImage(contentsOf: fileURL) {
+                return Image(nsImage: nsImage)
+            }
+            return Image(systemName: "questionmark.circle")
+        } else if resolved.isAssetCatalog {
             return Image(resolved.name)
+        } else {
+            return Image(systemName: resolved.name)
         }
     }
 }

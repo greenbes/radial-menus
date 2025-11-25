@@ -18,6 +18,7 @@ final class RadialMenuViewModel: ObservableObject {
     private let actionExecutor: ActionExecutorProtocol
     private let overlayWindow: OverlayWindowProtocol
     private let accessibilityManager: AccessibilityManagerProtocol?
+    private let iconSetProvider: IconSetProviderProtocol
 
     // MARK: - Published State
 
@@ -38,16 +39,28 @@ final class RadialMenuViewModel: ObservableObject {
         configManager: ConfigurationManagerProtocol,
         actionExecutor: ActionExecutorProtocol,
         overlayWindow: OverlayWindowProtocol,
+        iconSetProvider: IconSetProviderProtocol,
         accessibilityManager: AccessibilityManagerProtocol? = nil
     ) {
         self.configManager = configManager
         self.actionExecutor = actionExecutor
         self.overlayWindow = overlayWindow
+        self.iconSetProvider = iconSetProvider
         self.accessibilityManager = accessibilityManager
         self.configuration = configManager.currentConfiguration
 
         setupConfigurationObserver()
         setupSelectionAnnouncements()
+    }
+
+    // MARK: - Icon Resolution
+
+    /// Resolves the icon for a menu item using the current icon set
+    func resolveIcon(for item: MenuItem) -> ResolvedIcon {
+        iconSetProvider.resolveIcon(
+            iconName: item.iconName,
+            iconSetIdentifier: configuration.appearanceSettings.iconSetIdentifier
+        )
     }
 
     // MARK: - Public Methods

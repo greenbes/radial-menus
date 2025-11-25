@@ -78,7 +78,7 @@ struct SliceArcShape: Shape {
 /// View for a single slice in the radial menu
 struct SliceView: View, Equatable {
     let item: MenuItem
-    let iconSet: IconSet
+    let resolvedIcon: ResolvedIcon
     let slice: RadialGeometry.Slice
     let isSelected: Bool
     let radius: Double
@@ -97,7 +97,7 @@ struct SliceView: View, Equatable {
                lhs.slice == rhs.slice &&
                lhs.radius == rhs.radius &&
                lhs.centerRadius == rhs.centerRadius &&
-               lhs.iconSet == rhs.iconSet &&
+               lhs.resolvedIcon == rhs.resolvedIcon &&
                lhs.foregroundColor == rhs.foregroundColor &&
                lhs.selectedItemColor == rhs.selectedItemColor &&
                lhs.totalItems == rhs.totalItems
@@ -106,7 +106,6 @@ struct SliceView: View, Equatable {
     var body: some View {
         let outerRadius = isSelected ? radius * 1.05 : radius
         let iconOffset = isSelected ? 5.0 : 0.0
-        let resolvedIcon = item.resolvedIcon(for: iconSet)
 
         // Remove per-frame logging as it's too verbose
 
@@ -198,18 +197,34 @@ struct SliceView: View, Equatable {
 }
 
 private extension SliceView {
-    func iconImage(for resolved: IconSet.Icon) -> Image {
-        resolved.isSystem ? Image(systemName: resolved.name) : Image(resolved.name)
+    func iconImage(for resolved: ResolvedIcon) -> Image {
+        if resolved.isSystemSymbol {
+            return Image(systemName: resolved.name)
+        } else if let fileURL = resolved.fileURL {
+            // Load from file system (custom icon set)
+            if let nsImage = NSImage(contentsOf: fileURL) {
+                return Image(nsImage: nsImage)
+            }
+            // Fallback if file load fails
+            return Image(systemName: "questionmark.circle")
+        } else if resolved.isAssetCatalog {
+            // Asset catalog image (built-in non-system icons like "rainbow")
+            return Image(resolved.name)
+        } else {
+            // Fallback to system symbol
+            return Image(systemName: resolved.name)
+        }
     }
 
     @ViewBuilder
-    func iconView(for resolvedIcon: IconSet.Icon) -> some View {
-        let baseImage = iconImage(for: resolvedIcon)
+    func iconView(for resolved: ResolvedIcon) -> some View {
+        let baseImage = iconImage(for: resolved)
 
         // Determine if colors should be preserved:
         // - Explicit per-item setting takes precedence
-        // - Asset images (non-system) preserve colors by default
-        let shouldPreserveColors = item.preserveColors || !resolvedIcon.isSystem
+        // - ResolvedIcon's preserveColors flag
+        // - Asset catalog images preserve colors by default
+        let shouldPreserveColors = item.preserveColors || resolved.preserveColors || resolved.isAssetCatalog
 
         if shouldPreserveColors {
             // Preserve original icon colors (for full-color PDFs/assets)

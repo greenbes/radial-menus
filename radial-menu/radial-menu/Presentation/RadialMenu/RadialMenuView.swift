@@ -34,9 +34,10 @@ struct RadialMenuView: View {
                 // Render each slice
                 ForEach(Array(zip(viewModel.configuration.items, viewModel.slices)), id: \.0.id) { item, slice in
                     let isSelected = slice.index == viewModel.selectedIndex
+                    let resolvedIcon = viewModel.resolveIcon(for: item)
                     SliceView(
                         item: item,
-                        iconSet: viewModel.configuration.appearanceSettings.iconSet,
+                        resolvedIcon: resolvedIcon,
                         slice: slice,
                         isSelected: isSelected,
                         radius: radius,

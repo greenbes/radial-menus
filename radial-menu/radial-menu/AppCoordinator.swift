@@ -19,6 +19,7 @@ class AppCoordinator {
     private let controllerInput: ControllerInputProtocol
     private let overlayWindow: OverlayWindowProtocol
     private let accessibilityManager: AccessibilityManager
+    private let iconSetProvider: IconSetProviderProtocol
 
     // MARK: - Presentation Components
 
@@ -42,6 +43,7 @@ class AppCoordinator {
         self.hotkeyManager = HotkeyManager()
         self.controllerInput = ControllerInputManager()
         self.accessibilityManager = AccessibilityManager()
+        self.iconSetProvider = IconSetProvider()
 
         // Calculate initial window size based on configuration radius
         let initialRadius = configManager.currentConfiguration.appearanceSettings.radius
@@ -55,11 +57,15 @@ class AppCoordinator {
             configManager: configManager,
             actionExecutor: actionExecutor,
             overlayWindow: overlayWindow,
+            iconSetProvider: iconSetProvider,
             accessibilityManager: accessibilityManager
         )
 
         // Create menu bar controller
-        self.menuBarController = MenuBarController(configManager: configManager)
+        self.menuBarController = MenuBarController(
+            configManager: configManager,
+            iconSetProvider: iconSetProvider
+        )
     }
 
     // MARK: - Lifecycle
