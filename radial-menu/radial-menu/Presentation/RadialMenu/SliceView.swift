@@ -93,6 +93,7 @@ struct SliceView: View, Equatable {
     static func == (lhs: SliceView, rhs: SliceView) -> Bool {
         return lhs.isSelected == rhs.isSelected &&
                lhs.item.id == rhs.item.id &&
+               lhs.item.preserveColors == rhs.item.preserveColors &&
                lhs.slice == rhs.slice &&
                lhs.radius == rhs.radius &&
                lhs.centerRadius == rhs.centerRadius &&
@@ -205,18 +206,21 @@ private extension SliceView {
     func iconView(for resolvedIcon: IconSet.Icon) -> some View {
         let baseImage = iconImage(for: resolvedIcon)
 
-        if resolvedIcon.isSystem {
+        // Determine if colors should be preserved:
+        // - Explicit per-item setting takes precedence
+        // - Asset images (non-system) preserve colors by default
+        let shouldPreserveColors = item.preserveColors || !resolvedIcon.isSystem
+
+        if shouldPreserveColors {
+            // Preserve original icon colors (for full-color PDFs/assets)
+            baseImage
+                .font(.system(size: 24, weight: .semibold))
+        } else {
             // Force monochrome rendering so every symbol uses the same tint rather than the
             // hierarchical palette that caused gray/orange mismatches.
             baseImage
                 .symbolRenderingMode(.monochrome)
                 .foregroundStyle(iconColor)
-                .font(.system(size: 24, weight: .semibold))
-        } else {
-            // Treat asset images as templates to respect the tint color.
-            baseImage
-                .renderingMode(.template)
-                .foregroundColor(iconColor)
                 .font(.system(size: 24, weight: .semibold))
         }
     }

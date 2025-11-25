@@ -8,11 +8,17 @@
 import Foundation
 
 /// Represents a single item in the radial menu
-struct MenuItem: Codable, Identifiable, Equatable {
+struct MenuItem: Identifiable, Equatable {
     let id: UUID
     var title: String
     var iconName: String
     var action: ActionType
+
+    // MARK: - Icon Rendering
+
+    /// When true, preserves the icon's original colors instead of applying the application tint.
+    /// Defaults to false (uses application tint).
+    var preserveColors: Bool
 
     // MARK: - Accessibility Metadata (optional overrides)
 
@@ -39,6 +45,7 @@ struct MenuItem: Codable, Identifiable, Equatable {
         title: String,
         iconName: String,
         action: ActionType,
+        preserveColors: Bool = false,
         accessibilityLabel: String? = nil,
         accessibilityHint: String? = nil
     ) {
@@ -46,8 +53,31 @@ struct MenuItem: Codable, Identifiable, Equatable {
         self.title = title
         self.iconName = iconName
         self.action = action
+        self.preserveColors = preserveColors
         self.accessibilityLabel = accessibilityLabel
         self.accessibilityHint = accessibilityHint
+    }
+}
+
+// MARK: - Codable
+
+extension MenuItem: Codable {
+    enum CodingKeys: String, CodingKey {
+        case id, title, iconName, action
+        case preserveColors
+        case accessibilityLabel, accessibilityHint
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        iconName = try container.decode(String.self, forKey: .iconName)
+        action = try container.decode(ActionType.self, forKey: .action)
+        // Default to false for existing configurations without this field
+        preserveColors = try container.decodeIfPresent(Bool.self, forKey: .preserveColors) ?? false
+        accessibilityLabel = try container.decodeIfPresent(String.self, forKey: .accessibilityLabel)
+        accessibilityHint = try container.decodeIfPresent(String.self, forKey: .accessibilityHint)
     }
 }
 

@@ -47,9 +47,8 @@ enum IconSet: String, Codable, CaseIterable, Equatable {
             let name = simpleMappings[baseIcon] ?? baseIcon
             return Icon(name: name, isSystem: true)
         case .bootstrap:
-            // Fall back to system names to ensure consistent rendering; assets proved unreliable
-            let name = bootstrapSystemMappings[baseIcon] ?? baseIcon
-            return Icon(name: name, isSystem: true)
+            let mapping = bootstrapMappings[baseIcon] ?? (baseIcon, true)
+            return Icon(name: mapping.0, isSystem: mapping.1)
         }
     }
 
@@ -79,16 +78,17 @@ enum IconSet: String, Codable, CaseIterable, Equatable {
         ]
     }
 
-    private var bootstrapSystemMappings: [String: String] {
+    /// Bootstrap icon mappings: (resolvedName, isSystemSymbol)
+    private var bootstrapMappings: [String: (String, Bool)] {
         [
-            "terminal": "terminal",
-            "safari": "globe",
-            "camera": "camera",
-            "speaker.slash": "speaker.slash",
-            "calendar": "calendar",
-            "note.text": "note.text",
-            "list.bullet.rectangle": "list.bullet.rectangle",
-            "folder": "folder"
+            "terminal": ("terminal", true),
+            "safari": ("globe", true),
+            "camera": ("camera", true),
+            "speaker.slash": ("rainbow", false),  // Asset icon with full color
+            "calendar": ("calendar", true),
+            "note.text": ("note.text", true),
+            "list.bullet.rectangle": ("list.bullet.rectangle", true),
+            "folder": ("folder", true)
         ]
     }
 }
