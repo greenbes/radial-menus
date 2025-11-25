@@ -58,28 +58,28 @@ final class RadialMenuViewModel: ObservableObject {
     }
 
     func toggleMenu() {
-        Log("🎯 RadialMenuViewModel: toggleMenu() called, current state: \(menuState)")
+        LogMenu("toggleMenu() called, state: \(menuState)")
 
         switch menuState {
         case .closed:
-            Log("🎯 RadialMenuViewModel: Menu is closed, opening...")
+            LogMenu("Menu is closed, opening")
             openMenu()
         case .open:
-            Log("🎯 RadialMenuViewModel: Menu is open, closing...")
+            LogMenu("Menu is open, closing")
             closeMenu()
         default:
-            Log("🎯 RadialMenuViewModel: Menu in transition state, ignoring toggle")
+            LogMenu("Menu in transition state, ignoring toggle", level: .debug)
             break
         }
     }
 
     func openMenu(at position: CGPoint? = nil) {
         guard case .closed = menuState else {
-            Log("⚠️  RadialMenuViewModel: Cannot open menu, not in closed state")
+            LogMenu("Cannot open menu, not in closed state", level: .debug)
             return
         }
 
-        Log("🎯 RadialMenuViewModel: Opening menu...")
+        LogMenu("Opening menu")
         menuState = .opening
         selectedIndex = nil
 
@@ -97,35 +97,12 @@ final class RadialMenuViewModel: ObservableObject {
             radius: radius,
             centerPoint: windowCenter
         )
-        Log("🎯 RadialMenuViewModel: Calculated \(slices.count) slices with windowSize=\(windowSize) center=\(windowCenter)")
-        Log("SLICE LOGGING START")
+        LogMenu("Calculated \(slices.count) slices, windowSize=\(windowSize), center=\(windowCenter)", level: .debug)
 
-        if slices.count > 0 {
-            Log("Slice 0: \(configuration.items[0].title) Y=\(slices[0].centerPoint.y)")
+        // Log slice positions for debugging
+        for (index, slice) in slices.enumerated() where index < configuration.items.count {
+            LogGeometry("Slice \(index): \(configuration.items[index].title) Y=\(slice.centerPoint.y)")
         }
-        if slices.count > 1 {
-            Log("Slice 1: \(configuration.items[1].title) Y=\(slices[1].centerPoint.y)")
-        }
-        if slices.count > 2 {
-            Log("Slice 2: \(configuration.items[2].title) Y=\(slices[2].centerPoint.y)")
-        }
-        if slices.count > 3 {
-            Log("Slice 3: \(configuration.items[3].title) Y=\(slices[3].centerPoint.y)")
-        }
-        if slices.count > 4 {
-            Log("Slice 4: \(configuration.items[4].title) Y=\(slices[4].centerPoint.y)")
-        }
-        if slices.count > 5 {
-            Log("Slice 5: \(configuration.items[5].title) Y=\(slices[5].centerPoint.y)")
-        }
-        if slices.count > 6 {
-            Log("Slice 6: \(configuration.items[6].title) Y=\(slices[6].centerPoint.y)")
-        }
-        if slices.count > 7 {
-            Log("Slice 7: \(configuration.items[7].title) Y=\(slices[7].centerPoint.y)")
-        }
-
-        Log("SLICE LOGGING END")
 
         // Determine window position based on configuration
         let windowPosition: CGPoint?
@@ -137,26 +114,26 @@ final class RadialMenuViewModel: ObservableObject {
                 let centerX = screenFrame.origin.x + screenFrame.width / 2
                 let centerY = screenFrame.origin.y + screenFrame.height / 2
                 windowPosition = CGPoint(x: centerX, y: centerY)
-                Log("🎯 RadialMenuViewModel: Using center position mode at \(windowPosition!)")
+                LogMenu("Using center position mode at \(windowPosition!)", level: .debug)
             } else {
                 windowPosition = position
-                Log("⚠️  RadialMenuViewModel: No main screen found, using provided position")
+                LogError("No main screen found, using provided position", category: .menu)
             }
         case .atCursor:
             windowPosition = position
-            Log("🎯 RadialMenuViewModel: Using cursor position mode")
+            LogMenu("Using cursor position mode", level: .debug)
         case .fixedPosition:
             windowPosition = configuration.behaviorSettings.fixedPosition ?? position
-            Log("🎯 RadialMenuViewModel: Using fixed position mode")
+            LogMenu("Using fixed position mode", level: .debug)
         }
 
         // Show overlay window
-        Log("🎯 RadialMenuViewModel: Showing overlay window...")
+        LogMenu("Showing overlay window", level: .debug)
         overlayWindow.show(at: windowPosition)
 
         // Transition to open state
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            Log("🎯 RadialMenuViewModel: Transition to open state complete")
+            LogMenu("Transition to open state complete", level: .debug)
             self.menuState = .open(selectedIndex: nil)
         }
     }
@@ -179,8 +156,6 @@ final class RadialMenuViewModel: ObservableObject {
         let center = CGPoint(x: windowSize / 2, y: windowSize / 2)
         let centerRadius = configuration.appearanceSettings.centerRadius
 
-        // Log("🖱️ ViewModel: handleMouseMove at \(point), Center: \(center), Radius: \(radius)")
-
         // Calculate selected slice
         let newSelectedIndex = SelectionCalculator.selectedSlice(
             fromPoint: point,
@@ -196,12 +171,10 @@ final class RadialMenuViewModel: ObservableObject {
                 let angle = RadialGeometry.angleFromCenter(point: point, center: center)
                 let degrees = angle * 180.0 / .pi
                 let itemName = configuration.items[newIndex].title
-                Log("🎯 Selection changed: \(itemName) (slice \(newIndex)) at point(\(String(format: "%.0f", point.x)),\(String(format: "%.0f", point.y))) angle=\(String(format: "%.0f", degrees))°")
+                LogMenu("Selection: \(itemName) (slice \(newIndex)) at (\(String(format: "%.0f", point.x)),\(String(format: "%.0f", point.y))) angle=\(String(format: "%.0f", degrees))")
                 selectedIndex = newIndex
                 menuState = .open(selectedIndex: newIndex)
             }
-        } else {
-            // Log("🎯 ViewModel: No valid slice selected at \(point)")
         }
     }
 
@@ -210,8 +183,8 @@ final class RadialMenuViewModel: ObservableObject {
         let windowSize = radius * 2.2
         let center = CGPoint(x: windowSize / 2, y: windowSize / 2)
         let centerRadius = configuration.appearanceSettings.centerRadius
-        
-        Log("🖱️ ViewModel: handleMouseClick at \(point)")
+
+        LogInput("Mouse click at \(point)")
 
         // Verify we are clicking on a valid slice
         let hitIndex = SelectionCalculator.selectedSlice(
@@ -221,15 +194,15 @@ final class RadialMenuViewModel: ObservableObject {
             outerRadius: radius,
             slices: slices
         )
-        
+
         guard let index = hitIndex, index < configuration.items.count else {
-            Log("❌ ViewModel: Click ignored (Index: \(String(describing: hitIndex)))")
+            LogMenu("Click ignored, index: \(String(describing: hitIndex))", level: .debug)
             // Clicked outside valid slice (e.g., center hole), close menu
             closeMenu()
             return
         }
 
-        Log("✅ ViewModel: Executing action for index \(index)")
+        LogAction("Executing action for index \(index)")
         executeAction(at: index)
     }
 
@@ -312,9 +285,9 @@ final class RadialMenuViewModel: ObservableObject {
 
             switch result {
             case .success:
-                print("Action executed successfully: \(item.title)")
+                LogAction("Executed successfully: \(item.title)")
             case .failure(let error):
-                print("Action failed: \(error.localizedDescription)")
+                LogError("Action failed: \(error.localizedDescription)", category: .action)
             }
 
             self.closeMenu()
@@ -331,7 +304,7 @@ final class RadialMenuViewModel: ObservableObject {
 
                 // If radius changed and menu is open, update window size and recalculate slices
                 if oldRadius != newRadius {
-                    Log("🎯 RadialMenuViewModel: Radius changed from \(oldRadius) to \(newRadius)")
+                    LogConfig("Radius changed from \(oldRadius) to \(newRadius)")
                     self.overlayWindow.updateWindowSize(forRadius: newRadius)
 
                     // Recalculate slices with new radius if menu is open
@@ -343,7 +316,7 @@ final class RadialMenuViewModel: ObservableObject {
                             radius: newRadius,
                             centerPoint: windowCenter
                         )
-                        Log("🎯 RadialMenuViewModel: Recalculated slices for new radius")
+                        LogMenu("Recalculated slices for new radius", level: .debug)
                     }
                 }
             }

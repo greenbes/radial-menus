@@ -79,7 +79,27 @@ Default configuration is in `MenuConfiguration.sample()`. User config persists a
 
 ## Debugging
 
-- Use `Log("message")` for debug output (defined in `Logger.swift`)
-- Logs are written to `/tmp/radial-menu-debug.log`
-- When running with `./scripts/run-with-logs.sh`, logs are automatically tailed
-- Do NOT use `print()` statements - they won't appear in the log file
+The app uses Apple's Unified Logging System (os_log). Use category-specific log functions:
+
+- `LogLifecycle()` - App startup, shutdown
+- `LogInput()` - Hotkey, keyboard, mouse, controller
+- `LogMenu()` - Menu state, selection
+- `LogWindow()` - Window management
+- `LogGeometry()` - Hit detection calculations
+- `LogAction()` - Action execution
+- `LogConfig()` - Configuration
+- `LogError()` - Errors (specify category)
+
+View logs:
+```bash
+# Stream all logs
+log stream --predicate 'subsystem == "Six-Gables-Software.radial-menu"' --level debug
+
+# Filter by category
+log stream --predicate 'subsystem == "Six-Gables-Software.radial-menu" AND category == "Input"'
+
+# Or use the helper script
+./scripts/run-with-logs.sh
+```
+
+Do NOT use `print()` statements.

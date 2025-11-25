@@ -49,7 +49,7 @@ class ActionExecutor: ActionExecutorProtocol {
         let configuration = NSWorkspace.OpenConfiguration()
         NSWorkspace.shared.openApplication(at: url, configuration: configuration) { app, error in
             if let error = error {
-                print("Failed to launch app: \(error)")
+                LogError("Failed to launch app: \(error)", category: .action)
             }
         }
         return .success

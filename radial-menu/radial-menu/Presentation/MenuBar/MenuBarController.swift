@@ -51,7 +51,7 @@ class MenuBarController {
                 do {
                     try configManager.saveConfiguration(updated)
                 } catch {
-                    print("❌ Failed to save icon set: \(error)")
+                    LogError("Failed to save icon set: \(error)", category: .config)
                 }
             },
             onUpdateBackgroundColor: { [weak self] newColor in
@@ -61,7 +61,7 @@ class MenuBarController {
                 do {
                     try configManager.saveConfiguration(updated)
                 } catch {
-                    print("❌ Failed to save background color: \(error)")
+                    LogError("Failed to save background color: \(error)", category: .config)
                 }
             },
             onUpdateForegroundColor: { [weak self] newColor in
@@ -71,7 +71,7 @@ class MenuBarController {
                 do {
                     try configManager.saveConfiguration(updated)
                 } catch {
-                    print("❌ Failed to save foreground color: \(error)")
+                    LogError("Failed to save foreground color: \(error)", category: .config)
                 }
             },
             onUpdateSelectedItemColor: { [weak self] newColor in
@@ -81,7 +81,7 @@ class MenuBarController {
                 do {
                     try configManager.saveConfiguration(updated)
                 } catch {
-                    print("❌ Failed to save selected item color: \(error)")
+                    LogError("Failed to save selected item color: \(error)", category: .config)
                 }
             },
             onUpdatePositionMode: { [weak self] newMode in
@@ -91,7 +91,7 @@ class MenuBarController {
                 do {
                     try configManager.saveConfiguration(updated)
                 } catch {
-                    print("❌ Failed to save position mode: \(error)")
+                    LogError("Failed to save position mode: \(error)", category: .config)
                 }
             },
             onAddItem: { [weak self] newItem in
@@ -101,7 +101,7 @@ class MenuBarController {
                 do {
                     try configManager.saveConfiguration(updated)
                 } catch {
-                    print("❌ Failed to add menu item: \(error)")
+                    LogError("Failed to add menu item: \(error)", category: .config)
                 }
             },
             onRemoveItem: { [weak self] itemId in
@@ -111,7 +111,7 @@ class MenuBarController {
                 do {
                     try configManager.saveConfiguration(updated)
                 } catch {
-                    print("❌ Failed to remove menu item: \(error)")
+                    LogError("Failed to remove menu item: \(error)", category: .config)
                 }
             },
             onUpdateRadius: { [weak self] newRadius in
@@ -121,7 +121,7 @@ class MenuBarController {
                 do {
                     try configManager.saveConfiguration(updated)
                 } catch {
-                    print("❌ Failed to save radius: \(error)")
+                    LogError("Failed to save radius: \(error)", category: .config)
                 }
             },
             onUpdateCenterRadius: { [weak self] newCenterRadius in
@@ -131,7 +131,7 @@ class MenuBarController {
                 do {
                     try configManager.saveConfiguration(updated)
                 } catch {
-                    print("❌ Failed to save center radius: \(error)")
+                    LogError("Failed to save center radius: \(error)", category: .config)
                 }
             },
             onUpdateJoystickDeadzone: { [weak self] newDeadzone in
@@ -141,7 +141,7 @@ class MenuBarController {
                 do {
                     try configManager.saveConfiguration(updated)
                 } catch {
-                    print("❌ Failed to save joystick deadzone: \(error)")
+                    LogError("Failed to save joystick deadzone: \(error)", category: .config)
                 }
             }
         )

@@ -89,7 +89,7 @@ class ConfigurationManager: ConfigurationManagerProtocol {
             let decoder = JSONDecoder()
             return try decoder.decode(MenuConfiguration.self, from: data)
         } catch {
-            print("Failed to load configuration: \(error)")
+            LogError("Failed to load configuration: \(error)", category: .config)
             return nil
         }
     }

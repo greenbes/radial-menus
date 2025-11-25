@@ -23,7 +23,7 @@ class HotkeyManager: HotkeyManagerProtocol {
         modifiers: UInt32,
         callback: @escaping HotkeyCallback
     ) -> Bool {
-        Log("🔑 HotkeyManager: Attempting to register hotkey with key=\(key), modifiers=\(modifiers)")
+        LogInput("Registering hotkey: key=\(key), modifiers=\(modifiers)", level: .info)
 
         // Unregister any existing hotkey first
         unregisterHotkey()
@@ -38,17 +38,17 @@ class HotkeyManager: HotkeyManagerProtocol {
 
         // Install event handler
         let eventHandlerCallback: EventHandlerUPP = { _, event, userData in
-            Log("🔥 HotkeyManager: HOTKEY EVENT RECEIVED!")
+            LogInput("Hotkey event received")
 
             guard let userData = userData else {
-                Log("⚠️  HotkeyManager: No userData in event handler")
+                LogError("No userData in event handler", category: .input)
                 return OSStatus(eventNotHandledErr)
             }
 
             let manager = Unmanaged<HotkeyManager>.fromOpaque(userData).takeUnretainedValue()
-            Log("🔥 HotkeyManager: Calling hotkey callback...")
+            LogInput("Calling hotkey callback")
             manager.callback?()
-            Log("🔥 HotkeyManager: Callback completed")
+            LogInput("Callback completed")
 
             return noErr
         }
@@ -64,11 +64,11 @@ class HotkeyManager: HotkeyManagerProtocol {
         )
 
         guard status == noErr else {
-            print("❌ HotkeyManager: Failed to install event handler, status=\(status)")
+            LogError("Failed to install event handler, status=\(status)", category: .input)
             return false
         }
 
-        print("✅ HotkeyManager: Event handler installed successfully")
+        LogInput("Event handler installed successfully", level: .info)
 
         // Register the hotkey
         let hotKeyID = EventHotKeyID(
@@ -87,8 +87,8 @@ class HotkeyManager: HotkeyManagerProtocol {
         )
 
         guard registerStatus == noErr, let hotKey = hotKeyRefTemp else {
-            print("❌ HotkeyManager: Failed to register hotkey, status=\(registerStatus)")
-            print("❌ HotkeyManager: This likely means Accessibility permissions are not granted")
+            LogError("Failed to register hotkey, status=\(registerStatus)", category: .input)
+            LogError("This likely means Accessibility permissions are not granted", category: .input)
             // Clean up event handler if hotkey registration failed
             if let handler = eventHandler {
                 RemoveEventHandler(handler)
@@ -98,8 +98,8 @@ class HotkeyManager: HotkeyManagerProtocol {
         }
 
         hotKeyRef = hotKey
-        print("✅ HotkeyManager: Hotkey registered successfully!")
-        print("💡 HotkeyManager: Press Ctrl+Space to trigger the menu")
+        LogInput("Hotkey registered successfully", level: .info)
+        LogInput("Press Ctrl+Space to trigger the menu", level: .info)
         return true
     }
 

@@ -25,7 +25,7 @@ class RadialMenuContainerView: NSView {
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
-        print("🏗️ RadialMenuContainerView: init with frame \(frameRect)")
+        LogWindow("RadialMenuContainerView init with frame \(frameRect)")
         setupTrackingArea()
     }
     
@@ -70,9 +70,9 @@ class RadialMenuContainerView: NSView {
     /// Set whether the menu is active
     func setMenuActive(_ active: Bool) {
         if self.isMenuActive != active {
-            print("🔄 RadialMenuContainerView: Menu active state changed to \(active)")
+            LogWindow("Menu active state changed to \(active)")
             self.isMenuActive = active
-            
+
             // Re-assert first responder when menu becomes active
             if active {
                 window?.makeFirstResponder(self)
@@ -139,8 +139,8 @@ class RadialMenuContainerView: NSView {
             super.keyDown(with: event)
             return
         }
-        
-        print("⌨️ RadialMenuContainerView: KeyDown code: \(event.keyCode)")
+
+        LogInput("KeyDown code: \(event.keyCode)")
         
         switch event.keyCode {
         case 123: // Left Arrow
@@ -182,7 +182,7 @@ struct RadialMenuContainer<Content: View>: NSViewRepresentable {
     let onCancel: () -> Void
 
     func makeNSView(context: Context) -> RadialMenuContainerView {
-        print("🔨 RadialMenuContainer: makeNSView")
+        LogWindow("RadialMenuContainer makeNSView")
         let view = RadialMenuContainerView()
         view.updateGeometry(
             center: menuCenter,

@@ -161,7 +161,7 @@ struct SliceView: View, Equatable {
                 GeometryReader { geo in
                     Color.clear.onAppear {
                         let frame = geo.frame(in: .global)
-                        Log("🎨 \(item.title) rendered at global Y=\(frame.minY) local Y=\(iconY)")
+                        LogMenu("\(item.title) rendered at globalY=\(frame.minY) localY=\(iconY)", level: .debug)
                     }
                 }
             )

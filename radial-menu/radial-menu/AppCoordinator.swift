@@ -62,47 +62,47 @@ class AppCoordinator {
     // MARK: - Lifecycle
 
     func start() {
-        Log("📋 AppCoordinator: Starting...")
+        LogLifecycle("AppCoordinator starting")
 
         // Setup menu bar
-        Log("📋 AppCoordinator: Setting up menu bar...")
+        LogLifecycle("Setting up menu bar", level: .debug)
         menuBarController.setupMenuBar()
-        Log("📋 AppCoordinator: Menu bar setup complete")
+        LogLifecycle("Menu bar setup complete", level: .debug)
 
         // Register global hotkey (Ctrl + Space)
-        Log("📋 AppCoordinator: Registering global hotkey...")
+        LogLifecycle("Registering global hotkey", level: .debug)
         let success = hotkeyManager.registerHotkey(
             key: HotkeyManager.KeyCode.space,
             modifiers: HotkeyManager.ModifierFlag.control,
             callback: { [weak self] in
-                Log("⌨️  Hotkey pressed!")
+                LogInput("Hotkey pressed", level: .info)
                 guard let self = self else {
-                    Log("⚠️  AppCoordinator: self is nil in hotkey callback")
+                    LogError("self is nil in hotkey callback", category: .input)
                     return
                 }
-                Log("⌨️  AppCoordinator: Calling viewModel.toggleMenu()")
+                LogInput("Calling toggleMenu()")
                 self.viewModel.toggleMenu()
-                Log("⌨️  AppCoordinator: viewModel.toggleMenu() returned")
+                LogInput("toggleMenu() returned")
             }
         )
 
         if !success {
-            Log("⚠️  Warning: Failed to register global hotkey")
+            LogError("Failed to register global hotkey", category: .input)
         } else {
-            Log("✅ Global hotkey registered successfully")
+            LogInput("Global hotkey registered successfully", level: .info)
         }
 
         // Start controller input monitoring
-        Log("📋 AppCoordinator: Starting controller monitoring...")
+        LogLifecycle("Starting controller monitoring", level: .debug)
         controllerInput.startMonitoring { [weak self] state in
             self?.handleControllerInput(state)
         }
-        Log("📋 AppCoordinator: Controller monitoring started")
+        LogLifecycle("Controller monitoring started", level: .debug)
 
         // Update overlay window content
-        Log("📋 AppCoordinator: Updating overlay window content...")
+        LogLifecycle("Updating overlay window content", level: .debug)
         updateOverlayWindowContent()
-        Log("📋 AppCoordinator: Start complete!")
+        LogLifecycle("AppCoordinator start complete")
     }
 
     func stop() {

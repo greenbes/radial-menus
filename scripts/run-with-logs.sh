@@ -1,7 +1,6 @@
 #!/bin/bash
 
-echo "🚀 Starting Radial Menu with logging..."
-echo "Log file: /tmp/radial-menu-debug.log"
+echo "Starting Radial Menu with logging..."
 echo ""
 
 # Kill any existing instances
@@ -12,32 +11,30 @@ sleep 1
 APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData/radial-menu-*/Build/Products/Debug -name "radial-menu.app" -type d | head -1)
 
 if [ -z "$APP_PATH" ]; then
-    echo "❌ Error: Could not find radial-menu.app"
+    echo "Error: Could not find radial-menu.app"
     echo "Please build the app first with: xcodebuild -scheme radial-menu -configuration Debug"
     exit 1
 fi
 
-echo "📱 App found at: $APP_PATH"
+echo "App found at: $APP_PATH"
 echo ""
 
-# Run the app and redirect output
-"$APP_PATH/Contents/MacOS/radial-menu" > /tmp/radial-menu-debug.log 2>&1 &
-APP_PID=$!
+# Launch the app
+open "$APP_PATH"
+APP_PID=$(pgrep -n radial-menu)
 
 sleep 2
 
 # Check if it's running
-if ps -p $APP_PID > /dev/null; then
-    echo "✅ App is running (PID: $APP_PID)"
-    echo "📋 Check menu bar for the ⊕ icon"
-    echo "⌨️  Press Ctrl+Space to open the radial menu"
+if [ -n "$APP_PID" ]; then
+    echo "App is running (PID: $APP_PID)"
+    echo "Check menu bar for the radial menu icon"
+    echo "Press Ctrl+Space to open the radial menu"
     echo ""
-    echo "To view logs: tail -f /tmp/radial-menu-debug.log"
-    echo "To stop: killall radial-menu"
+    echo "Streaming logs (Ctrl+C to stop)..."
+    echo "---"
+    log stream --predicate 'subsystem == "Six-Gables-Software.radial-menu"' --level debug
 else
-    echo "❌ App failed to start"
-    echo ""
-    echo "Error output:"
-    cat /tmp/radial-menu-debug.log
+    echo "App failed to start"
     exit 1
 fi

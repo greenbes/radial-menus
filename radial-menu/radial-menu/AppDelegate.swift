@@ -11,20 +11,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var coordinator: AppCoordinator?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Force logger initialization
-        _ = Logger.shared
-        Log("🚀 AppDelegate: Application did finish launching")
-        
+        LogLifecycle("Application did finish launching")
+
         // Create and start the coordinator
         coordinator = AppCoordinator()
-        Log("🚀 AppDelegate: Coordinator created")
+        LogLifecycle("Coordinator created")
         coordinator?.start()
-        Log("🚀 AppDelegate: Coordinator started")
+        LogLifecycle("Coordinator started")
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        // Clean up
-        Log("🛑 AppDelegate: Application will terminate")
+        LogLifecycle("Application will terminate")
         coordinator?.stop()
     }
 }

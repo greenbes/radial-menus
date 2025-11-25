@@ -64,15 +64,15 @@ class OverlayWindowController: OverlayWindowProtocol {
     }
 
     func show(at position: CGPoint?) {
-        Log("🪟 OverlayWindowController: show() called. Requested position: \(String(describing: position))")
-        
+        LogWindow("show() called, position: \(String(describing: position))")
+
         if window == nil {
-            Log("🪟 OverlayWindowController: Window is nil, creating...")
+            LogWindow("Window is nil, creating")
             createWindow()
         }
 
         guard let window = window else {
-            Log("❌ OverlayWindowController: Failed to create window!")
+            LogError("Failed to create window", category: .window)
             return
         }
 
@@ -83,22 +83,22 @@ class OverlayWindowController: OverlayWindowProtocol {
             x: targetPosition.x - windowSize.width / 2,
             y: targetPosition.y - windowSize.height / 2
         )
-        
-        Log("🪟 OverlayWindowController: Positioning window at \(windowOrigin). Screen mouse location: \(NSEvent.mouseLocation)")
+
+        LogWindow("Positioning window at \(windowOrigin), mouse: \(NSEvent.mouseLocation)")
 
         window.setFrameOrigin(windowOrigin)
-        
+
         // Force activation to ensure SwiftUI renders and we capture keyboard events
-        NSApp.activate(ignoringOtherApps: true) 
-        
+        NSApp.activate(ignoringOtherApps: true)
+
         window.makeKeyAndOrderFront(nil)
         window.orderFrontRegardless()
-        
-        Log("🪟 OverlayWindowController: Window frame: \(window.frame), Visible: \(window.isVisible)")
+
+        LogWindow("Window frame: \(window.frame), visible: \(window.isVisible)")
     }
 
     func hide() {
-        Log("🪟 OverlayWindowController: Hiding window")
+        LogWindow("Hiding window")
         window?.orderOut(nil)
         // Optionally deactivate app to return focus to previous app? 
         // For now, let's just hide the window. The user will likely click elsewhere or the previous app will remain active if we didn't fully steal focus context.
@@ -165,7 +165,7 @@ class OverlayWindowController: OverlayWindowProtocol {
     // MARK: - Private Methods
 
     private func createWindow() {
-        Log("🪟 OverlayWindowController: Creating RadialMenuWindow with size \(windowSize)")
+        LogWindow("Creating RadialMenuWindow with size \(windowSize)")
         let panel = RadialMenuWindow(
             contentRect: NSRect(origin: .zero, size: windowSize),
             styleMask: [.borderless], // Removed .nonactivatingPanel to allow key status
@@ -187,10 +187,10 @@ class OverlayWindowController: OverlayWindowProtocol {
 
         // Use existing hosting view if available, otherwise create empty one
         if let existingHostingView = hostingView {
-            Log("🪟 OverlayWindowController: Using existing hosting view")
+            LogWindow("Using existing hosting view")
             panel.contentView = existingHostingView
         } else {
-            Log("🪟 OverlayWindowController: Creating new empty hosting view")
+            LogWindow("Creating new empty hosting view")
             let emptyView = NSHostingView(rootView: AnyView(EmptyView()))
             emptyView.frame = NSRect(origin: .zero, size: windowSize)
             emptyView.autoresizingMask = [.width, .height]
@@ -199,6 +199,6 @@ class OverlayWindowController: OverlayWindowProtocol {
         }
 
         window = panel
-        Log("🪟 OverlayWindowController: Window created successfully")
+        LogWindow("Window created successfully")
     }
 }
