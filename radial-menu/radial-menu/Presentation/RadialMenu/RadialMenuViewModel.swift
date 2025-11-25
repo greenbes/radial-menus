@@ -304,6 +304,11 @@ final class RadialMenuViewModel: ObservableObject {
         overlayWindow.moveWindow(dx: dx, dy: dy)
     }
 
+    func handleDrag(dx: CGFloat, dy: CGFloat) {
+        guard case .open = menuState else { return }
+        overlayWindow.moveWindow(dx: dx, dy: dy)
+    }
+
     // MARK: - Private Methods
 
     private func executeAction(at index: Int) {

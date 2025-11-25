@@ -15,13 +15,18 @@ class RadialMenuContainerView: NSView {
     private var centerRadius: Double = 40.0
     private var slices: [RadialGeometry.Slice] = []
     private var isMenuActive: Bool = false
-    
+
+    // Drag state for center area repositioning
+    private var isDragging: Bool = false
+    private var lastDragLocation: CGPoint = .zero
+
     // Event callbacks
     var onMouseMove: ((CGPoint) -> Void)?
     var onMouseClick: ((CGPoint) -> Void)?
     var onKeyboardNavigation: ((Bool) -> Void)?
     var onConfirm: (() -> Void)?
     var onCancel: (() -> Void)?
+    var onDrag: ((CGFloat, CGFloat) -> Void)?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -107,29 +112,67 @@ class RadialMenuContainerView: NSView {
     }
     
     // MARK: - Mouse Events
-    
+
     override func mouseMoved(with event: NSEvent) {
         guard isMenuActive else { return }
         let localPoint = convert(event.locationInWindow, from: nil)
-        // Log("🖱️ ContainerView: Raw \(event.locationInWindow) -> Local \(localPoint)")
         onMouseMove?(localPoint)
     }
-    
+
     override func mouseDown(with event: NSEvent) {
         guard isMenuActive else {
             super.mouseDown(with: event)
             return
         }
-        // Consume event
+
+        let localPoint = convert(event.locationInWindow, from: nil)
+
+        // Check if mouse down is in center area - start drag
+        if isPointInCenterArea(localPoint) {
+            isDragging = true
+            // Use screen coordinates for drag tracking (window-relative coords shift as window moves)
+            lastDragLocation = NSEvent.mouseLocation
+            LogInput("Started center drag at \(localPoint)")
+        }
     }
-    
+
+    override func mouseDragged(with event: NSEvent) {
+        guard isMenuActive, isDragging else { return }
+
+        // Use screen coordinates to track drag delta
+        let currentLocation = NSEvent.mouseLocation
+        let dx = currentLocation.x - lastDragLocation.x
+        let dy = currentLocation.y - lastDragLocation.y
+
+        lastDragLocation = currentLocation
+        onDrag?(dx, dy)
+    }
+
     override func mouseUp(with event: NSEvent) {
         guard isMenuActive else {
             super.mouseUp(with: event)
             return
         }
+
         let localPoint = convert(event.locationInWindow, from: nil)
-        onMouseClick?(localPoint)
+
+        if isDragging {
+            // End drag - don't trigger click
+            isDragging = false
+            LogInput("Ended center drag")
+        } else {
+            // Normal click
+            onMouseClick?(localPoint)
+        }
+    }
+
+    // MARK: - Hit Testing Helpers
+
+    private func isPointInCenterArea(_ point: CGPoint) -> Bool {
+        let dx = point.x - menuCenter.x
+        let dy = point.y - menuCenter.y
+        let distance = sqrt(dx * dx + dy * dy)
+        return distance <= centerRadius
     }
     
     // MARK: - Keyboard Events
@@ -220,6 +263,7 @@ struct RadialMenuContainer<Content: View>: NSViewRepresentable {
     let onKeyboardNavigation: (Bool) -> Void
     let onConfirm: () -> Void
     let onCancel: () -> Void
+    let onDrag: ((CGFloat, CGFloat) -> Void)?
 
     func makeNSView(context: Context) -> RadialMenuContainerView {
         LogWindow("RadialMenuContainer makeNSView")
@@ -236,6 +280,7 @@ struct RadialMenuContainer<Content: View>: NSViewRepresentable {
         view.onKeyboardNavigation = onKeyboardNavigation
         view.onConfirm = onConfirm
         view.onCancel = onCancel
+        view.onDrag = onDrag
 
         // Add SwiftUI content as subview
         let hostingView = NSHostingView(rootView: content)
@@ -247,7 +292,6 @@ struct RadialMenuContainer<Content: View>: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: RadialMenuContainerView, context: Context) {
-        // print("♻️ RadialMenuContainer: updateNSView")
         nsView.updateGeometry(
             center: menuCenter,
             radius: menuRadius,
@@ -260,6 +304,7 @@ struct RadialMenuContainer<Content: View>: NSViewRepresentable {
         nsView.onKeyboardNavigation = onKeyboardNavigation
         nsView.onConfirm = onConfirm
         nsView.onCancel = onCancel
+        nsView.onDrag = onDrag
 
         // Update SwiftUI content
         if let hostingView = nsView.subviews.first as? NSHostingView<Content> {

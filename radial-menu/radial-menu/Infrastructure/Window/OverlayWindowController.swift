@@ -169,7 +169,15 @@ class OverlayWindowController: OverlayWindowProtocol {
             x: currentOrigin.x + dx,
             y: currentOrigin.y + dy
         )
-        window.setFrameOrigin(newOrigin)
+
+        // Use setFrame with display:true to ensure proper redraw
+        window.setFrame(
+            NSRect(origin: newOrigin, size: window.frame.size),
+            display: true
+        )
+
+        // Invalidate shadow to prevent artifacts
+        window.invalidateShadow()
     }
 
     // MARK: - Private Methods

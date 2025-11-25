@@ -86,7 +86,8 @@ struct RadialMenuView: View {
             onMouseClick: { point in viewModel.handleMouseClick(at: point) },
             onKeyboardNavigation: { clockwise in viewModel.handleKeyboardNavigation(clockwise: clockwise) },
             onConfirm: { viewModel.handleConfirm() },
-            onCancel: { viewModel.closeMenu() }
+            onCancel: { viewModel.closeMenu() },
+            onDrag: { dx, dy in viewModel.handleDrag(dx: dx, dy: dy) }
         )
         // Sync accessibility focus with selection changes
         .onChange(of: viewModel.selectedIndex) { _, newIndex in
