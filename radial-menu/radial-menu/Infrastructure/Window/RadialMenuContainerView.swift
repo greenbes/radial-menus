@@ -187,8 +187,13 @@ class RadialMenuContainerView: NSView {
     }
 
     override func doCommand(by selector: Selector) {
-        LogInput("Unhandled key command: \(selector)")
-        // Don't call super - prevents system beep for unhandled keys
+        // Try to perform the selector if we respond to it
+        if responds(to: selector) {
+            perform(selector, with: nil)
+        } else {
+            LogInput("Unhandled key command: \(selector)")
+            // Don't call super - prevents system beep for unhandled keys
+        }
     }
 
     /// Allow the view to become first responder for keyboard events
