@@ -7,9 +7,7 @@
 
 import AppIntents
 import Foundation
-
-/// Type alias for the ViewModel provider dependency
-typealias ViewModelProvider = @Sendable () async -> RadialMenuViewModel?
+import AppKit
 
 /// Intent to show, hide, or toggle the radial menu overlay.
 ///
@@ -28,12 +26,6 @@ struct ToggleMenuIntent: AppIntent {
     /// Launch app if not running (needed for UI)
     static var openAppWhenRun: Bool = true
 
-    // MARK: - Dependencies
-
-    /// Provider that waits for ViewModel to be ready
-    @Dependency
-    var viewModelProvider: ViewModelProvider
-
     // MARK: - Parameters
 
     @Parameter(
@@ -45,42 +37,43 @@ struct ToggleMenuIntent: AppIntent {
 
     // MARK: - Perform
 
-    @MainActor
     func perform() async throws -> some IntentResult {
         LogShortcuts("ToggleMenuIntent: Action=\(action.rawValue)")
 
-        // Wait for app initialization when launched via Shortcuts
-        // The app may still be starting up when the intent runs
-        guard let viewModel = await viewModelProvider() else {
-            LogShortcuts("ToggleMenuIntent: ViewModel not available", level: .error)
-            throw ShortcutsIntentError.menuNotAvailable
-        }
-        LogShortcuts("ToggleMenuIntent: ViewModel acquired")
+        // Capture action for use in closure
+        let menuAction = action
 
-        switch action {
-        case .show:
-            if !viewModel.isOpen {
-                viewModel.openMenu()
-                LogShortcuts("ToggleMenuIntent: Menu shown")
-            } else {
-                LogShortcuts("ToggleMenuIntent: Menu already open")
+        // Schedule the action on the main run loop after a brief delay
+        // This ensures the app is fully initialized before we try to use it
+        await withCheckedContinuation { continuation in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                Task { @MainActor in
+                    guard let viewModel = ShortcutsServiceLocator.shared.viewModel else {
+                        LogShortcuts("ToggleMenuIntent: ViewModel not available after delay", level: .error)
+                        continuation.resume()
+                        return
+                    }
+
+                    switch menuAction {
+                    case .show:
+                        if !viewModel.isOpen {
+                            viewModel.openMenu()
+                            LogShortcuts("ToggleMenuIntent: Menu shown")
+                        }
+                    case .hide:
+                        if viewModel.isOpen {
+                            viewModel.closeMenu()
+                            LogShortcuts("ToggleMenuIntent: Menu hidden")
+                        }
+                    case .toggle:
+                        viewModel.toggleMenu()
+                        LogShortcuts("ToggleMenuIntent: Menu toggled")
+                    }
+                    continuation.resume()
+                }
             }
-            return .result(dialog: "Menu shown")
-
-        case .hide:
-            if viewModel.isOpen {
-                viewModel.closeMenu()
-                LogShortcuts("ToggleMenuIntent: Menu hidden")
-            } else {
-                LogShortcuts("ToggleMenuIntent: Menu already closed")
-            }
-            return .result(dialog: "Menu hidden")
-
-        case .toggle:
-            viewModel.toggleMenu()
-            let resultMessage = viewModel.isOpen ? "Menu shown" : "Menu hidden"
-            LogShortcuts("ToggleMenuIntent: \(resultMessage)")
-            return .result(dialog: "\(resultMessage)")
         }
+
+        return .result()
     }
 }

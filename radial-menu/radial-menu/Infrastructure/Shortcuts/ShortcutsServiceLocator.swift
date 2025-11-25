@@ -82,6 +82,7 @@ final class ShortcutsServiceLocator: @unchecked Sendable {
     ///
     /// When launched via Shortcuts, the intent may run before the app
     /// has fully initialized. This polls for the ViewModel with a timeout.
+    @MainActor
     func waitForViewModel() async -> RadialMenuViewModel? {
         let maxAttempts = 50  // 5 seconds total (50 * 100ms)
         let delayNanoseconds: UInt64 = 100_000_000  // 100ms
