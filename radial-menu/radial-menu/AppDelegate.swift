@@ -24,4 +24,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         LogLifecycle("Application will terminate")
         coordinator?.stop()
     }
+
+    // MARK: - URL Scheme Handling
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        LogLifecycle("Received URL(s): \(urls.map { $0.absoluteString })")
+
+        for url in urls {
+            if url.scheme == URLSchemeHandler.scheme {
+                URLSchemeHandler.shared.handle(url)
+            }
+        }
+    }
 }

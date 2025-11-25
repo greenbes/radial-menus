@@ -44,6 +44,7 @@ enum LogCategory: String {
     case action = "Action"             // Action execution
     case config = "Config"             // Configuration loading/saving
     case accessibility = "Accessibility" // VoiceOver, accessibility features
+    case shortcuts = "Shortcuts"       // App Intents, Shortcuts integration
 
     var logger: os.Logger {
         os.Logger(subsystem: subsystem, category: rawValue)
@@ -95,4 +96,9 @@ func LogError(_ message: String, category: LogCategory = .lifecycle) {
 /// Log accessibility events (VoiceOver, announcements, focus)
 func LogAccessibility(_ message: String, level: LogLevel = .debug) {
     LogCategory.accessibility.logger.log(level: level.osLogType, "\(message, privacy: .public)")
+}
+
+/// Log Shortcuts and App Intents events
+func LogShortcuts(_ message: String, level: LogLevel = .info) {
+    LogCategory.shortcuts.logger.log(level: level.osLogType, "\(message, privacy: .public)")
 }
