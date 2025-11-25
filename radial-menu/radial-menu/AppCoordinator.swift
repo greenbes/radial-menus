@@ -115,6 +115,15 @@ class AppCoordinator {
         // Update overlay window content
         LogLifecycle("Updating overlay window content", level: .debug)
         updateOverlayWindowContent()
+
+        // Register with ShortcutsServiceLocator for App Intents
+        ShortcutsServiceLocator.shared.register(
+            configManager: configManager,
+            actionExecutor: actionExecutor,
+            viewModel: viewModel
+        )
+        LogLifecycle("Registered with ShortcutsServiceLocator")
+
         LogLifecycle("AppCoordinator start complete")
     }
 
@@ -122,6 +131,7 @@ class AppCoordinator {
         hotkeyManager.unregisterHotkey()
         controllerInput.stopMonitoring()
         accessibilityManager.stopObserving()
+        ShortcutsServiceLocator.shared.unregister()
     }
 
     // MARK: - Private Methods
