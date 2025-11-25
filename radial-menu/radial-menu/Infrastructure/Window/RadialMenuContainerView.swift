@@ -18,7 +18,8 @@ class RadialMenuContainerView: NSView {
 
     // Drag state for center area repositioning
     private var isDragging: Bool = false
-    private var lastDragLocation: CGPoint = .zero
+    private var dragStartMouseLocation: CGPoint = .zero
+    private var dragStartWindowOrigin: CGPoint = .zero
 
     // Event callbacks
     var onMouseMove: ((CGPoint) -> Void)?
@@ -30,6 +31,7 @@ class RadialMenuContainerView: NSView {
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
+        wantsLayer = true  // Enable CALayer for rasterization during drag
         LogWindow("RadialMenuContainerView init with frame \(frameRect)")
         setupTrackingArea()
     }
@@ -130,21 +132,33 @@ class RadialMenuContainerView: NSView {
         // Check if mouse down is in center area - start drag
         if isPointInCenterArea(localPoint) {
             isDragging = true
-            // Use screen coordinates for drag tracking (window-relative coords shift as window moves)
-            lastDragLocation = NSEvent.mouseLocation
-            LogInput("Started center drag at \(localPoint)")
+            // Capture starting positions for absolute positioning during drag
+            dragStartMouseLocation = NSEvent.mouseLocation
+            dragStartWindowOrigin = window?.frame.origin ?? .zero
+            LogInput("Started center drag at \(localPoint), window origin: \(dragStartWindowOrigin)")
+
+            // Enable layer rasterization during drag for performance
+            // Caches the layer tree as a GPU bitmap, eliminating per-frame SwiftUI rendering
+            layer?.shouldRasterize = true
+            layer?.rasterizationScale = window?.backingScaleFactor ?? 2.0
         }
     }
 
     override func mouseDragged(with event: NSEvent) {
         guard isMenuActive, isDragging else { return }
 
-        // Use screen coordinates to track drag delta
-        let currentLocation = NSEvent.mouseLocation
-        let dx = currentLocation.x - lastDragLocation.x
-        let dy = currentLocation.y - lastDragLocation.y
+        // Calculate target window position based on mouse movement from drag start
+        // Using absolute positioning (start + offset) instead of accumulating deltas
+        // to prevent drift from floating point errors or event timing issues
+        let currentMouse = NSEvent.mouseLocation
+        let targetOriginX = dragStartWindowOrigin.x + (currentMouse.x - dragStartMouseLocation.x)
+        let targetOriginY = dragStartWindowOrigin.y + (currentMouse.y - dragStartMouseLocation.y)
 
-        lastDragLocation = currentLocation
+        // Calculate delta needed to reach target from current position
+        let currentWindowOrigin = window?.frame.origin ?? .zero
+        let dx = targetOriginX - currentWindowOrigin.x
+        let dy = targetOriginY - currentWindowOrigin.y
+
         onDrag?(dx, dy)
     }
 
@@ -160,6 +174,9 @@ class RadialMenuContainerView: NSView {
             // End drag - don't trigger click
             isDragging = false
             LogInput("Ended center drag")
+
+            // Disable rasterization to allow normal rendering
+            layer?.shouldRasterize = false
         } else {
             // Normal click
             onMouseClick?(localPoint)
