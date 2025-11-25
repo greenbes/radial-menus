@@ -78,6 +78,31 @@ final class ShortcutsServiceLocator: @unchecked Sendable {
         return _viewModel != nil
     }
 
+    /// Waits for the ViewModel to become available during app startup.
+    ///
+    /// When launched via Shortcuts, the intent may run before the app
+    /// has fully initialized. This polls for the ViewModel with a timeout.
+    func waitForViewModel() async -> RadialMenuViewModel? {
+        let maxAttempts = 50  // 5 seconds total (50 * 100ms)
+        let delayNanoseconds: UInt64 = 100_000_000  // 100ms
+
+        for attempt in 1...maxAttempts {
+            if let viewModel = self.viewModel {
+                if attempt > 1 {
+                    LogShortcuts("ShortcutsServiceLocator: ViewModel available after \(attempt) attempts")
+                }
+                return viewModel
+            }
+
+            if attempt < maxAttempts {
+                try? await Task.sleep(nanoseconds: delayNanoseconds)
+            }
+        }
+
+        LogShortcuts("ShortcutsServiceLocator: ViewModel not available after \(maxAttempts) attempts", level: .error)
+        return nil
+    }
+
     // MARK: - Registration (called by AppCoordinator)
 
     /// Registers app dependencies. Called by AppCoordinator on startup.

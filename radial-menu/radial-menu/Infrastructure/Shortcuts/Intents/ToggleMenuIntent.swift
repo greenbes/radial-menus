@@ -8,6 +8,9 @@
 import AppIntents
 import Foundation
 
+/// Type alias for the ViewModel provider dependency
+typealias ViewModelProvider = @Sendable () async -> RadialMenuViewModel?
+
 /// Intent to show, hide, or toggle the radial menu overlay.
 ///
 /// This intent requires the app UI to be running since it controls
@@ -25,6 +28,12 @@ struct ToggleMenuIntent: AppIntent {
     /// Launch app if not running (needed for UI)
     static var openAppWhenRun: Bool = true
 
+    // MARK: - Dependencies
+
+    /// Provider that waits for ViewModel to be ready
+    @Dependency
+    var viewModelProvider: ViewModelProvider
+
     // MARK: - Parameters
 
     @Parameter(
@@ -40,10 +49,13 @@ struct ToggleMenuIntent: AppIntent {
     func perform() async throws -> some IntentResult {
         LogShortcuts("ToggleMenuIntent: Action=\(action.rawValue)")
 
-        guard let viewModel = ShortcutsServiceLocator.shared.viewModel else {
+        // Wait for app initialization when launched via Shortcuts
+        // The app may still be starting up when the intent runs
+        guard let viewModel = await viewModelProvider() else {
             LogShortcuts("ToggleMenuIntent: ViewModel not available", level: .error)
             throw ShortcutsIntentError.menuNotAvailable
         }
+        LogShortcuts("ToggleMenuIntent: ViewModel acquired")
 
         switch action {
         case .show:
