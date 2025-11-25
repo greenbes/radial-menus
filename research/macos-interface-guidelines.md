@@ -2,7 +2,9 @@
 
 ## Executive Summary
 
-This report investigates how to make the Radial Menu app comply with Apple's HID and UX guidelines by adopting standard macOS menu semantics and integrating with assistive technologies. The current implementation has **minimal accessibility support** and does not expose menu items to the accessibility hierarchy, making it invisible to VoiceOver, Switch Control, and Voice Control users.
+This report investigates how to make the Radial Menu app comply with Apple's HID and UX guidelines by adopting standard macOS menu semantics and integrating with assistive technologies. The current implementation has **minimal accessibility support** and uses custom key handling that bypasses system standard services.
+
+**Key Finding**: The app should replace custom `keyDown` event processing with `interpretKeyEvents(_:)` and implement standard `NSResponder` action methods (`moveUp:`, `moveDown:`, `cancelOperation:`, etc.) to gain automatic system integration.
 
 ---
 
@@ -15,7 +17,7 @@ The app uses Clean Architecture with a Functional Core / Imperative Shell patter
 | Layer | Components | Accessibility Status |
 |-------|------------|---------------------|
 | **Domain** | MenuItem, MenuState, RadialGeometry | Pure functions, no accessibility hooks |
-| **Infrastructure** | RadialMenuContainerView, OverlayWindowController | NSView-based, no NSAccessibility implementation |
+| **Infrastructure** | RadialMenuContainerView, OverlayWindowController | NSView-based, custom key handling |
 | **Presentation** | RadialMenuView, SliceView (SwiftUI) | No accessibility modifiers |
 
 ### Critical Files
@@ -29,16 +31,163 @@ The app uses Clean Architecture with a Functional Core / Imperative Shell patter
 
 ### Current Accessibility Gaps
 
-1. **No accessibility hierarchy** - Menu items are not exposed to assistive technologies
-2. **No VoiceOver support** - Items have no labels, roles, or announcements
-3. **No focus indicators** - Visual selection is purely decorative
-4. **No state announcements** - Menu open/close/selection not communicated
-5. **No Reduce Motion support** - Animations play regardless of system preferences
-6. **No Full Keyboard Access integration** - Custom keyboard handling bypasses system
+1. **Custom key code handling** - Bypasses system key bindings
+2. **No accessibility hierarchy** - Menu items invisible to assistive technologies
+3. **No VoiceOver support** - Items have no labels, roles, or announcements
+4. **No focus indicators** - Visual selection is purely decorative
+5. **No Reduce Motion support** - Animations ignore system preferences
 
 ---
 
-## Part 2: macOS Accessibility APIs
+## Part 2: Replacing Custom Event Processing with System Standard Services
+
+### Current Custom Key Handling (Problem)
+
+The current implementation in `RadialMenuContainerView.swift:137-157` uses hardcoded key codes:
+
+```swift
+// CURRENT: Custom key code handling (NOT recommended)
+override func keyDown(with event: NSEvent) {
+    switch event.keyCode {
+    case 123: // Left Arrow
+        onKeyboardNavigation?(false)
+    case 124: // Right Arrow
+        onKeyboardNavigation?(true)
+    case 36: // Return
+        onConfirm?()
+    case 53: // Escape
+        onCancel?()
+    default:
+        super.keyDown(with: event)
+    }
+}
+```
+
+**Problems with this approach:**
+1. Hardcodes physical key codes - doesn't respect user key binding customizations
+2. Bypasses the system's `interpretKeyEvents` mechanism
+3. Not accessible to assistive technologies
+4. Doesn't support international keyboards properly
+5. Can't be discovered or remapped by system accessibility features
+
+### System Standard Services Solution
+
+macOS provides `interpretKeyEvents(_:)` which routes events through the [Text Input Management system](https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/EventOverview/HandlingKeyEvents/HandlingKeyEvents.html). The system checks key bindings dictionaries and calls standard action methods on your responder.
+
+**Recommended Implementation:**
+
+```swift
+// RECOMMENDED: System standard key binding integration
+class RadialMenuContainerView: NSView {
+
+    override func keyDown(with event: NSEvent) {
+        guard isMenuActive else {
+            super.keyDown(with: event)
+            return
+        }
+        // Delegate to system key binding mechanism
+        interpretKeyEvents([event])
+    }
+
+    // MARK: - NSStandardKeyBindingResponding Methods
+    // These are called automatically by interpretKeyEvents based on user's key bindings
+
+    override func moveUp(_ sender: Any?) {
+        // Up arrow (or user-remapped key)
+        onKeyboardNavigation?(false) // Counter-clockwise toward top
+    }
+
+    override func moveDown(_ sender: Any?) {
+        // Down arrow (or user-remapped key)
+        onKeyboardNavigation?(true) // Clockwise toward bottom
+    }
+
+    override func moveLeft(_ sender: Any?) {
+        // Left arrow - counter-clockwise
+        onKeyboardNavigation?(false)
+    }
+
+    override func moveRight(_ sender: Any?) {
+        // Right arrow - clockwise
+        onKeyboardNavigation?(true)
+    }
+
+    override func insertNewline(_ sender: Any?) {
+        // Return/Enter key
+        onConfirm?()
+    }
+
+    override func cancelOperation(_ sender: Any?) {
+        // Escape key
+        onCancel?()
+    }
+
+    // Handle unbound keys gracefully
+    override func doCommand(by selector: Selector) {
+        if responds(to: selector) {
+            perform(selector, with: nil)
+        } else {
+            // Optionally: play system beep for unhandled keys
+            NSSound.beep()
+        }
+    }
+}
+```
+
+### Standard Key Bindings Reference
+
+The system maintains key bindings in `/System/Library/Frameworks/AppKit.framework/Resources/StandardKeyBinding.dict`. Users can customize in `~/Library/KeyBindings/DefaultKeyBinding.dict`.
+
+| Action Method | Default Key(s) | Description |
+|---------------|----------------|-------------|
+| `moveUp:` | ↑, Ctrl+P | Navigate up |
+| `moveDown:` | ↓, Ctrl+N | Navigate down |
+| `moveLeft:` | ←, Ctrl+B | Navigate left |
+| `moveRight:` | →, Ctrl+F | Navigate right |
+| `insertNewline:` | Return, Enter | Confirm/Activate |
+| `cancelOperation:` | Escape | Cancel/Close |
+| `insertTab:` | Tab | Next element |
+| `insertBacktab:` | Shift+Tab | Previous element |
+
+### Benefits of System Integration
+
+1. **Respects user customizations** - Users can remap keys via `DefaultKeyBinding.dict`
+2. **International keyboard support** - Works correctly with non-US layouts
+3. **Accessibility integration** - VoiceOver and Switch Control use these same methods
+4. **Full Keyboard Access compatibility** - System focus management works automatically
+5. **Consistent with platform** - Behaves like native macOS controls
+6. **Less code to maintain** - No hardcoded key codes
+
+### Additional Standard Methods to Consider
+
+For a radial menu with 8 items, consider implementing directional navigation:
+
+```swift
+// Navigate to specific positions
+override func moveToBeginningOfLine(_ sender: Any?) {
+    // Jump to leftmost item (index 6 at 9 o'clock)
+    selectItem(at: 6)
+}
+
+override func moveToEndOfLine(_ sender: Any?) {
+    // Jump to rightmost item (index 2 at 3 o'clock)
+    selectItem(at: 2)
+}
+
+override func moveToBeginningOfDocument(_ sender: Any?) {
+    // Jump to top item (index 0 at 12 o'clock)
+    selectItem(at: 0)
+}
+
+override func moveToEndOfDocument(_ sender: Any?) {
+    // Jump to bottom item (index 4 at 6 o'clock)
+    selectItem(at: 4)
+}
+```
+
+---
+
+## Part 3: macOS Accessibility APIs
 
 ### NSAccessibility Protocol (Modern API - macOS 10.10+)
 
@@ -78,7 +227,7 @@ var accessibilityValue: Any?
 | Group | `NSAccessibility.Role.group` | Grouping container |
 | Pop Up Button | `NSAccessibility.Role.popUpButton` | Menu trigger |
 
-**Recommendation**: Use `.menu` for the container and `.button` (with appropriate labels) for individual slices, since menu items traditionally expect a linear navigation model, while buttons are appropriate for spatially-arranged action triggers.
+**Recommendation**: Use `.group` for the container and `.button` (with appropriate labels) for individual slices, since menu items traditionally expect a linear navigation model, while buttons are appropriate for spatially-arranged action triggers.
 
 ### Notifications
 
@@ -126,7 +275,7 @@ class AccessibleSliceElement: NSAccessibilityElement {
 
 ---
 
-## Part 3: Apple Human Interface Guidelines
+## Part 4: Apple Human Interface Guidelines
 
 ### Menu Design Principles
 
@@ -159,7 +308,7 @@ From Apple's [Accessibility Guidelines](https://developer.apple.com/design/human
 
 ---
 
-## Part 4: Assistive Technologies
+## Part 5: Assistive Technologies
 
 ### VoiceOver
 
@@ -167,7 +316,7 @@ From Apple's [Accessibility Guidelines](https://developer.apple.com/design/human
 
 **Integration Requirements**:
 - All menu items need `accessibilityLabel` (title)
-- Container needs `accessibilityRole = .menu` or `.group`
+- Container needs `accessibilityRole = .group`
 - Selection changes trigger `.focusedUIElementChanged` notification
 - State changes trigger announcements
 - Actions implemented via `accessibilityPerformPress()`
@@ -219,30 +368,43 @@ From Apple's [Accessibility Guidelines](https://developer.apple.com/design/human
 
 ---
 
-## Part 5: Input & HID Compliance
+## Part 6: Input & HID Compliance
 
 ### Current Input Methods (Already Compliant)
 
 | Input | Framework | Status |
 |-------|-----------|--------|
 | Global Hotkey | Carbon Event Manager | Compliant |
-| Keyboard | AppKit NSEvent | Compliant |
+| Keyboard | AppKit NSEvent | Needs refactor to use `interpretKeyEvents` |
 | Mouse | AppKit NSEvent + Tracking | Compliant |
 | Game Controller | GameController Framework | Compliant |
 
 All input is processed through Apple's official frameworks, not raw HID.
 
-### Required Additions for Full Compliance
+### Required Changes for Full Compliance
 
-1. **Accessibility API integration** - Expose elements to system
-2. **Responder chain participation** - Proper focus management
-3. **System preference observation** - Motion, contrast, etc.
+1. **Replace custom keyDown handling** with `interpretKeyEvents(_:)` + action methods
+2. **Expose accessibility hierarchy** via `NSAccessibilityElement` subclasses
+3. **Observe system preferences** for motion, contrast, etc.
 
 ---
 
-## Part 6: Implementation Recommendations
+## Part 7: Implementation Recommendations
 
-### Phase 1: Core Accessibility Foundation
+### Phase 1: System Key Binding Integration
+
+**Goal**: Replace custom key handling with system standard services
+
+**File**: `RadialMenuContainerView.swift`
+
+1. Replace `keyDown` switch statement with `interpretKeyEvents([event])`
+2. Implement `NSStandardKeyBindingResponding` methods:
+   - `moveUp:`, `moveDown:`, `moveLeft:`, `moveRight:`
+   - `insertNewline:` (Return key)
+   - `cancelOperation:` (Escape key)
+3. Implement `doCommand(by:)` for graceful handling of unbound keys
+
+### Phase 2: Core Accessibility Foundation
 
 **Goal**: Make menu items visible to assistive technologies
 
@@ -261,7 +423,7 @@ All input is processed through Apple's official frameworks, not raw HID.
    - Post `.layoutChanged` when menu opens/closes
    - Announce selections with `.announcementRequested`
 
-### Phase 2: System Preferences Integration
+### Phase 3: System Preferences Integration
 
 **Goal**: Respect user accessibility preferences
 
@@ -283,20 +445,6 @@ All input is processed through Apple's official frameworks, not raw HID.
    - Make focus ring visible and customizable
    - Match system focus ring color
 
-### Phase 3: Enhanced Keyboard Navigation
-
-**Goal**: Full Keyboard Access compatibility
-
-1. **Integrate with responder chain**
-   - Proper `makeFirstResponder` management
-   - Focus ring visible on selected slice
-
-2. **Standard key bindings**
-   - Tab/Shift-Tab: Exit menu / Move to next group
-   - Arrow keys: Navigate between items
-   - Space/Return: Activate
-   - Escape: Close
-
 ### Phase 4: Announcements & Feedback
 
 **Goal**: Rich VoiceOver experience
@@ -310,12 +458,9 @@ All input is processed through Apple's official frameworks, not raw HID.
    - "Opening Calendar"
    - "Running command: screenshot"
 
-3. **Error announcements**
-   - "Action failed: permission denied"
-
 ---
 
-## Part 7: Testing Strategy
+## Part 8: Testing Strategy
 
 ### Tools
 
@@ -342,16 +487,28 @@ func testAccessibilityCompliance() throws {
 
 - [ ] VoiceOver can navigate all menu items
 - [ ] VoiceOver announces item names and positions
-- [ ] VoiceOver can activate items
+- [ ] VoiceOver can activate items via Ctrl+Option+Space
 - [ ] Full Keyboard Access shows focus ring
-- [ ] Arrow keys navigate correctly
-- [ ] Voice Control recognizes item names
+- [ ] Arrow keys navigate correctly (via system key bindings)
+- [ ] Escape closes menu (via `cancelOperation:`)
+- [ ] Return activates item (via `insertNewline:`)
+- [ ] Voice Control recognizes item names ("Click Calendar")
 - [ ] Reduce Motion setting disables animations
 - [ ] Accessibility Inspector shows correct hierarchy
 
 ---
 
-## Part 8: Code Changes Summary
+## Part 9: Code Changes Summary
+
+### Files to Modify
+
+| File | Changes |
+|------|---------|
+| `RadialMenuContainerView.swift` | Replace `keyDown` switch with `interpretKeyEvents`, add `NSStandardKeyBindingResponding` methods, add accessibility children |
+| `RadialMenuViewModel.swift` | Trigger announcements on state changes |
+| `SliceView.swift` | Add accessibility modifiers |
+| `MenuItem.swift` | Add accessibility label/hint properties |
+| `MenuConfiguration.swift` | Add accessibility settings |
 
 ### New Files
 
@@ -359,18 +516,237 @@ func testAccessibilityCompliance() throws {
 |------|---------|
 | `Infrastructure/Accessibility/AccessibleSliceElement.swift` | Accessibility element for slices |
 | `Infrastructure/Accessibility/MenuAccessibilityManager.swift` | Centralized a11y coordination |
-| `Domain/Models/AccessibilitySettings.swift` | User a11y preferences |
 
-### Modified Files
+---
 
-| File | Changes |
-|------|---------|
-| `RadialMenuContainerView.swift` | Add accessibility children, notifications |
-| `RadialMenuViewModel.swift` | Trigger announcements on state changes |
-| `SliceView.swift` | Add accessibility modifiers |
-| `MenuItem.swift` | Add accessibility label/hint properties |
-| `MenuConfiguration.swift` | Add accessibility settings |
-| `AppearanceSettings.swift` | Add focus indicator properties |
+## Part 10: Game Controller System Services
+
+### System-Level Controller Integration (macOS Ventura+)
+
+The GameController framework provides **automatic system-level integration** for accessibility and customization without requiring app-level code.
+
+#### Built-in System Features (Free for Developers)
+
+By adding the **Game Controllers capability** in Xcode, your app automatically gains:
+
+| Feature | Description | Developer Action |
+|---------|-------------|------------------|
+| **Input Remapping** | Players can create system-wide and per-app button remappings | None - automatic |
+| **Per-App Profiles** | Users customize controls for your specific app | Just add capability |
+| **Adaptive Controller Support** | Xbox Adaptive Controller works automatically | None - framework handles |
+| **Buddy Controller** | Two controllers paired for assisted play | System Settings feature |
+| **SF Symbols Glyphs** | Automatic button icons that update with remaps | Use `sfSymbolsName` property |
+
+#### What You Get for Free
+
+From Apple's [WWDC 2021 - Tap into Virtual and Physical Game Controllers](https://developer.apple.com/videos/play/wwdc2021/10081/):
+
+> "Players can create system-wide and per-application game controller input remappings, which help make your games more customizable and more accessible. You don't have to do anything to participate in input remapping, but when you tag your game, players can customize it specifically."
+
+#### Accessing System Settings
+
+Users access controller settings via: **System Settings → Game Controllers**
+
+Available options:
+- Button/stick remapping per app
+- Sensitivity adjustments
+- Custom profiles
+- Buddy Controller pairing
+
+#### Current Implementation Status
+
+The radial menu app **already uses GameController framework** correctly in `ControllerInputManager.swift`. The app will automatically participate in system-level remapping once the Game Controllers capability is added.
+
+**Recommended Action**: Add the Game Controllers capability in Xcode project settings to enable per-app customization visibility.
+
+#### Controller Accessibility Best Practices
+
+1. **Use `sfSymbolsName` for glyphs**
+   ```swift
+   // Display correct button icon even after user remapping
+   let buttonGlyph = controller.extendedGamepad?.buttonA.sfSymbolsName
+   // Returns correct symbol for whatever physical button is mapped
+   ```
+
+2. **Support Xbox Adaptive Controller** - Already supported through GameController framework
+
+3. **Consider Buddy Controller users** - Don't assume single-player controller input
+
+---
+
+## Part 11: SwiftUI Accessibility Modifiers
+
+### Core Accessibility Modifiers
+
+SwiftUI provides declarative accessibility modifiers that integrate with system assistive technologies.
+
+#### Basic Modifiers
+
+```swift
+// For SliceView.swift
+struct SliceView: View {
+    let item: MenuItem
+    let isSelected: Bool
+
+    var body: some View {
+        sliceContent
+            // Core accessibility
+            .accessibilityLabel(item.title)
+            .accessibilityHint(item.actionDescription)
+            .accessibilityAddTraits(.isButton)
+
+            // Selection state
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
+
+            // Custom actions
+            .accessibilityAction(.default) {
+                executeAction(item)
+            }
+    }
+}
+```
+
+#### Key SwiftUI Accessibility Modifiers
+
+| Modifier | Purpose | Example |
+|----------|---------|---------|
+| `.accessibilityLabel(_:)` | VoiceOver reads this | `"Calendar"` |
+| `.accessibilityHint(_:)` | Explains what happens | `"Opens Calendar app"` |
+| `.accessibilityValue(_:)` | Current state value | `"Selected"` |
+| `.accessibilityAddTraits(_:)` | Semantic meaning | `.isButton`, `.isSelected` |
+| `.accessibilityAction(_:_:)` | Actionable interaction | Default press action |
+| `.accessibilityHidden(_:)` | Hide from VoiceOver | Decorative elements |
+
+#### Focus Management with @FocusState
+
+SwiftUI provides focus management that integrates with Full Keyboard Access:
+
+```swift
+struct RadialMenuView: View {
+    @FocusState private var focusedSlice: Int?
+
+    var body: some View {
+        ForEach(Array(slices.enumerated()), id: \.offset) { index, slice in
+            SliceView(item: items[index], isSelected: index == selectedIndex)
+                .focusable()
+                .focused($focusedSlice, equals: index)
+        }
+        .onAppear {
+            // Set initial focus
+            focusedSlice = selectedIndex
+        }
+    }
+}
+```
+
+#### AccessibilityFocusState for VoiceOver
+
+For VoiceOver-specific focus management (separate from keyboard focus):
+
+```swift
+struct RadialMenuView: View {
+    @AccessibilityFocusState private var accessibilityFocus: Int?
+
+    var body: some View {
+        ForEach(Array(slices.enumerated()), id: \.offset) { index, slice in
+            SliceView(item: items[index])
+                .accessibilityFocused($accessibilityFocus, equals: index)
+        }
+        .onChange(of: selectedIndex) { _, newIndex in
+            accessibilityFocus = newIndex  // Move VoiceOver focus
+        }
+    }
+}
+```
+
+#### Respecting System Preferences
+
+```swift
+struct RadialMenuView: View {
+    // System accessibility preferences
+    @Environment(\.accessibilityReduceMotion) var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) var reduceTransparency
+    @Environment(\.accessibilityDifferentiateWithoutColor) var differentiateWithoutColor
+
+    var menuAnimation: Animation? {
+        reduceMotion ? nil : .easeOut(duration: 0.15)
+    }
+
+    var backgroundColor: Color {
+        reduceTransparency ? .black : .black.opacity(0.8)
+    }
+
+    var selectionIndicator: some View {
+        Group {
+            if differentiateWithoutColor {
+                // Use shapes/patterns instead of color alone
+                selectedSliceWithPattern
+            } else {
+                selectedSliceHighlight
+            }
+        }
+    }
+}
+```
+
+### SwiftUI + AppKit Accessibility Bridge
+
+Since the app uses `NSHostingView` to embed SwiftUI in `RadialMenuContainerView`, accessibility information flows between layers:
+
+```
+RadialMenuContainerView (NSView)
+    ├── accessibilityRole = .group
+    ├── accessibilityChildren = [AccessibleSliceElement...]
+    └── NSHostingView
+            └── RadialMenuView (SwiftUI)
+                    └── SliceView with .accessibilityLabel, etc.
+```
+
+**Important**: SwiftUI accessibility modifiers expose elements to the accessibility hierarchy automatically. However, for complex custom views embedded in AppKit, you may need to also implement AppKit accessibility on the container.
+
+### Custom Accessibility Representation
+
+For complex custom views, use `accessibilityRepresentation` to describe behavior using standard controls:
+
+```swift
+struct SliceView: View {
+    var body: some View {
+        customSliceShape
+            .accessibilityRepresentation {
+                Button(item.title) {
+                    executeAction(item)
+                }
+            }
+    }
+}
+```
+
+This tells VoiceOver to treat the custom shape as if it were a standard button.
+
+### Focus Ring Styling (macOS)
+
+macOS shows focus rings for keyboard navigation. To customize:
+
+```swift
+struct SliceView: View {
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        sliceContent
+            .focusable()
+            .focused($isFocused)
+            .overlay {
+                if isFocused {
+                    // Custom focus ring
+                    sliceOutline
+                        .stroke(Color.accentColor, lineWidth: 3)
+                }
+            }
+    }
+}
+```
+
+**Note**: Since macOS Sonoma, the `.focusable()` modifier behavior changed. Verify behavior and potentially add `interactions: .edit` or `.activate` argument if needed.
 
 ---
 
@@ -378,16 +754,24 @@ func testAccessibilityCompliance() throws {
 
 ### Apple Documentation
 
+- [Handling Key Events](https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/EventOverview/HandlingKeyEvents/HandlingKeyEvents.html)
+- [interpretKeyEvents(_:)](https://developer.apple.com/documentation/appkit/nsresponder/1531599-interpretkeyevents)
+- [NSStandardKeyBindingResponding](https://developer.apple.com/documentation/appkit/nsstandardkeybindingresponding)
 - [Accessibility Programming Guide for OS X](https://developer.apple.com/library/archive/documentation/Accessibility/Conceptual/AccessibilityMacOSX/)
 - [NSAccessibility Protocol](https://developer.apple.com/documentation/appkit/nsaccessibility)
 - [Human Interface Guidelines - Accessibility](https://developer.apple.com/design/human-interface-guidelines/accessibility)
-- [Human Interface Guidelines - Menus](https://developer.apple.com/design/human-interface-guidelines/menus)
 
 ### WWDC Sessions
 
+- [WWDC 2010 Session 145 - Key Event Handling in Cocoa Applications](https://asciiwwdc.com/2010/sessions/145)
 - [WWDC 2014 Session 207 - Accessibility on OS X](https://asciiwwdc.com/2014/sessions/207)
+- [WWDC 2019 - Supporting New Game Controllers](https://developer.apple.com/videos/play/wwdc2019/616/)
+- [WWDC 2020 - Advancements in Game Controllers](https://developer.apple.com/videos/play/wwdc2020/10614/)
 - [WWDC 2020 - App accessibility for Switch Control](https://developer.apple.com/videos/play/wwdc2020/10019/)
+- [WWDC 2021 - Tap into Virtual and Physical Game Controllers](https://developer.apple.com/videos/play/wwdc2021/10081/)
 - [WWDC 2023 - Perform accessibility audits for your app](https://developer.apple.com/videos/play/wwdc2023/10035/)
+- [WWDC 2023 - The SwiftUI cookbook for focus](https://developer.apple.com/videos/play/wwdc2023/10162/)
+- [WWDC 2024 - Catch up on accessibility in SwiftUI](https://developer.apple.com/videos/play/wwdc2024/10073/)
 
 ### Support Documentation
 
@@ -401,10 +785,11 @@ func testAccessibilityCompliance() throws {
 
 Implementing macOS standard menu semantics for the Radial Menu app requires:
 
-1. **Exposing the accessibility hierarchy** via `NSAccessibilityElement` subclasses
-2. **Adopting appropriate roles** (`.group` for container, `.button` for items)
-3. **Posting notifications** for state changes and selections
-4. **Respecting system preferences** for Reduce Motion, High Contrast, etc.
-5. **Testing with real assistive technologies**, not just automated audits
+1. **Replacing custom key handling** with `interpretKeyEvents(_:)` and standard `NSResponder` action methods
+2. **Exposing the accessibility hierarchy** via `NSAccessibilityElement` subclasses
+3. **Adopting appropriate roles** (`.group` for container, `.button` for items)
+4. **Posting notifications** for state changes and selections
+5. **Respecting system preferences** for Reduce Motion, High Contrast, etc.
+6. **Testing with real assistive technologies**, not just automated audits
 
-The existing Clean Architecture makes these changes straightforward to implement without disrupting the core domain logic. The accessibility layer would be added primarily in the Infrastructure layer, with minimal changes to Domain models (adding accessibility label/hint fields) and Presentation (SwiftUI accessibility modifiers).
+The existing Clean Architecture makes these changes straightforward to implement without disrupting the core domain logic. The primary changes are in `RadialMenuContainerView` (replacing custom key handling) and adding an accessibility layer in Infrastructure.
