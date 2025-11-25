@@ -151,6 +151,17 @@ class OverlayWindowController: OverlayWindowProtocol {
         )
     }
 
+    func moveWindow(dx: CGFloat, dy: CGFloat) {
+        guard let window = window, window.isVisible else { return }
+
+        let currentOrigin = window.frame.origin
+        let newOrigin = CGPoint(
+            x: currentOrigin.x + dx,
+            y: currentOrigin.y + dy
+        )
+        window.setFrameOrigin(newOrigin)
+    }
+
     // MARK: - Private Methods
 
     private func createWindow() {

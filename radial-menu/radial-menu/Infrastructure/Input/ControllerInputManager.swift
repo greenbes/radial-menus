@@ -73,6 +73,8 @@ class ControllerInputManager: ControllerInputProtocol {
             return ControllerState(
                 leftStickX: 0,
                 leftStickY: 0,
+                rightStickX: 0,
+                rightStickY: 0,
                 buttonAPressed: false,
                 buttonBPressed: false,
                 menuButtonPressed: false,
@@ -85,6 +87,8 @@ class ControllerInputManager: ControllerInputProtocol {
         return ControllerState(
             leftStickX: Double(gamepad.leftThumbstick.xAxis.value),
             leftStickY: Double(gamepad.leftThumbstick.yAxis.value),
+            rightStickX: Double(gamepad.rightThumbstick.xAxis.value),
+            rightStickY: Double(gamepad.rightThumbstick.yAxis.value),
             buttonAPressed: gamepad.buttonA.isPressed,
             buttonBPressed: gamepad.buttonB.isPressed,
             menuButtonPressed: gamepad.buttonMenu.isPressed,
@@ -121,10 +125,9 @@ class ControllerInputManager: ControllerInputProtocol {
 
         let newState = currentState
 
-        // Only notify if state has changed
-        if previousState != newState {
-            callback?(newState)
-            previousState = newState
-        }
+        // Always call callback for continuous input (right stick for repositioning)
+        // The handlers will decide what to process
+        callback?(newState)
+        previousState = newState
     }
 }

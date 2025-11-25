@@ -135,10 +135,16 @@ class AppCoordinator {
         previousDpadRight = state.dpadRight
         previousDpadLeft = state.dpadLeft
 
-        // Handle analog stick for selection
+        // Handle left analog stick for selection
         viewModel.handleControllerInput(
             x: state.leftStickX,
             y: state.leftStickY
+        )
+
+        // Handle right analog stick for menu repositioning
+        viewModel.handleRightStickInput(
+            x: state.rightStickX,
+            y: state.rightStickY
         )
 
         // Handle A button for confirmation (edge-triggered)

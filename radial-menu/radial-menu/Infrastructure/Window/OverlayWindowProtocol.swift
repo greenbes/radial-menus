@@ -35,4 +35,10 @@ protocol OverlayWindowProtocol {
 
     /// Get the current center position of the window
     var centerPosition: CGPoint { get }
+
+    /// Move the window by the specified delta
+    /// - Parameters:
+    ///   - dx: Horizontal delta in points
+    ///   - dy: Vertical delta in points
+    func moveWindow(dx: CGFloat, dy: CGFloat)
 }
