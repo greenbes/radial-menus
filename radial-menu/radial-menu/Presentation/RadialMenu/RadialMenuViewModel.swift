@@ -34,6 +34,10 @@ final class RadialMenuViewModel: ObservableObject {
 
     private var cancellables = Set<AnyCancellable>()
 
+    /// Completion handler for Shortcuts integration - called when menu closes
+    /// Returns the selected MenuItem if an action was executed, nil if dismissed
+    private var menuCompletionHandler: ((MenuItem?) -> Void)?
+
     // MARK: - Initialization
 
     init(
@@ -100,11 +104,22 @@ final class RadialMenuViewModel: ObservableObject {
         }
     }
 
-    func openMenu(at position: CGPoint? = nil) {
+    /// Opens the menu and calls completion handler when closed.
+    /// - Parameters:
+    ///   - position: Optional position to show menu (uses config default if nil)
+    ///   - completion: Called when menu closes with the selected item (nil if dismissed)
+    func openMenu(at position: CGPoint? = nil, completion: ((MenuItem?) -> Void)? = nil) {
         guard case .closed = menuState else {
             LogMenu("Cannot open menu, not in closed state", level: .debug)
+            completion?(nil)
             return
         }
+
+        // Store completion handler for when menu closes
+        menuCompletionHandler = completion
+
+        // Clear last selection for Shortcuts polling
+        ShortcutsServiceLocator.shared.lastSelectedItemTitle = nil
 
         LogMenu("Opening menu")
         menuState = .opening
@@ -168,14 +183,30 @@ final class RadialMenuViewModel: ObservableObject {
     }
 
     func closeMenu() {
+        closeMenu(withSelectedItem: nil)
+    }
+
+    /// Closes the menu, optionally with a selected item result.
+    /// - Parameter selectedItem: The item that was selected, or nil if dismissed
+    private func closeMenu(withSelectedItem selectedItem: MenuItem?) {
         menuState = .closing
         announceMenuClosed()
+
+        // Capture completion handler before clearing
+        let completion = menuCompletionHandler
+        menuCompletionHandler = nil
+
+        // Update ShortcutsServiceLocator with selection for polling-based intents
+        ShortcutsServiceLocator.shared.lastSelectedItemTitle = selectedItem?.title
 
         let animationDuration = configuration.appearanceSettings.animationDuration
         DispatchQueue.main.asyncAfter(deadline: .now() + animationDuration) {
             self.overlayWindow.hide()
             self.menuState = .closed
             self.selectedIndex = nil
+
+            // Call completion handler after menu is fully closed
+            completion?(selectedItem)
         }
     }
 
@@ -328,7 +359,8 @@ final class RadialMenuViewModel: ObservableObject {
                 LogError("Action failed: \(error.localizedDescription)", category: .action)
             }
 
-            self.closeMenu()
+            // Close menu and report the selected item
+            self.closeMenu(withSelectedItem: item)
         }
     }
 

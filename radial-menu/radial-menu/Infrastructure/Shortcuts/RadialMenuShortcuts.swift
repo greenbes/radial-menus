@@ -36,6 +36,18 @@ struct RadialMenuShortcuts: AppShortcutsProvider {
             systemImageName: "arrow.2.squarepath"
         )
 
+        // Show Menu shortcut (waits for selection)
+        AppShortcut(
+            intent: ShowMenuIntent(),
+            phrases: [
+                "Show \(.applicationName)",
+                "Open \(.applicationName) menu",
+                "Pick from \(.applicationName)"
+            ],
+            shortTitle: "Show Menu",
+            systemImageName: "circle.grid.cross"
+        )
+
         // Get Menu Items shortcut
         AppShortcut(
             intent: GetMenuItemsIntent(),

@@ -22,6 +22,7 @@ final class ShortcutsServiceLocator: @unchecked Sendable {
     private var _configManager: ConfigurationManagerProtocol?
     private var _actionExecutor: ActionExecutorProtocol?
     private weak var _viewModel: RadialMenuViewModel?
+    private var _lastSelectedItemTitle: String?
 
     // MARK: - Initialization
 
@@ -76,6 +77,21 @@ final class ShortcutsServiceLocator: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return _viewModel != nil
+    }
+
+    /// The title of the last menu item that was selected.
+    /// Used by ShowMenuIntent to return the user's selection.
+    var lastSelectedItemTitle: String? {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return _lastSelectedItemTitle
+        }
+        set {
+            lock.lock()
+            defer { lock.unlock() }
+            _lastSelectedItemTitle = newValue
+        }
     }
 
     /// Waits for the ViewModel to become available during app startup.
