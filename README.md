@@ -214,7 +214,7 @@ open "radial-menu://show"
 open "radial-menu://hide"
 open "radial-menu://toggle"
 
-# Show a named menu (stored in ~/Library/Application Support/com.radial-menu/menus/)
+# Show a named menu (stored in ~/Library/Application Support/Six-Gables-Software.radial-menu/menus/)
 open "radial-menu://show?menu=development"
 
 # Show menu from a file path (ephemeral, one-time use)
@@ -239,7 +239,7 @@ do shell script "open 'radial-menu://execute?title=Screenshot'"
 
 Store custom menus as JSON files in:
 ```
-~/Library/Application Support/com.radial-menu/menus/<name>.json
+~/Library/Application Support/Six-Gables-Software.radial-menu/menus/<name>.json
 ```
 
 **Named menu JSON format:**
