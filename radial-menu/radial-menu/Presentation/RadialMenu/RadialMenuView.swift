@@ -69,6 +69,9 @@ struct RadialMenuView: View {
             }
             .frame(width: windowSize, height: windowSize)
             .background(Color.clear)
+            // Dim when losing keyboard focus
+            .opacity(viewModel.hasKeyboardFocus ? 1.0 : 0.65)
+            .animation(.easeInOut(duration: 0.15), value: viewModel.hasKeyboardFocus)
             // MARK: - Container Accessibility
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Radial Menu")

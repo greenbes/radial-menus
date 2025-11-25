@@ -41,4 +41,8 @@ protocol OverlayWindowProtocol {
     ///   - dx: Horizontal delta in points
     ///   - dy: Vertical delta in points
     func moveWindow(dx: CGFloat, dy: CGFloat)
+
+    /// Set callback for when window focus (key status) changes
+    /// - Parameter callback: Called with true when window becomes key, false when it resigns
+    func setFocusChangeCallback(_ callback: @escaping (Bool) -> Void)
 }

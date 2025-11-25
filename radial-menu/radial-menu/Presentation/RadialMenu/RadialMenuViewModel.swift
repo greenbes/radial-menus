@@ -25,6 +25,7 @@ final class RadialMenuViewModel: ObservableObject {
     @Published private(set) var menuState: MenuState = .closed
     @Published var selectedIndex: Int? = nil
     @Published private(set) var configuration: MenuConfiguration
+    @Published private(set) var hasKeyboardFocus: Bool = true
 
     // Exposed for View to render slices without recalculating
     @Published private(set) var slices: [RadialGeometry.Slice] = []
@@ -51,6 +52,15 @@ final class RadialMenuViewModel: ObservableObject {
 
         setupConfigurationObserver()
         setupSelectionAnnouncements()
+        setupFocusCallback()
+    }
+
+    // MARK: - Focus Handling
+
+    private func setupFocusCallback() {
+        overlayWindow.setFocusChangeCallback { [weak self] hasFocus in
+            self?.hasKeyboardFocus = hasFocus
+        }
     }
 
     // MARK: - Icon Resolution
@@ -171,6 +181,7 @@ final class RadialMenuViewModel: ObservableObject {
 
     func handleMouseMove(at point: CGPoint) {
         guard case .open = menuState else { return }
+        guard hasKeyboardFocus else { return }
 
         let radius = configuration.appearanceSettings.radius
         let windowSize = radius * 2.2

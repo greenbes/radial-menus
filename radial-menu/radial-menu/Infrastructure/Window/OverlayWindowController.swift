@@ -24,9 +24,19 @@ class OverlayWindowController: OverlayWindowProtocol {
     private var window: RadialMenuWindow?
     private var hostingView: NSHostingView<AnyView>?
     private var windowSize: CGSize
+    private var focusChangeCallback: ((Bool) -> Void)?
+    private var windowObservers: [NSObjectProtocol] = []
 
     init(windowSize: CGSize = CGSize(width: 400, height: 400)) {
         self.windowSize = windowSize
+    }
+
+    deinit {
+        removeWindowObservers()
+    }
+
+    func setFocusChangeCallback(_ callback: @escaping (Bool) -> Void) {
+        self.focusChangeCallback = callback
     }
 
     /// Update the window size based on radius
@@ -199,6 +209,38 @@ class OverlayWindowController: OverlayWindowProtocol {
         }
 
         window = panel
+        setupWindowObservers(for: panel)
         LogWindow("Window created successfully")
+    }
+
+    private func setupWindowObservers(for window: NSWindow) {
+        removeWindowObservers()
+
+        let becameKeyObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didBecomeKeyNotification,
+            object: window,
+            queue: .main
+        ) { [weak self] _ in
+            LogWindow("Window became key (gained focus)")
+            self?.focusChangeCallback?(true)
+        }
+
+        let resignedKeyObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didResignKeyNotification,
+            object: window,
+            queue: .main
+        ) { [weak self] _ in
+            LogWindow("Window resigned key (lost focus)")
+            self?.focusChangeCallback?(false)
+        }
+
+        windowObservers = [becameKeyObserver, resignedKeyObserver]
+    }
+
+    private func removeWindowObservers() {
+        for observer in windowObservers {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        windowObservers.removeAll()
     }
 }
