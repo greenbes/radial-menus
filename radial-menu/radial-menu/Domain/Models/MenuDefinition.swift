@@ -18,6 +18,7 @@ import Foundation
 ///   "version": 1,
 ///   "name": "development",
 ///   "description": "Development tools and apps",
+///   "centerTitle": "Dev Tools",   // optional - displays in center
 ///   "items": [...],
 ///   "appearanceSettings": { ... },  // optional
 ///   "behaviorSettings": { ... }     // optional
@@ -32,6 +33,9 @@ struct MenuDefinition: Codable, Equatable {
 
     /// Optional human-readable description
     let description: String?
+
+    /// Optional title text to display in the center of the menu (replaces default icon)
+    let centerTitle: String?
 
     /// Required menu items
     let items: [MenuItem]
@@ -48,6 +52,7 @@ struct MenuDefinition: Codable, Equatable {
         version: Int = 1,
         name: String,
         description: String? = nil,
+        centerTitle: String? = nil,
         items: [MenuItem],
         appearanceSettings: AppearanceSettings? = nil,
         behaviorSettings: BehaviorSettings? = nil
@@ -55,6 +60,7 @@ struct MenuDefinition: Codable, Equatable {
         self.version = version
         self.name = name
         self.description = description
+        self.centerTitle = centerTitle
         self.items = items
         self.appearanceSettings = appearanceSettings
         self.behaviorSettings = behaviorSettings

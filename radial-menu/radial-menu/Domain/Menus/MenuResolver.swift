@@ -27,7 +27,8 @@ enum MenuResolver {
         return MenuConfiguration(
             items: definition.items,
             appearanceSettings: definition.appearanceSettings ?? defaults.appearanceSettings,
-            behaviorSettings: definition.behaviorSettings ?? defaults.behaviorSettings
+            behaviorSettings: definition.behaviorSettings ?? defaults.behaviorSettings,
+            centerTitle: definition.centerTitle
         )
     }
 

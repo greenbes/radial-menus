@@ -19,6 +19,10 @@
       "type": "string",
       "description": "Optional human-readable description"
     },
+    "centerTitle": {
+      "type": "string",
+      "description": "Optional title text to display in the center of the menu (replaces default icon)"
+    },
     "items": {
       "type": "array",
       "description": "Array of menu items to display in the radial menu",

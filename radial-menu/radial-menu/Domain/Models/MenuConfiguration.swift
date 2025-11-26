@@ -13,15 +13,18 @@ struct MenuConfiguration: Codable, Equatable {
     var items: [MenuItem]
     var appearanceSettings: AppearanceSettings
     var behaviorSettings: BehaviorSettings
+    var centerTitle: String?
 
     init(
         items: [MenuItem] = [],
         appearanceSettings: AppearanceSettings = .default,
-        behaviorSettings: BehaviorSettings = .default
+        behaviorSettings: BehaviorSettings = .default,
+        centerTitle: String? = nil
     ) {
         self.items = items
         self.appearanceSettings = appearanceSettings
         self.behaviorSettings = behaviorSettings
+        self.centerTitle = centerTitle
     }
 }
 

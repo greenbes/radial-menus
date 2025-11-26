@@ -61,11 +61,22 @@ struct RadialMenuView: View {
                     )
                     .position(centerPoint)
 
-                // Center icon
-                Image(systemName: "circle.grid.cross")
-                    .font(.system(size: 20))
-                    .foregroundColor(foregroundColor)
-                    .position(centerPoint)
+                // Center content: title text or default icon
+                if let title = viewModel.configuration.centerTitle {
+                    Text(title)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(foregroundColor)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(3)
+                        .truncationMode(.tail)
+                        .frame(width: centerRadius * 1.6, height: centerRadius * 1.6)
+                        .position(centerPoint)
+                } else {
+                    Image(systemName: "circle.grid.cross")
+                        .font(.system(size: 20))
+                        .foregroundColor(foregroundColor)
+                        .position(centerPoint)
+                }
             }
             .frame(width: windowSize, height: windowSize)
             .background(Color.clear)
