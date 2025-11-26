@@ -38,6 +38,9 @@ final class RadialMenuViewModel: ObservableObject {
     /// Returns the selected MenuItem if an action was executed, nil if dismissed
     private var menuCompletionHandler: ((MenuItem?) -> Void)?
 
+    /// Whether to skip action execution and just return the selection
+    private var returnSelectionOnly = false
+
     /// Whether the current menu is using an override configuration
     private var isUsingOverrideConfiguration = false
 
@@ -126,10 +129,12 @@ final class RadialMenuViewModel: ObservableObject {
     /// - Parameters:
     ///   - configuration: The menu configuration to display
     ///   - position: Optional position to show menu (uses config default if nil)
+    ///   - returnOnly: If true, returns selected item without executing action
     ///   - completion: Called when menu closes with the selected item (nil if dismissed)
     func openMenu(
         with configuration: MenuConfiguration,
         at position: CGPoint? = nil,
+        returnOnly: Bool = false,
         completion: ((MenuItem?) -> Void)? = nil
     ) {
         guard case .closed = menuState else {
@@ -141,10 +146,11 @@ final class RadialMenuViewModel: ObservableObject {
         // Store original configuration for restoration
         originalConfiguration = self.configuration
         isUsingOverrideConfiguration = true
+        returnSelectionOnly = returnOnly
 
         // Apply override configuration
         self.configuration = configuration
-        LogMenu("Applied override configuration with \(configuration.items.count) items")
+        LogMenu("Applied override configuration with \(configuration.items.count) items, returnOnly=\(returnOnly)")
 
         openMenuInternal(at: position, completion: completion)
     }
@@ -258,6 +264,7 @@ final class RadialMenuViewModel: ObservableObject {
             }
             self.isUsingOverrideConfiguration = false
             self.originalConfiguration = nil
+            self.returnSelectionOnly = false
 
             // Call completion handler after menu is fully closed
             completion?(selectedItem)
@@ -402,6 +409,13 @@ final class RadialMenuViewModel: ObservableObject {
         let item = configuration.items[index]
         menuState = .executing(itemIndex: index)
         announceActionExecuted(for: item)
+
+        // If returnSelectionOnly is set, skip action execution and just return the selection
+        if returnSelectionOnly {
+            LogAction("Return-only mode: returning '\(item.title)' without executing action")
+            closeMenu(withSelectedItem: item)
+            return
+        }
 
         actionExecutor.executeAsync(item.action) { [weak self] result in
             guard let self = self else { return }

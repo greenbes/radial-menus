@@ -1,10 +1,24 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://radial-menu.app/schemas/menu-configuration.schema.json",
-  "title": "MenuConfiguration",
-  "description": "Configuration schema for radial menu structures",
+  "title": "MenuDefinition",
+  "description": "Schema for radial menu definitions (named menus and dynamic menus via URL scheme)",
   "type": "object",
   "properties": {
+    "version": {
+      "type": "integer",
+      "description": "Schema version for future migration",
+      "const": 1
+    },
+    "name": {
+      "type": "string",
+      "description": "Unique identifier for the menu",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string",
+      "description": "Optional human-readable description"
+    },
     "items": {
       "type": "array",
       "description": "Array of menu items to display in the radial menu",
@@ -21,8 +35,7 @@
       "$ref": "#/$defs/BehaviorSettings"
     }
   },
-  "required": ["items"],
-  "additionalProperties": false,
+  "required": ["version", "name", "items"],
   "$defs": {
     "MenuItem": {
       "type": "object",

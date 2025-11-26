@@ -15,16 +15,22 @@ import AppKit
 /// - `radial-menu://show?menu=<name>` - Show a named menu
 /// - `radial-menu://show?file=<path>` - Show a menu from a file (ephemeral)
 /// - `radial-menu://show?json=<encoded-json>` - Show a menu from inline JSON (ephemeral)
+/// - `radial-menu://show?returnTo=<path>` - Write selected item title to file when menu closes
 /// - `radial-menu://hide` - Hide the menu
 /// - `radial-menu://toggle` - Toggle menu visibility
 /// - `radial-menu://execute?item=<uuid>` - Execute item by UUID
 /// - `radial-menu://execute?title=<encoded-title>` - Execute item by title
+///
+/// The `returnTo` parameter can be combined with any show command. When specified,
+/// the selected item's title is written to the file path (or empty string if dismissed).
+/// The action is NOT executed when returnTo is specified.
 ///
 /// Usage from shell:
 /// ```bash
 /// open "radial-menu://show"
 /// open "radial-menu://show?menu=development"
 /// open "radial-menu://show?file=/path/to/menu.json"
+/// open "radial-menu://show?returnTo=/tmp/selection.txt"  # Returns selection, no action
 /// open "radial-menu://execute?title=Terminal"
 /// ```
 final class URLSchemeHandler {
@@ -91,13 +97,28 @@ final class URLSchemeHandler {
             return true
         }
 
-        // Parse menu source from URL parameters
+        // Parse menu source and returnTo path from URL parameters
         let source = parseMenuSource(from: url)
+        let returnToPath = parseReturnToPath(from: url)
+
+        // Create completion handler if returnTo is specified
+        let completion: ((MenuItem?) -> Void)? = returnToPath.map { path in
+            { selectedItem in
+                self.writeResult(selectedItem?.title ?? "", to: path)
+            }
+        }
 
         // For default source, just open the menu normally
         if case .default = source {
-            viewModel.openMenu()
-            LogShortcuts("URLSchemeHandler: Default menu shown")
+            if let returnTo = returnToPath {
+                // Need to use override method even for default config to get returnOnly behavior
+                let config = ShortcutsServiceLocator.shared.configManager.currentConfiguration
+                viewModel.openMenu(with: config, returnOnly: true, completion: completion)
+                LogShortcuts("URLSchemeHandler: Default menu shown with returnTo=\(returnTo)")
+            } else {
+                viewModel.openMenu()
+                LogShortcuts("URLSchemeHandler: Default menu shown")
+            }
             return true
         }
 
@@ -106,13 +127,32 @@ final class URLSchemeHandler {
 
         switch menuProvider.resolve(source) {
         case .success(let config):
-            viewModel.openMenu(with: config)
-            LogShortcuts("URLSchemeHandler: Menu shown from source \(source)")
+            let returnOnly = returnToPath != nil
+            viewModel.openMenu(with: config, returnOnly: returnOnly, completion: completion)
+            LogShortcuts("URLSchemeHandler: Menu shown from source \(source), returnOnly=\(returnOnly)")
             return true
 
         case .failure(let error):
             LogShortcuts("URLSchemeHandler: Failed to resolve menu - \(error.localizedDescription)", level: .error)
             return false
+        }
+    }
+
+    /// Parses the returnTo file path from URL query parameters.
+    private func parseReturnToPath(from url: URL) -> String? {
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return nil
+        }
+        return components.queryItems?.first(where: { $0.name == "returnTo" })?.value
+    }
+
+    /// Writes the selection result to a file.
+    private func writeResult(_ result: String, to path: String) {
+        do {
+            try result.write(toFile: path, atomically: true, encoding: .utf8)
+            LogShortcuts("URLSchemeHandler: Wrote result '\(result)' to \(path)")
+        } catch {
+            LogShortcuts("URLSchemeHandler: Failed to write result to \(path): \(error)", level: .error)
         }
     }
 
