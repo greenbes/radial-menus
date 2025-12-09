@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Preferences window view
 struct PreferencesView: View {
@@ -319,6 +320,13 @@ struct PreferencesView: View {
     }
 
     private func iconImage(for item: MenuItem) -> Image {
+        // For launchApp actions, show the application's actual icon
+        if case .launchApp(let path) = item.action {
+            let appIcon = NSWorkspace.shared.icon(forFile: path)
+            return Image(nsImage: appIcon)
+        }
+
+        // Fall back to icon set resolution for other action types
         let resolved = iconSetProvider.resolveIcon(
             iconName: item.iconName,
             iconSetIdentifier: selectedIconSetIdentifier
@@ -347,8 +355,9 @@ struct AddMenuItemView: View {
     @State private var title: String = ""
     @State private var iconName: String = "app.fill"
     @State private var actionType: ActionTypeSelection = .launchApp
-    @State private var appPath: String = "/System/Applications/"
+    @State private var appPath: String = ""
     @State private var shellCommand: String = ""
+    @State private var selectedAppIcon: NSImage?
 
     enum ActionTypeSelection: String, CaseIterable {
         case launchApp = "Launch Application"
@@ -385,10 +394,27 @@ struct AddMenuItemView: View {
 
                 switch actionType {
                 case .launchApp:
-                    TextField("Application Path", text: $appPath)
-                    Text("Example: /System/Applications/Safari.app")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    HStack {
+                        if let icon = selectedAppIcon {
+                            Image(nsImage: icon)
+                                .resizable()
+                                .frame(width: 32, height: 32)
+                        } else {
+                            Image(systemName: "app.fill")
+                                .resizable()
+                                .frame(width: 32, height: 32)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Text(appPath.isEmpty ? "No application selected" : URL(fileURLWithPath: appPath).lastPathComponent)
+                            .foregroundColor(appPath.isEmpty ? .secondary : .primary)
+
+                        Spacer()
+
+                        Button("Browse...") {
+                            selectApplication()
+                        }
+                    }
 
                 case .runShellCommand:
                     TextField("Shell Command", text: $shellCommand)
@@ -430,6 +456,26 @@ struct AddMenuItemView: View {
         }
         .frame(width: 500, height: 400)
         .padding()
+    }
+
+    private func selectApplication() {
+        let panel = NSOpenPanel()
+        panel.title = "Select Application"
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.application]
+        panel.directoryURL = URL(fileURLWithPath: "/Applications")
+
+        if panel.runModal() == .OK, let url = panel.url {
+            appPath = url.path
+            selectedAppIcon = NSWorkspace.shared.icon(forFile: url.path)
+
+            // Auto-populate title if empty
+            if title.isEmpty {
+                title = url.deletingPathExtension().lastPathComponent
+            }
+        }
     }
 }
 

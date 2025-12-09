@@ -88,7 +88,7 @@ final class RadialMenuViewModel: ObservableObject {
     // MARK: - Icon Resolution
 
     /// Resolves the icon for a menu item using the current icon set
-    /// Special handling for task switcher items which use runtime NSImage icons
+    /// Special handling for task switcher items and launchApp items which use runtime NSImage icons
     func resolveIcon(for item: MenuItem) -> ResolvedIcon {
         // Check if this is a task switcher item (has activateApp action)
         if case .activateApp(let bundleID) = item.action {
@@ -108,6 +108,12 @@ final class RadialMenuViewModel: ObservableObject {
 
             // Fallback to generic app icon
             return ResolvedIcon(systemSymbol: "app.fill")
+        }
+
+        // Check if this is a launchApp action - show the application's actual icon
+        if case .launchApp(let path) = item.action {
+            let appIcon = NSWorkspace.shared.icon(forFile: path)
+            return ResolvedIcon(nsImage: appIcon, name: path)
         }
 
         // Default icon resolution via icon set provider
