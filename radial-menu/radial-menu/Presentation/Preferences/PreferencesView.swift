@@ -120,7 +120,7 @@ struct PreferencesView: View {
                                 Image(systemName: "trash")
                                     .foregroundColor(.red)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.borderless)
                         }
                         .padding(.vertical, 4)
                     }
