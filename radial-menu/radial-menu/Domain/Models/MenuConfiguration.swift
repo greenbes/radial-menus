@@ -195,9 +195,9 @@ extension MenuConfiguration {
                     )
                 ),
                 MenuItem(
-                    title: "Mute",
-                    iconName: "speaker.slash",
-                    action: .runShellCommand(command: "osascript -e 'set volume output muted true'")
+                    title: "Switch App",
+                    iconName: "square.stack.3d.up",
+                    action: .openTaskSwitcher
                 ),
                 MenuItem(
                     title: "Calendar",

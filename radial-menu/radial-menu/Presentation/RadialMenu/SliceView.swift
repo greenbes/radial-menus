@@ -198,7 +198,10 @@ struct SliceView: View, Equatable {
 
 private extension SliceView {
     func iconImage(for resolved: ResolvedIcon) -> Image {
-        if resolved.isSystemSymbol {
+        // Check for direct NSImage first (runtime app icons from task switcher)
+        if let nsImage = resolved.nsImage {
+            return Image(nsImage: nsImage)
+        } else if resolved.isSystemSymbol {
             return Image(systemName: resolved.name)
         } else if let fileURL = resolved.fileURL {
             // Load from file system (custom icon set)

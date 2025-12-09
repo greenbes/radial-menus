@@ -23,10 +23,12 @@ scheme := "radial-menu"
 
 # Build the app in Debug configuration
 build: _check-tools-quiet
+  ./scripts/generate-build-info.sh
   xcodebuild -project {{project}} -scheme {{scheme}} -configuration Debug build
 
 # Build the app in Release configuration
 build-release: _check-tools-quiet
+  ./scripts/generate-build-info.sh
   xcodebuild -project {{project}} -scheme {{scheme}} -configuration Release build
 
 # Clean build artifacts

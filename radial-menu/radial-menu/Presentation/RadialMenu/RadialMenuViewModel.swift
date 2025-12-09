@@ -19,6 +19,7 @@ final class RadialMenuViewModel: ObservableObject {
     private let overlayWindow: OverlayWindowProtocol
     private let accessibilityManager: AccessibilityManagerProtocol?
     private let iconSetProvider: IconSetProviderProtocol
+    private let runningAppProvider: RunningApplicationProviderProtocol
 
     // MARK: - Published State
 
@@ -47,6 +48,12 @@ final class RadialMenuViewModel: ObservableObject {
     /// The original configuration to restore after override menu closes
     private var originalConfiguration: MenuConfiguration?
 
+    /// Whether currently showing the task switcher menu (for B button behavior)
+    private var isInTaskSwitcherMode = false
+
+    /// Cache of resolved icons for running apps (by bundle identifier)
+    private var taskSwitcherIconCache: [String: ResolvedIcon] = [:]
+
     // MARK: - Initialization
 
     init(
@@ -54,12 +61,14 @@ final class RadialMenuViewModel: ObservableObject {
         actionExecutor: ActionExecutorProtocol,
         overlayWindow: OverlayWindowProtocol,
         iconSetProvider: IconSetProviderProtocol,
+        runningAppProvider: RunningApplicationProviderProtocol = RunningApplicationProvider(),
         accessibilityManager: AccessibilityManagerProtocol? = nil
     ) {
         self.configManager = configManager
         self.actionExecutor = actionExecutor
         self.overlayWindow = overlayWindow
         self.iconSetProvider = iconSetProvider
+        self.runningAppProvider = runningAppProvider
         self.accessibilityManager = accessibilityManager
         self.configuration = configManager.currentConfiguration
 
@@ -79,8 +88,30 @@ final class RadialMenuViewModel: ObservableObject {
     // MARK: - Icon Resolution
 
     /// Resolves the icon for a menu item using the current icon set
+    /// Special handling for task switcher items which use runtime NSImage icons
     func resolveIcon(for item: MenuItem) -> ResolvedIcon {
-        iconSetProvider.resolveIcon(
+        // Check if this is a task switcher item (has activateApp action)
+        if case .activateApp(let bundleID) = item.action {
+            // Check cache first
+            if let cached = taskSwitcherIconCache[bundleID] {
+                return cached
+            }
+
+            // Get the app icon from the running app
+            if let app = NSWorkspace.shared.runningApplications
+                .first(where: { $0.bundleIdentifier == bundleID }),
+               let icon = app.icon {
+                let resolved = ResolvedIcon(nsImage: icon, name: bundleID)
+                taskSwitcherIconCache[bundleID] = resolved
+                return resolved
+            }
+
+            // Fallback to generic app icon
+            return ResolvedIcon(systemSymbol: "app.fill")
+        }
+
+        // Default icon resolution via icon set provider
+        return iconSetProvider.resolveIcon(
             iconName: item.iconName,
             iconSetIdentifier: configuration.appearanceSettings.iconSetIdentifier
         )
@@ -401,12 +432,139 @@ final class RadialMenuViewModel: ObservableObject {
         overlayWindow.moveWindow(dx: dx, dy: dy)
     }
 
+    /// Handles B button / cancel action - returns to main menu if in task switcher, otherwise closes
+    func handleCancel() {
+        if isInTaskSwitcherMode {
+            returnToMainMenu()
+        } else {
+            closeMenu()
+        }
+    }
+
+    // MARK: - Task Switcher
+
+    /// Builds a MenuConfiguration from currently running applications
+    private func buildTaskSwitcherConfiguration() -> MenuConfiguration {
+        let apps = runningAppProvider.runningApplications()
+
+        // If no apps running, show a placeholder
+        if apps.isEmpty {
+            return MenuConfiguration(
+                items: [MenuItem(
+                    title: "No Apps",
+                    iconName: "questionmark.circle",
+                    action: .simulateKeyboardShortcut(modifiers: [], key: "escape")
+                )],
+                appearanceSettings: configuration.appearanceSettings,
+                behaviorSettings: configuration.behaviorSettings,
+                centerTitle: "No Apps Running"
+            )
+        }
+
+        // Create menu items for each running app
+        let items: [MenuItem] = apps.map { app in
+            MenuItem(
+                title: app.localizedName,
+                iconName: app.bundleIdentifier,  // Used as identifier for icon resolution
+                action: .activateApp(bundleIdentifier: app.bundleIdentifier),
+                preserveColors: true  // App icons should preserve their colors
+            )
+        }
+
+        // Calculate radius based on item count to ensure slices remain readable
+        // Base radius is 150, scale up for more than 8 items
+        let baseRadius = configuration.appearanceSettings.radius
+        let scaledRadius = items.count > 8
+            ? baseRadius * (Double(items.count) / 8.0)
+            : baseRadius
+
+        var appearanceSettings = configuration.appearanceSettings
+        appearanceSettings.radius = scaledRadius
+
+        return MenuConfiguration(
+            items: items,
+            appearanceSettings: appearanceSettings,
+            behaviorSettings: configuration.behaviorSettings,
+            centerTitle: "Switch App"
+        )
+    }
+
+    /// Opens the task switcher menu
+    private func openTaskSwitcher() {
+        LogMenu("Opening task switcher")
+
+        // Close current menu first
+        menuState = .closing
+
+        let animationDuration = configuration.appearanceSettings.animationDuration
+        DispatchQueue.main.asyncAfter(deadline: .now() + animationDuration) { [weak self] in
+            guard let self = self else { return }
+
+            self.overlayWindow.hide()
+            self.menuState = .closed
+            self.selectedIndex = nil
+
+            // Build task switcher configuration
+            let taskSwitcherConfig = self.buildTaskSwitcherConfiguration()
+
+            // Mark that we're in task switcher mode
+            self.isInTaskSwitcherMode = true
+
+            // Open with the task switcher configuration
+            self.openMenu(with: taskSwitcherConfig) { [weak self] _ in
+                // Reset task switcher mode and clear icon cache when closed
+                self?.isInTaskSwitcherMode = false
+                self?.taskSwitcherIconCache.removeAll()
+            }
+        }
+    }
+
+    /// Returns from task switcher to main menu
+    private func returnToMainMenu() {
+        LogMenu("Returning to main menu from task switcher")
+
+        isInTaskSwitcherMode = false
+        taskSwitcherIconCache.removeAll()
+
+        // Close task switcher
+        menuState = .closing
+
+        let animationDuration = configuration.appearanceSettings.animationDuration
+        DispatchQueue.main.asyncAfter(deadline: .now() + animationDuration) { [weak self] in
+            guard let self = self else { return }
+
+            self.overlayWindow.hide()
+            self.menuState = .closed
+            self.selectedIndex = nil
+
+            // Restore original configuration
+            if let original = self.originalConfiguration {
+                self.configuration = original
+                LogMenu("Restored original configuration")
+            }
+            self.isUsingOverrideConfiguration = false
+            self.originalConfiguration = nil
+            self.returnSelectionOnly = false
+
+            // Reopen main menu
+            self.openMenu()
+        }
+    }
+
     // MARK: - Private Methods
 
     private func executeAction(at index: Int) {
         guard index < configuration.items.count else { return }
 
         let item = configuration.items[index]
+
+        // Special handling for task switcher action
+        if case .openTaskSwitcher = item.action {
+            LogAction("Opening task switcher")
+            openTaskSwitcher()
+            return
+        }
+
         menuState = .executing(itemIndex: index)
         announceActionExecuted(for: item)
 

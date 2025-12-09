@@ -21,6 +21,14 @@ class ActionExecutor: ActionExecutorProtocol {
 
         case .simulateKeyboardShortcut(let modifiers, let key):
             return executeKeyboardShortcut(modifiers: modifiers, key: key)
+
+        case .openTaskSwitcher:
+            // This action is intercepted by the ViewModel before reaching the executor
+            // Return success as a no-op if it somehow reaches here
+            return .success
+
+        case .activateApp(let bundleIdentifier):
+            return executeActivateApp(bundleIdentifier: bundleIdentifier)
         }
     }
 
@@ -53,6 +61,22 @@ class ActionExecutor: ActionExecutorProtocol {
             }
         }
         return .success
+    }
+
+    private func executeActivateApp(bundleIdentifier: String) -> ActionResult {
+        // Find the running application by bundle identifier
+        guard let app = NSWorkspace.shared.runningApplications
+            .first(where: { $0.bundleIdentifier == bundleIdentifier }) else {
+            return .failure(ActionExecutionError.applicationNotFound(path: bundleIdentifier))
+        }
+
+        // Activate the application (bring to foreground)
+        let success = app.activate(options: [.activateIgnoringOtherApps])
+        if success {
+            return .success
+        } else {
+            return .failure(ActionExecutionError.applicationNotFound(path: bundleIdentifier))
+        }
     }
 
     private func executeShellCommand(command: String) -> ActionResult {

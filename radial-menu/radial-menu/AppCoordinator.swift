@@ -183,8 +183,9 @@ class AppCoordinator {
 
         // Handle B button to cancel/close menu (edge-triggered)
         // B is right button: Circle on PlayStation, B on Xbox
+        // In task switcher mode, returns to main menu instead of closing
         if state.buttonBPressed && !previousButtonB {
-            viewModel.closeMenu()
+            viewModel.handleCancel()
         }
         previousButtonB = state.buttonBPressed
     }
