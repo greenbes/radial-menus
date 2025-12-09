@@ -36,6 +36,7 @@ struct PreferencesView: View {
     @State private var centerRadius: Double
     @State private var centerRadiusText: String
     @State private var joystickDeadzone: Double
+    @State private var items: [MenuItem]
 
     init(
         configuration: MenuConfiguration,
@@ -75,6 +76,7 @@ struct PreferencesView: View {
         _centerRadius = State(initialValue: configuration.appearanceSettings.centerRadius)
         _centerRadiusText = State(initialValue: String(Int(configuration.appearanceSettings.centerRadius)))
         _joystickDeadzone = State(initialValue: configuration.behaviorSettings.joystickDeadzone)
+        _items = State(initialValue: configuration.items)
     }
 
     var body: some View {
@@ -100,7 +102,7 @@ struct PreferencesView: View {
                         }
                     }
 
-                    List(configuration.items) { item in
+                    List(items) { item in
                         HStack {
                             iconImage(for: item)
                                 .frame(width: 24)
@@ -116,7 +118,10 @@ struct PreferencesView: View {
 
                             Spacer()
 
-                            Button(action: { onRemoveItem(item.id) }) {
+                            Button(action: {
+                                items.removeAll { $0.id == item.id }
+                                onRemoveItem(item.id)
+                            }) {
                                 Image(systemName: "trash")
                                     .foregroundColor(.red)
                             }
@@ -128,6 +133,7 @@ struct PreferencesView: View {
                 }
                 .sheet(isPresented: $showingAddItemSheet) {
                     AddMenuItemView(onAdd: { newItem in
+                        items.append(newItem)
                         onAddItem(newItem)
                         showingAddItemSheet = false
                     }, onCancel: {
