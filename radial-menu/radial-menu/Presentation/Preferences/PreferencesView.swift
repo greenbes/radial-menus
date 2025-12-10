@@ -237,7 +237,7 @@ struct PreferencesView: View {
                                 .textFieldStyle(.roundedBorder)
                                 .onSubmit {
                                     if let value = Double(centerRadiusText) {
-                                        let clampedValue = min(max(value, 20), 100)
+                                        let clampedValue = min(max(value, 20), 250)
                                         centerRadius = clampedValue
                                         centerRadiusText = String(Int(clampedValue))
                                         onUpdateCenterRadius(clampedValue)
@@ -249,13 +249,13 @@ struct PreferencesView: View {
                                 .foregroundColor(.secondary)
                         }
 
-                        Slider(value: $centerRadius, in: 20...100, step: 1)
+                        Slider(value: $centerRadius, in: 20...250, step: 1)
                             .onChange(of: centerRadius) { _, newValue in
                                 centerRadiusText = String(Int(newValue))
                                 onUpdateCenterRadius(newValue)
                             }
 
-                        Text("Range: 20-100 pixels")
+                        Text("Range: 20-250 pixels")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }

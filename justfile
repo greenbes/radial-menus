@@ -52,8 +52,8 @@ test-file FILE: _check-tools-quiet
 test-single TEST: _check-tools-quiet
   xcodebuild test -project {{project}} -scheme {{scheme}} -only-testing:radial-menuTests/{{TEST}}
 
-# Build and run the app
-run: build
+# run the app
+run: 
   ./scripts/run-app.sh
 
 # Build and run the app with logging

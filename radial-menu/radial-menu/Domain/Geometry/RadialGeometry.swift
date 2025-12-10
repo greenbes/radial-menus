@@ -22,12 +22,14 @@ enum RadialGeometry {
     /// Calculate the slices for a radial menu
     /// - Parameters:
     ///   - itemCount: Number of items in the menu
-    ///   - radius: Radius of the menu
+    ///   - radius: Outer radius of the menu
+    ///   - centerRadius: Inner radius (center hole)
     ///   - centerPoint: Center point of the menu
     /// - Returns: Array of Slice objects
     static func calculateSlices(
         itemCount: Int,
         radius: Double,
+        centerRadius: Double = 0,
         centerPoint: CGPoint
     ) -> [Slice] {
         guard itemCount > 0 else { return [] }
@@ -35,13 +37,16 @@ enum RadialGeometry {
         let anglePerSlice = 2.0 * .pi / Double(itemCount)
         let startOffset = -.pi / 2.0  // Start at top (12 o'clock)
 
+        // Place icons halfway between inner and outer radius
+        let iconRadius = (centerRadius + radius) / 2.0
+
         return (0..<itemCount).map { index in
             let startAngle = startOffset + anglePerSlice * Double(index)
             let endAngle = startAngle + anglePerSlice
             let centerAngle = startAngle + anglePerSlice / 2.0
 
-            let centerX = centerPoint.x + CGFloat(cos(centerAngle) * radius * 0.65)
-            let centerY = centerPoint.y + CGFloat(sin(centerAngle) * radius * 0.65)
+            let centerX = centerPoint.x + CGFloat(cos(centerAngle) * iconRadius)
+            let centerY = centerPoint.y + CGFloat(sin(centerAngle) * iconRadius)
 
             return Slice(
                 index: index,

@@ -219,9 +219,11 @@ final class RadialMenuViewModel: ObservableObject {
         // Update window size before showing
         overlayWindow.updateWindowSize(forRadius: radius)
 
+        let centerRadius = configuration.appearanceSettings.centerRadius
         slices = RadialGeometry.calculateSlices(
             itemCount: configuration.items.count,
             radius: radius,
+            centerRadius: centerRadius,
             centerPoint: windowCenter
         )
         LogMenu("Calculated \(slices.count) slices, windowSize=\(windowSize), center=\(windowCenter)", level: .debug)
@@ -620,9 +622,11 @@ final class RadialMenuViewModel: ObservableObject {
                     if case .open = self.menuState {
                         let windowSize = newRadius * 2.2
                         let windowCenter = CGPoint(x: windowSize / 2, y: windowSize / 2)
+                        let newCenterRadius = newConfig.appearanceSettings.centerRadius
                         self.slices = RadialGeometry.calculateSlices(
                             itemCount: newConfig.items.count,
                             radius: newRadius,
+                            centerRadius: newCenterRadius,
                             centerPoint: windowCenter
                         )
                         LogMenu("Recalculated slices for new radius", level: .debug)

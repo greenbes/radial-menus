@@ -75,10 +75,10 @@ struct UpdateMenuSettingsIntent: AppIntent {
 
         // Validate and apply center radius
         if let centerRadius = centerRadius {
-            guard centerRadius >= 20 && centerRadius <= 100 else {
+            guard centerRadius >= 20 && centerRadius <= 250 else {
                 throw ShortcutsIntentError.invalidParameter(
                     name: "centerRadius",
-                    reason: "Must be between 20 and 100"
+                    reason: "Must be between 20 and 250"
                 )
             }
             config.appearanceSettings.centerRadius = centerRadius
