@@ -14,6 +14,7 @@ enum ActionType: Codable, Equatable {
     case simulateKeyboardShortcut(modifiers: [KeyModifier], key: String)
     case openTaskSwitcher
     case activateApp(bundleIdentifier: String)
+    case internalCommand(InternalCommand)
 
     enum KeyModifier: String, Codable {
         case command
@@ -37,6 +38,8 @@ extension ActionType {
             return "Open task switcher"
         case .activateApp(let bundleIdentifier):
             return "Activate app: \(bundleIdentifier)"
+        case .internalCommand(let command):
+            return command.commandDescription
         }
     }
 
@@ -58,6 +61,8 @@ extension ActionType {
             return "Double tap to open task switcher"
         case .activateApp:
             return "Double tap to switch to this app"
+        case .internalCommand(let command):
+            return "Double tap to \(command.commandDescription.lowercased())"
         }
     }
 }

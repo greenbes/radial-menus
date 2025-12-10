@@ -29,6 +29,9 @@ class ActionExecutor: ActionExecutorProtocol {
 
         case .activateApp(let bundleIdentifier):
             return executeActivateApp(bundleIdentifier: bundleIdentifier)
+
+        case .internalCommand(let command):
+            return executeInternalCommand(command)
         }
     }
 
@@ -77,6 +80,54 @@ class ActionExecutor: ActionExecutorProtocol {
         } else {
             return .failure(ActionExecutionError.applicationNotFound(path: bundleIdentifier))
         }
+    }
+
+    private func executeInternalCommand(_ command: InternalCommand) -> ActionResult {
+        switch command {
+        case .switchApp:
+            // This is intercepted by the ViewModel before reaching the executor
+            // Return success as a no-op if it somehow reaches here
+            return .success
+
+        case .finder:
+            return executeFinderCommand()
+        }
+    }
+
+    private func executeFinderCommand() -> ActionResult {
+        let finderBundleID = "com.apple.finder"
+
+        // Find the Finder application
+        guard let finder = NSWorkspace.shared.runningApplications
+            .first(where: { $0.bundleIdentifier == finderBundleID }) else {
+            // Finder not running (unlikely), launch it
+            let homeDirectory = FileManager.default.homeDirectoryForCurrentUser
+            NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: homeDirectory.path)
+            return .success
+        }
+
+        // Check if Finder has any windows by querying the Accessibility API
+        // or use a simpler approach: check window count via CGWindowList
+        let windowList = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
+        let finderWindows = windowList.filter { windowInfo in
+            guard let ownerPID = windowInfo[kCGWindowOwnerPID as String] as? Int32,
+                  let windowLayer = windowInfo[kCGWindowLayer as String] as? Int,
+                  windowLayer == 0 else {  // Normal windows are at layer 0
+                return false
+            }
+            return ownerPID == finder.processIdentifier
+        }
+
+        if finderWindows.isEmpty {
+            // No Finder windows exist, create one at home directory
+            let homeDirectory = FileManager.default.homeDirectoryForCurrentUser
+            NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: homeDirectory.path)
+        } else {
+            // Finder windows exist, just activate Finder to bring them to front
+            finder.activate(options: [.activateIgnoringOtherApps])
+        }
+
+        return .success
     }
 
     private func executeShellCommand(command: String) -> ActionResult {

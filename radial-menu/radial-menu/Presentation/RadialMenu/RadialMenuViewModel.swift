@@ -571,6 +571,13 @@ final class RadialMenuViewModel: ObservableObject {
             return
         }
 
+        // Special handling for switchApp internal command
+        if case .internalCommand(let command) = item.action, command == .switchApp {
+            LogAction("Opening task switcher via internal command")
+            openTaskSwitcher()
+            return
+        }
+
         menuState = .executing(itemIndex: index)
         announceActionExecuted(for: item)
 

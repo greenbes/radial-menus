@@ -364,15 +364,18 @@ struct AddMenuItemView: View {
     @State private var appPath: String = ""
     @State private var shellCommand: String = ""
     @State private var selectedAppIcon: NSImage?
+    @State private var selectedInternalCommand: InternalCommand = .switchApp
 
     enum ActionTypeSelection: String, CaseIterable {
         case launchApp = "Launch Application"
         case runShellCommand = "Run Shell Command"
+        case internalCommand = "Internal Command"
 
         var systemImage: String {
             switch self {
             case .launchApp: return "app"
             case .runShellCommand: return "terminal"
+            case .internalCommand: return "gear"
             }
         }
     }
@@ -427,9 +430,39 @@ struct AddMenuItemView: View {
                     Text("Example: open -a Safari")
                         .font(.caption)
                         .foregroundColor(.secondary)
+
+                case .internalCommand:
+                    Picker("Command", selection: $selectedInternalCommand) {
+                        ForEach(InternalCommand.allCases, id: \.self) { command in
+                            HStack {
+                                Image(systemName: command.iconName)
+                                Text(command.displayName)
+                            }
+                            .tag(command)
+                        }
+                    }
+                    Text(selectedInternalCommand.commandDescription)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
             }
             .padding()
+            .onChange(of: selectedInternalCommand) { _, newCommand in
+                // Auto-populate title and icon when internal command changes
+                if title.isEmpty || InternalCommand.allCases.map({ $0.displayName }).contains(title) {
+                    title = newCommand.displayName
+                }
+                iconName = newCommand.iconName
+            }
+            .onChange(of: actionType) { _, newType in
+                // Auto-populate title and icon when switching to internal command
+                if newType == .internalCommand {
+                    if title.isEmpty {
+                        title = selectedInternalCommand.displayName
+                    }
+                    iconName = selectedInternalCommand.iconName
+                }
+            }
 
             HStack {
                 Button("Cancel") {
@@ -446,6 +479,8 @@ struct AddMenuItemView: View {
                         action = .launchApp(path: appPath)
                     case .runShellCommand:
                         action = .runShellCommand(command: shellCommand)
+                    case .internalCommand:
+                        action = .internalCommand(selectedInternalCommand)
                     }
 
                     let newItem = MenuItem(
