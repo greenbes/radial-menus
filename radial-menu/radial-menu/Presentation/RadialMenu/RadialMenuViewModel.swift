@@ -506,6 +506,9 @@ final class RadialMenuViewModel: ObservableObject {
     private func openTaskSwitcher() {
         LogMenu("Opening task switcher")
 
+        // Capture current menu position before closing
+        let currentPosition = overlayWindow.centerPosition
+
         // Close current menu first
         menuState = .closing
 
@@ -523,8 +526,8 @@ final class RadialMenuViewModel: ObservableObject {
             // Mark that we're in task switcher mode
             self.isInTaskSwitcherMode = true
 
-            // Open with the task switcher configuration
-            self.openMenu(with: taskSwitcherConfig) { [weak self] _ in
+            // Open with the task switcher configuration at the same position
+            self.openMenu(with: taskSwitcherConfig, at: currentPosition) { [weak self] _ in
                 // Reset task switcher mode and clear icon cache when closed
                 self?.isInTaskSwitcherMode = false
                 self?.taskSwitcherIconCache.removeAll()
@@ -535,6 +538,9 @@ final class RadialMenuViewModel: ObservableObject {
     /// Returns from task switcher to main menu
     private func returnToMainMenu() {
         LogMenu("Returning to main menu from task switcher")
+
+        // Capture current menu position before closing
+        let currentPosition = overlayWindow.centerPosition
 
         isInTaskSwitcherMode = false
         taskSwitcherIconCache.removeAll()
@@ -559,8 +565,8 @@ final class RadialMenuViewModel: ObservableObject {
             self.originalConfiguration = nil
             self.returnSelectionOnly = false
 
-            // Reopen main menu
-            self.openMenu()
+            // Reopen main menu at the same position
+            self.openMenu(at: currentPosition)
         }
     }
 
