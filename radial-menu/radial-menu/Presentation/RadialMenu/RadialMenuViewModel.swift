@@ -414,7 +414,7 @@ final class RadialMenuViewModel: ObservableObject {
         }
     }
 
-    func handleRightStickInput(x: Double, y: Double) {
+    func handleRightStickInput(x: Double, y: Double, speedModifier: Double = 0.0) {
         guard case .open = menuState else { return }
 
         let deadzone = configuration.behaviorSettings.joystickDeadzone
@@ -423,10 +423,15 @@ final class RadialMenuViewModel: ObservableObject {
         // Ignore input within deadzone
         guard magnitude >= deadzone else { return }
 
+        // Speed multiplier based on left trigger:
+        // - No trigger (0.0) = slow speed (0.1x)
+        // - Full trigger (1.0) = fast speed (5.0x)
+        let speedMultiplier = 0.1 + 4.9 * speedModifier
+
         // Scale speed based on magnitude (further = faster)
         // Max speed is ~10 points per frame at 60Hz = ~600 points/sec
         let maxSpeed: CGFloat = 10.0
-        let speed = CGFloat((magnitude - deadzone) / (1.0 - deadzone)) * maxSpeed
+        let speed = CGFloat((magnitude - deadzone) / (1.0 - deadzone)) * maxSpeed * CGFloat(speedMultiplier)
 
         // Normalize direction and apply speed
         let dx = CGFloat(x / magnitude) * speed

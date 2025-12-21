@@ -31,7 +31,7 @@ class AppCoordinator {
 
     private var previousDpadLeft = false
     private var previousDpadRight = false
-    private var previousHomeButton = false
+    private var previousMenuButton = false
     private var previousButtonA = false
     private var previousButtonB = false
 
@@ -146,11 +146,11 @@ class AppCoordinator {
     }
 
     private func handleControllerInput(_ state: ControllerState) {
-        // Handle Home button to toggle menu (edge-triggered)
-        if state.homeButtonPressed && !previousHomeButton {
+        // Handle Menu button to toggle menu (edge-triggered)
+        if state.menuButtonPressed && !previousMenuButton {
             viewModel.toggleMenu()
         }
-        previousHomeButton = state.homeButtonPressed
+        previousMenuButton = state.menuButtonPressed
 
         // Handle d-pad for navigation (edge-triggered, like keyboard arrows)
         if state.dpadRight && !previousDpadRight {
@@ -169,9 +169,11 @@ class AppCoordinator {
         )
 
         // Handle right analog stick for menu repositioning
+        // Left trigger controls speed (0 = median, 1 = max)
         viewModel.handleRightStickInput(
             x: state.rightStickX,
-            y: state.rightStickY
+            y: state.rightStickY,
+            speedModifier: state.leftTrigger
         )
 
         // Handle A button for confirmation (edge-triggered)

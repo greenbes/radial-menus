@@ -13,6 +13,7 @@ struct ControllerState: Equatable {
     let leftStickY: Double
     let rightStickX: Double
     let rightStickY: Double
+    let leftTrigger: Double  // 0.0 (not pressed) to 1.0 (fully pressed)
     let buttonAPressed: Bool  // Bottom button: X on PlayStation, A on Xbox
     let buttonBPressed: Bool  // Right button: Circle on PlayStation, B on Xbox
     let menuButtonPressed: Bool
