@@ -70,7 +70,8 @@ extension MenuItem: Codable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(UUID.self, forKey: .id)
+        // Auto-generate UUID if not provided (for external menu definitions)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         title = try container.decode(String.self, forKey: .title)
         iconName = try container.decode(String.self, forKey: .iconName)
         action = try container.decode(ActionType.self, forKey: .action)

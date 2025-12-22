@@ -30,6 +30,9 @@ enum MenuError: LocalizedError {
     /// The menu name contains invalid characters
     case invalidMenuName(name: String, reason: String)
 
+    /// Schema validation failed with one or more errors
+    case schemaValidationFailed(errors: [String])
+
     // MARK: - LocalizedError
 
     var errorDescription: String? {
@@ -48,6 +51,13 @@ enum MenuError: LocalizedError {
             return "Parse error: \(error.localizedDescription)"
         case .invalidMenuName(let name, let reason):
             return "Invalid menu name '\(name)': \(reason)"
+        case .schemaValidationFailed(let errors):
+            if errors.count == 1 {
+                return "Schema validation error: \(errors[0])"
+            }
+            return "Schema validation errors:\n" + errors.enumerated()
+                .map { "  \($0.offset + 1). \($0.element)" }
+                .joined(separator: "\n")
         }
     }
 }

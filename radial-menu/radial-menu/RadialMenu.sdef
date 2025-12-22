@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE dictionary SYSTEM "file://localhost/System/Library/DTDs/sdef.dtd">
+<dictionary title="Radial Menu Terminology">
+
+    <suite name="Standard Suite" code="????" description="Common commands for all applications.">
+        <command name="quit" code="aevtquit" description="Quit the application.">
+            <cocoa class="NSQuitCommand"/>
+        </command>
+    </suite>
+
+    <suite name="Radial Menu Suite" code="RdMn" description="Commands for controlling the radial menu.">
+
+        <!-- Classes -->
+
+        <class name="application" code="capp" description="The Radial Menu application.">
+            <cocoa class="NSApplication"/>
+            <property name="name" code="pnam" type="text" access="r" description="The name of the application."/>
+            <property name="menu visible" code="MnVs" type="boolean" access="r" description="Whether the menu is currently visible.">
+                <cocoa key="isMenuVisible"/>
+            </property>
+            <element type="menu item" access="r">
+                <cocoa key="scriptableMenuItems"/>
+            </element>
+            <element type="named menu" access="r">
+                <cocoa key="scriptableNamedMenus"/>
+            </element>
+        </class>
+
+        <class name="menu item" code="MnIt" plural="menu items" description="A menu item in the radial menu.">
+            <cocoa class="ScriptableMenuItem"/>
+            <property name="id" code="ID  " type="text" access="r" description="The unique identifier of the menu item.">
+                <cocoa key="uniqueID"/>
+            </property>
+            <property name="title" code="pnam" type="text" access="r" description="The display title of the menu item."/>
+            <property name="icon name" code="IcNm" type="text" access="r" description="The icon name for the menu item.">
+                <cocoa key="iconName"/>
+            </property>
+            <property name="action type" code="AcTy" type="text" access="r" description="The type of action (launchApp, runShellCommand, etc.).">
+                <cocoa key="actionType"/>
+            </property>
+            <property name="action value" code="AcVl" type="text" access="r" description="The value for the action.">
+                <cocoa key="actionValue"/>
+            </property>
+            <property name="position" code="Posn" type="integer" access="r" description="The 1-based position in the menu."/>
+        </class>
+
+        <class name="named menu" code="NmMn" plural="named menus" description="A saved menu configuration.">
+            <cocoa class="ScriptableNamedMenu"/>
+            <property name="name" code="pnam" type="text" access="r" description="The name of the menu."/>
+            <property name="description" code="Desc" type="text" access="r" description="The description of the menu.">
+                <cocoa key="menuDescription"/>
+            </property>
+            <property name="item count" code="ItCt" type="integer" access="r" description="The number of items in the menu.">
+                <cocoa key="itemCount"/>
+            </property>
+        </class>
+
+        <class name="menu selection" code="MnSl" description="The result of showing a menu.">
+            <cocoa class="ScriptableMenuSelection"/>
+            <property name="was dismissed" code="WsDm" type="boolean" access="r" description="Whether the menu was dismissed without selection.">
+                <cocoa key="wasDismissed"/>
+            </property>
+            <property name="selected item" code="SlIt" type="menu item" access="r" description="The selected menu item, if any.">
+                <cocoa key="selectedItem"/>
+            </property>
+        </class>
+
+        <!-- Commands -->
+
+        <command name="show menu" code="RdMnShMn" description="Show the radial menu and wait for selection.">
+            <cocoa class="ShowMenuScriptCommand"/>
+            <direct-parameter description="Optional: name of a saved menu to show." type="text" optional="yes"/>
+            <parameter name="with items" code="WtIt" type="text" optional="yes" description="JSON string defining custom menu items.">
+                <cocoa key="withItems"/>
+            </parameter>
+            <parameter name="return only" code="RtOn" type="boolean" optional="yes" description="If true, return selection without executing action.">
+                <cocoa key="returnOnly"/>
+            </parameter>
+            <result type="menu selection" description="The selection result."/>
+        </command>
+
+        <command name="hide menu" code="RdMnHdMn" description="Hide the radial menu if visible.">
+            <cocoa class="HideMenuScriptCommand"/>
+        </command>
+
+        <command name="toggle menu" code="RdMnTgMn" description="Toggle the radial menu visibility.">
+            <cocoa class="ToggleMenuScriptCommand"/>
+        </command>
+
+        <command name="execute item" code="RdMnExIt" description="Execute a menu item by title or ID.">
+            <cocoa class="ExecuteItemScriptCommand"/>
+            <direct-parameter description="The menu item title or ID." type="text"/>
+            <result type="boolean" description="Whether the execution succeeded."/>
+        </command>
+
+    </suite>
+
+</dictionary>

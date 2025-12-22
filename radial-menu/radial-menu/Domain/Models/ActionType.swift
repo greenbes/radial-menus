@@ -65,4 +65,22 @@ extension ActionType {
             return "Double tap to \(command.commandDescription.lowercased())"
         }
     }
+
+    /// A short type identifier for external interfaces (URL scheme, AppleScript, Shortcuts).
+    var typeDescription: String {
+        switch self {
+        case .launchApp:
+            return "launchApp"
+        case .runShellCommand:
+            return "runShellCommand"
+        case .simulateKeyboardShortcut:
+            return "keyboardShortcut"
+        case .openTaskSwitcher:
+            return "taskSwitcher"
+        case .activateApp:
+            return "activateApp"
+        case .internalCommand:
+            return "internalCommand"
+        }
+    }
 }

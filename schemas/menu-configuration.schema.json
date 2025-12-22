@@ -13,7 +13,8 @@
     "name": {
       "type": "string",
       "description": "Unique identifier for the menu",
-      "minLength": 1
+      "minLength": 1,
+      "pattern": "^[^./\\\\][^/\\\\]*$"
     },
     "description": {
       "type": "string",
@@ -40,6 +41,7 @@
     }
   },
   "required": ["version", "name", "items"],
+  "additionalProperties": false,
   "$defs": {
     "MenuItem": {
       "type": "object",
@@ -48,7 +50,7 @@
         "id": {
           "type": "string",
           "format": "uuid",
-          "description": "Unique identifier for the menu item"
+          "description": "Unique identifier for the menu item (auto-generated if not provided)"
         },
         "title": {
           "type": "string",
@@ -77,7 +79,7 @@
           "description": "Custom VoiceOver hint (uses action-based hint if not specified)"
         }
       },
-      "required": ["id", "title", "iconName", "action"],
+      "required": ["title", "iconName", "action"],
       "additionalProperties": false
     },
     "ActionType": {
@@ -148,6 +150,51 @@
             }
           },
           "required": ["simulateKeyboardShortcut"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "description": "Open the macOS task switcher",
+          "properties": {
+            "openTaskSwitcher": {
+              "type": "object",
+              "additionalProperties": false
+            }
+          },
+          "required": ["openTaskSwitcher"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "description": "Activate an application by bundle identifier",
+          "properties": {
+            "activateApp": {
+              "type": "object",
+              "properties": {
+                "bundleIdentifier": {
+                  "type": "string",
+                  "description": "Bundle identifier of the application (e.g., 'com.apple.Safari')",
+                  "minLength": 1
+                }
+              },
+              "required": ["bundleIdentifier"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["activateApp"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "description": "Execute a predefined internal command",
+          "properties": {
+            "internalCommand": {
+              "type": "string",
+              "description": "Internal command to execute",
+              "enum": ["switchApp", "finder"]
+            }
+          },
+          "required": ["internalCommand"],
           "additionalProperties": false
         }
       ]

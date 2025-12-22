@@ -59,5 +59,39 @@ struct RadialMenuShortcuts: AppShortcutsProvider {
             shortTitle: "List Items",
             systemImageName: "list.bullet"
         )
+
+        // Show Named Menu shortcut
+        AppShortcut(
+            intent: ShowNamedMenuIntent(),
+            phrases: [
+                "Show \(\.$menu) menu in \(.applicationName)",
+                "Open \(\.$menu) with \(.applicationName)"
+            ],
+            shortTitle: "Show Named Menu",
+            systemImageName: "list.bullet.circle"
+        )
+
+        // Show Custom Menu shortcut
+        AppShortcut(
+            intent: ShowMenuWithItemsIntent(),
+            phrases: [
+                "Show custom menu in \(.applicationName)",
+                "Display dynamic menu with \(.applicationName)"
+            ],
+            shortTitle: "Show Custom Menu",
+            systemImageName: "square.grid.3x3"
+        )
+
+        // Get Named Menus shortcut
+        AppShortcut(
+            intent: GetNamedMenusIntent(),
+            phrases: [
+                "List saved menus in \(.applicationName)",
+                "Get named menus from \(.applicationName)",
+                "What menus are in \(.applicationName)"
+            ],
+            shortTitle: "List Menus",
+            systemImageName: "folder"
+        )
     }
 }

@@ -85,6 +85,11 @@ Infrastructure/  - System integration via protocols
   Configuration/ - ConfigurationManager (JSON persistence)
   IconSets/      - IconSetProvider, IconSetValidator, BuiltInIconSets
   Accessibility/ - AccessibilityManager, AccessibleSliceElement
+  ExternalRequests/ - ExternalRequestHandler (unified external API)
+  Shortcuts/     - App Intents, Entities, ShortcutsServiceLocator
+  Scripting/     - AppleScript commands and scriptable classes
+  URLScheme/     - URL scheme handler with x-callback-url support
+  Menus/         - MenuProvider for resolving menu sources
 
 Presentation/    - SwiftUI views + ViewModels (MVVM)
   RadialMenu/    - RadialMenuView, SliceView, RadialMenuViewModel
@@ -166,6 +171,7 @@ The app uses Apple's Unified Logging System (os_log) with category-specific log 
 - `LogGeometry()` - Hit detection, angle calculations
 - `LogAction()` - Action execution
 - `LogConfig()` - Configuration loading/saving
+- `LogShortcuts()` - Shortcuts, App Intents, AppleScript, URL scheme
 - `LogError()` - Errors (specify category)
 
 **Viewing logs:**
@@ -212,6 +218,180 @@ log stream --predicate 'subsystem == "Six-Gables-Software.radial-menu" AND categ
 - Right Arrow: Select next slice clockwise
 - Left Arrow: Select previous slice counter-clockwise
 - Escape: Close menu without action
+
+## External API
+
+The app accepts requests from external programs via URL scheme, Apple Shortcuts, and AppleScript. All interfaces use a unified `ExternalRequestHandler` to ensure consistent behavior.
+
+### URL Scheme
+
+The `radial-menu://` URL scheme allows shell scripts and other apps to control the menu.
+
+**Commands:**
+
+| URL | Description |
+|-----|-------------|
+| `radial-menu://show` | Show the default menu |
+| `radial-menu://show?menu=<name>` | Show a named menu |
+| `radial-menu://show?file=<path>` | Show menu from JSON file |
+| `radial-menu://show?json=<json>` | Show menu from inline JSON |
+| `radial-menu://show?json=base64:<b64>` | Show menu from base64-encoded JSON |
+| `radial-menu://hide` | Hide the menu |
+| `radial-menu://toggle` | Toggle menu visibility |
+| `radial-menu://execute?item=<uuid>` | Execute item by UUID |
+| `radial-menu://execute?title=<title>` | Execute item by title |
+
+**Parameters:**
+
+| Parameter | Values | Description |
+|-----------|--------|-------------|
+| `position` | `cursor`, `center`, `x,y` | Menu position (default: cursor) |
+| `returnTo` | File path | Write selection to file (disables action) |
+| `x-success` | URL | Callback on selection (adds `selected`, `id`, `position`, `actionType`) |
+| `x-error` | URL | Callback on error (adds `errorMessage`) |
+| `x-cancel` | URL | Callback when dismissed |
+
+**Examples:**
+
+```bash
+# Show menu at screen center
+open "radial-menu://show?position=center"
+
+# Show menu with x-callback-url
+open "radial-menu://show?x-success=myapp://selected&x-cancel=myapp://cancelled"
+
+# Show named menu, write selection to file
+open "radial-menu://show?menu=development&returnTo=/tmp/selection.txt"
+
+# Execute item by title
+open "radial-menu://execute?title=Terminal"
+```
+
+### Apple Shortcuts
+
+The app provides App Intents for the Shortcuts app:
+
+| Intent | Description |
+|--------|-------------|
+| Show Menu | Show the default menu |
+| Show Named Menu | Show a saved menu (with picker UI) |
+| Show Custom Menu | Show menu from JSON definition |
+| Get Menu Items | List current menu items |
+| Get Named Menus | List available named menus |
+| Execute Menu Item | Execute an item by title |
+| Toggle Menu | Toggle menu visibility |
+| Add Menu Item | Add a new item to the menu |
+| Remove Menu Item | Remove an item from the menu |
+| Update Menu Settings | Modify menu appearance settings |
+
+**Return Values:**
+
+Show menu intents return a `MenuSelectionResult` with:
+
+- `wasDismissed`: Whether menu was dismissed without selection
+- `selectedTitle`: Title of selected item
+- `selectedID`: UUID of selected item
+- `selectedIconName`: Icon name of selected item
+- `actionType`: Type of action (launchApp, runShellCommand, etc.)
+- `position`: 1-based position in menu
+
+### AppleScript / JXA
+
+The app includes a scripting dictionary (`RadialMenu.sdef`) for AppleScript and JavaScript for Automation.
+
+**Classes:**
+
+- `application`: Properties for `menu visible`, `menu items`, `named menus`
+- `menu item`: Properties for `id`, `title`, `icon name`, `action type`, `action value`, `position`
+- `named menu`: Properties for `name`, `description`, `item count`
+- `menu selection`: Properties for `was dismissed`, `selected item`
+
+**Commands:**
+
+| Command | Description |
+|---------|-------------|
+| `show menu` | Show menu, optionally with name or JSON |
+| `hide menu` | Hide the menu |
+| `toggle menu` | Toggle visibility |
+| `execute item` | Execute by title or UUID |
+
+**AppleScript Examples:**
+
+```applescript
+-- Show menu and get selection
+tell application "Radial Menu"
+    set result to show menu return only true
+    if not (was dismissed of result) then
+        return title of selected item of result
+    end if
+end tell
+
+-- Show named menu
+tell application "Radial Menu"
+    show menu "development"
+end tell
+
+-- List all menu items
+tell application "Radial Menu"
+    repeat with item in menu items
+        log (title of item)
+    end repeat
+end tell
+
+-- Execute item by title
+tell application "Radial Menu"
+    execute item "Terminal"
+end tell
+```
+
+**JXA Example:**
+
+```javascript
+const app = Application("Radial Menu");
+const result = app.showMenu("development", { returnOnly: true });
+if (!result.wasDismissed()) {
+    console.log(result.selectedItem().title());
+}
+```
+
+### Menu JSON Format
+
+Custom menus can be defined with JSON. The `version` field is required.
+
+```json
+{
+  "version": 1,
+  "name": "My Menu",
+  "items": [
+    {
+      "title": "Terminal",
+      "iconName": "terminal",
+      "action": { "launchApp": { "path": "/Applications/Utilities/Terminal.app" } }
+    },
+    {
+      "title": "Run Script",
+      "iconName": "script",
+      "action": { "runShellCommand": { "command": "echo hello" } }
+    },
+    {
+      "title": "Screenshot",
+      "iconName": "camera",
+      "action": { "simulateKeyboardShortcut": { "modifiers": ["command", "shift"], "key": "4" } }
+    }
+  ]
+}
+```
+
+**Action Types:**
+
+| Type | Format |
+|------|--------|
+| Launch App | `{ "launchApp": { "path": "/path/to/app" } }` |
+| Shell Command | `{ "runShellCommand": { "command": "..." } }` |
+| Keyboard Shortcut | `{ "simulateKeyboardShortcut": { "modifiers": [...], "key": "..." } }` |
+| Activate App | `{ "activateApp": { "bundleID": "com.app.id" } }` |
+| Internal Command | `{ "internalCommand": { "command": "switchApp" } }` |
+| Task Switcher | `{ "openTaskSwitcher": {} }` |
 
 ## Icon Assets
 
@@ -366,6 +546,23 @@ Mock implementations live in `radial-menuTests/Mocks/`.
 2. Use `AccessibilityManager.announce()` for important state changes
 3. Respect `@Environment(\.accessibilityReduceMotion)` for animations
 4. Test with VoiceOver enabled
+
+### Adding a New App Intent
+
+1. Create intent struct in `Infrastructure/Shortcuts/Intents/`
+2. Implement `AppIntent` protocol with `title`, `description`, `perform()`
+3. Add parameters with `@Parameter` property wrapper
+4. Return appropriate result type (use `MenuSelectionResultEntity` for menu operations)
+5. Add shortcut phrase in `RadialMenuShortcuts.swift`
+6. Use `ShortcutsServiceLocator.shared.externalRequestHandler` for menu operations
+
+### Adding a New AppleScript Command
+
+1. Define command in `RadialMenu.sdef` with code, parameters, and result type
+2. Create `NSScriptCommand` subclass in `Infrastructure/Scripting/`
+3. Override `performDefaultImplementation()` to handle the command
+4. Use `ShortcutsServiceLocator.shared.externalRequestHandler` for menu operations
+5. Set `scriptErrorNumber` and `scriptErrorString` on errors
 
 ## Accessibility
 

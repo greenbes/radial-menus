@@ -24,6 +24,7 @@ final class ShortcutsServiceLocator: @unchecked Sendable {
     private var _menuProvider: MenuProviderProtocol?
     private weak var _viewModel: RadialMenuViewModel?
     private var _lastSelectedItemTitle: String?
+    private var _externalRequestHandler: ExternalRequestHandler?
 
     // MARK: - Initialization
 
@@ -95,6 +96,28 @@ final class ShortcutsServiceLocator: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return _viewModel != nil
+    }
+
+    /// Unified external request handler for URL scheme, App Intents, and AppleScript.
+    /// Creates a new instance lazily if needed.
+    var externalRequestHandler: ExternalRequestHandlerProtocol {
+        lock.lock()
+        defer { lock.unlock() }
+
+        if let handler = _externalRequestHandler {
+            return handler
+        }
+
+        // Create handler lazily
+        let handler = ExternalRequestHandler(
+            menuProvider: _menuProvider ?? MenuProvider(configManager: configManager),
+            configManager: _configManager ?? configManager,
+            actionExecutor: _actionExecutor ?? actionExecutor,
+            viewModel: _viewModel
+        )
+        _externalRequestHandler = handler
+        LogShortcuts("Created ExternalRequestHandler")
+        return handler
     }
 
     /// The title of the last menu item that was selected.
@@ -170,6 +193,7 @@ final class ShortcutsServiceLocator: @unchecked Sendable {
         defer { lock.unlock() }
 
         _viewModel = nil
+        _externalRequestHandler = nil
         LogShortcuts("UI dependencies unregistered from ShortcutsServiceLocator")
     }
 }

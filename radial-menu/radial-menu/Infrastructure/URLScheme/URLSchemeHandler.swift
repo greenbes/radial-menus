@@ -15,11 +15,20 @@ import AppKit
 /// - `radial-menu://show?menu=<name>` - Show a named menu
 /// - `radial-menu://show?file=<path>` - Show a menu from a file (ephemeral)
 /// - `radial-menu://show?json=<encoded-json>` - Show a menu from inline JSON (ephemeral)
+/// - `radial-menu://show?json=base64:<base64>` - Show a menu from base64-encoded JSON
 /// - `radial-menu://show?returnTo=<path>` - Write selected item title to file when menu closes
+/// - `radial-menu://show?position=cursor` - Show at cursor position (default)
+/// - `radial-menu://show?position=center` - Show at screen center
+/// - `radial-menu://show?position=100,200` - Show at fixed coordinates (x,y)
 /// - `radial-menu://hide` - Hide the menu
 /// - `radial-menu://toggle` - Toggle menu visibility
 /// - `radial-menu://execute?item=<uuid>` - Execute item by UUID
 /// - `radial-menu://execute?title=<encoded-title>` - Execute item by title
+///
+/// x-callback-url Support:
+/// - `x-success=<url>` - Called with selection details on success (selected=title&id=uuid&position=N)
+/// - `x-error=<url>` - Called on error (errorMessage=description)
+/// - `x-cancel=<url>` - Called when menu is dismissed without selection
 ///
 /// The `returnTo` parameter can be combined with any show command. When specified,
 /// the selected item's title is written to the file path (or empty string if dismissed).
@@ -31,8 +40,21 @@ import AppKit
 /// open "radial-menu://show?menu=development"
 /// open "radial-menu://show?file=/path/to/menu.json"
 /// open "radial-menu://show?returnTo=/tmp/selection.txt"  # Returns selection, no action
+/// open "radial-menu://show?position=center"
+/// open "radial-menu://show?x-success=myapp://selected&x-cancel=myapp://cancelled"
 /// open "radial-menu://execute?title=Terminal"
 /// ```
+/// Parsed x-callback-url parameters.
+struct XCallbackURLParams {
+    let successURL: URL?
+    let errorURL: URL?
+    let cancelURL: URL?
+
+    var hasCallbacks: Bool {
+        successURL != nil || errorURL != nil || cancelURL != nil
+    }
+}
+
 final class URLSchemeHandler {
     // MARK: - Singleton
 
@@ -84,12 +106,43 @@ final class URLSchemeHandler {
 
     // MARK: - Command Handlers
 
+    // Debug helper
+    private func debugLog(_ msg: String) {
+        let debugMsg = "[\(Date())] \(msg)\n"
+        if let data = debugMsg.data(using: .utf8) {
+            let debugPath = "/tmp/radial-menu-url-debug.log"
+            if let handle = FileHandle(forWritingAtPath: debugPath) {
+                handle.seekToEndOfFile()
+                handle.write(data)
+                handle.closeFile()
+            }
+        }
+    }
+
     @MainActor
     private func handleShow(_ url: URL) -> Bool {
+        debugLog("handleShow: START - \(url.absoluteString)")
+        LogShortcuts("URLSchemeHandler.handleShow: URL = \(url.absoluteString)")
+
+        let xCallback = parseXCallbackParams(from: url)
+        let returnToPath = parseReturnToPath(from: url)
+
+        debugLog("handleShow: returnToPath = \(returnToPath ?? "nil")")
+        LogShortcuts("URLSchemeHandler.handleShow: returnToPath = \(returnToPath ?? "nil")")
+
         guard let viewModel = ShortcutsServiceLocator.shared.viewModel else {
+            debugLog("handleShow: ViewModel NOT available")
             LogShortcuts("URLSchemeHandler: ViewModel not available for show", level: .error)
+            // Write empty result so scripts don't hang
+            if let path = returnToPath {
+                writeResult("", to: path)
+            }
+            callErrorCallback(xCallback, message: "Application not ready")
             return false
         }
+
+        debugLog("handleShow: ViewModel available, isOpen = \(viewModel.isOpen)")
+        LogShortcuts("URLSchemeHandler.handleShow: ViewModel available, isOpen = \(viewModel.isOpen)")
 
         // If menu is already open, don't reopen
         if viewModel.isOpen {
@@ -97,43 +150,89 @@ final class URLSchemeHandler {
             return true
         }
 
-        // Parse menu source and returnTo path from URL parameters
+        // Parse menu source and position from URL parameters
         let source = parseMenuSource(from: url)
-        let returnToPath = parseReturnToPath(from: url)
+        let position = parsePosition(from: url)
 
-        // Create completion handler if returnTo is specified
-        let completion: ((MenuItem?) -> Void)? = returnToPath.map { path in
-            { selectedItem in
-                self.writeResult(selectedItem?.title ?? "", to: path)
+        LogShortcuts("URLSchemeHandler.handleShow: source = \(source), position = \(String(describing: position))")
+
+        // Determine if we should return only (no action execution)
+        let returnOnly = returnToPath != nil || xCallback.hasCallbacks
+        LogShortcuts("URLSchemeHandler.handleShow: returnOnly = \(returnOnly)")
+
+        // Create completion handler for returnTo, x-callback-url, or both
+        let completion: ((MenuItem?) -> Void)? = { [weak self] selectedItem in
+            // Write to file if returnTo specified
+            if let path = returnToPath {
+                self?.writeResult(selectedItem?.title ?? "", to: path)
             }
-        }
 
-        // For default source, just open the menu normally
-        if case .default = source {
-            if let returnTo = returnToPath {
-                // Need to use override method even for default config to get returnOnly behavior
-                let config = ShortcutsServiceLocator.shared.configManager.currentConfiguration
-                viewModel.openMenu(with: config, returnOnly: true, completion: completion)
-                LogShortcuts("URLSchemeHandler: Default menu shown with returnTo=\(returnTo)")
+            // Call x-callback-url if specified
+            if let item = selectedItem {
+                let items = ShortcutsServiceLocator.shared.configManager.currentConfiguration.items
+                let itemPosition = items.firstIndex(where: { $0.id == item.id }).map { $0 + 1 } ?? 0
+                self?.callSuccessCallback(xCallback, item: item, position: itemPosition)
             } else {
-                viewModel.openMenu()
-                LogShortcuts("URLSchemeHandler: Default menu shown")
+                self?.callCancelCallback(xCallback)
             }
-            return true
         }
 
-        // For other sources, resolve via MenuProvider
+        // Resolve the menu configuration
         let menuProvider = ShortcutsServiceLocator.shared.menuProvider
+        let configResult: Result<MenuConfiguration, MenuError>
 
-        switch menuProvider.resolve(source) {
-        case .success(let config):
-            let returnOnly = returnToPath != nil
-            viewModel.openMenu(with: config, returnOnly: returnOnly, completion: completion)
-            LogShortcuts("URLSchemeHandler: Menu shown from source \(source), returnOnly=\(returnOnly)")
+        debugLog("handleShow: Available named menus = \(menuProvider.availableMenus.map { $0.name })")
+        LogShortcuts("URLSchemeHandler.handleShow: Available named menus = \(menuProvider.availableMenus.map { $0.name })")
+
+        if case .default = source {
+            debugLog("handleShow: Using default configuration")
+            LogShortcuts("URLSchemeHandler.handleShow: Using default configuration")
+            configResult = .success(ShortcutsServiceLocator.shared.configManager.currentConfiguration)
+        } else {
+            debugLog("handleShow: Resolving menu from source \(source)...")
+            LogShortcuts("URLSchemeHandler.handleShow: Resolving menu from source...")
+            configResult = menuProvider.resolve(source)
+        }
+
+        debugLog("handleShow: Resolution result = \(configResult)")
+        LogShortcuts("URLSchemeHandler.handleShow: Resolution result = \(configResult)")
+
+        switch configResult {
+        case .success(var config):
+            debugLog("handleShow: Config resolved with \(config.items.count) items")
+            LogShortcuts("URLSchemeHandler.handleShow: Config resolved with \(config.items.count) items")
+            // Apply position override if specified
+            if let position = position {
+                switch position {
+                case .center:
+                    config.behaviorSettings.positionMode = BehaviorSettings.PositionMode.center
+                case .cursor:
+                    config.behaviorSettings.positionMode = BehaviorSettings.PositionMode.atCursor
+                case .fixed(let x, let y):
+                    config.behaviorSettings.positionMode = BehaviorSettings.PositionMode.fixedPosition
+                    config.behaviorSettings.fixedPosition = CGPoint(x: x, y: y)
+                }
+            }
+
+            debugLog("handleShow: Calling viewModel.openMenu...")
+            viewModel.openMenu(
+                with: config,
+                at: position?.toCGPoint(),
+                returnOnly: returnOnly,
+                completion: returnOnly ? completion : nil
+            )
+            debugLog("handleShow: openMenu called successfully")
+            LogShortcuts("URLSchemeHandler: Menu shown, returnOnly=\(returnOnly), position=\(String(describing: position))")
             return true
 
         case .failure(let error):
+            debugLog("handleShow: FAILED - \(error.localizedDescription)")
             LogShortcuts("URLSchemeHandler: Failed to resolve menu - \(error.localizedDescription)", level: .error)
+            // Write empty result to returnTo file so scripts don't hang
+            if let path = returnToPath {
+                writeResult("", to: path)
+            }
+            callErrorCallback(xCallback, message: error.localizedDescription)
             return false
         }
     }
@@ -168,6 +267,18 @@ final class URLSchemeHandler {
 
         // Check for inline JSON (highest priority)
         if let jsonString = queryItems.first(where: { $0.name == "json" })?.value {
+            // Check for base64 prefix
+            if jsonString.hasPrefix("base64:") {
+                let base64String = String(jsonString.dropFirst(7))
+                if let data = Data(base64Encoded: base64String),
+                   let decoded = String(data: data, encoding: .utf8) {
+                    LogShortcuts("URLSchemeHandler: Using base64-decoded JSON source")
+                    return .json(decoded)
+                } else {
+                    LogShortcuts("URLSchemeHandler: Failed to decode base64 JSON", level: .error)
+                    return .default
+                }
+            }
             LogShortcuts("URLSchemeHandler: Using inline JSON source")
             return .json(jsonString)
         }
@@ -186,6 +297,97 @@ final class URLSchemeHandler {
 
         // Default menu
         return .default
+    }
+
+    /// Parses position from URL query parameters.
+    ///
+    /// Supported formats:
+    /// - `position=cursor` - At cursor (default)
+    /// - `position=center` - At screen center
+    /// - `position=100,200` - Fixed coordinates (x,y)
+    private func parsePosition(from url: URL) -> MenuPosition? {
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let positionString = components.queryItems?.first(where: { $0.name == "position" })?.value else {
+            return nil
+        }
+
+        switch positionString.lowercased() {
+        case "cursor":
+            return .cursor
+        case "center":
+            return .center
+        default:
+            // Try to parse as "x,y" coordinates
+            let parts = positionString.split(separator: ",")
+            if parts.count == 2,
+               let x = Double(parts[0].trimmingCharacters(in: .whitespaces)),
+               let y = Double(parts[1].trimmingCharacters(in: .whitespaces)) {
+                return .fixed(x: x, y: y)
+            }
+            LogShortcuts("URLSchemeHandler: Invalid position format: \(positionString)", level: .error)
+            return nil
+        }
+    }
+
+    /// Parses x-callback-url parameters from URL.
+    private func parseXCallbackParams(from url: URL) -> XCallbackURLParams {
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return XCallbackURLParams(successURL: nil, errorURL: nil, cancelURL: nil)
+        }
+
+        let queryItems = components.queryItems ?? []
+
+        let successURL = queryItems.first(where: { $0.name == "x-success" })?.value.flatMap { URL(string: $0) }
+        let errorURL = queryItems.first(where: { $0.name == "x-error" })?.value.flatMap { URL(string: $0) }
+        let cancelURL = queryItems.first(where: { $0.name == "x-cancel" })?.value.flatMap { URL(string: $0) }
+
+        return XCallbackURLParams(successURL: successURL, errorURL: errorURL, cancelURL: cancelURL)
+    }
+
+    // MARK: - x-callback-url Handlers
+
+    /// Calls the x-success callback URL with selection details.
+    private func callSuccessCallback(_ params: XCallbackURLParams, item: MenuItem, position: Int) {
+        guard let baseURL = params.successURL else { return }
+
+        var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
+        var queryItems = components?.queryItems ?? []
+
+        queryItems.append(URLQueryItem(name: "selected", value: item.title))
+        queryItems.append(URLQueryItem(name: "id", value: item.id.uuidString))
+        queryItems.append(URLQueryItem(name: "position", value: String(position)))
+        queryItems.append(URLQueryItem(name: "actionType", value: item.action.typeDescription))
+
+        components?.queryItems = queryItems
+
+        if let callbackURL = components?.url {
+            LogShortcuts("URLSchemeHandler: Calling x-success callback: \(callbackURL)")
+            NSWorkspace.shared.open(callbackURL)
+        }
+    }
+
+    /// Calls the x-error callback URL with an error message.
+    private func callErrorCallback(_ params: XCallbackURLParams, message: String) {
+        guard let baseURL = params.errorURL else { return }
+
+        var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
+        var queryItems = components?.queryItems ?? []
+
+        queryItems.append(URLQueryItem(name: "errorMessage", value: message))
+        components?.queryItems = queryItems
+
+        if let callbackURL = components?.url {
+            LogShortcuts("URLSchemeHandler: Calling x-error callback: \(callbackURL)")
+            NSWorkspace.shared.open(callbackURL)
+        }
+    }
+
+    /// Calls the x-cancel callback URL.
+    private func callCancelCallback(_ params: XCallbackURLParams) {
+        guard let cancelURL = params.cancelURL else { return }
+
+        LogShortcuts("URLSchemeHandler: Calling x-cancel callback: \(cancelURL)")
+        NSWorkspace.shared.open(cancelURL)
     }
 
     @MainActor
