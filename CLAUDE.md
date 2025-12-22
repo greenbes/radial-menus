@@ -240,6 +240,8 @@ The `radial-menu://` URL scheme allows shell scripts and other apps to control t
 | `radial-menu://toggle` | Toggle menu visibility |
 | `radial-menu://execute?item=<uuid>` | Execute item by UUID |
 | `radial-menu://execute?title=<title>` | Execute item by title |
+| `radial-menu://api?returnTo=<path>` | Get API specification (self-describing) |
+| `radial-menu://schema?name=<name>&returnTo=<path>` | Get JSON schema by name |
 
 **Parameters:**
 
@@ -265,7 +267,29 @@ open "radial-menu://show?menu=development&returnTo=/tmp/selection.txt"
 
 # Execute item by title
 open "radial-menu://execute?title=Terminal"
+
+# Get API specification (for programmatic discovery)
+open "radial-menu://api?returnTo=/tmp/api-spec.json"
+
+# Get specific schema
+open "radial-menu://schema?name=menu-configuration&returnTo=/tmp/schema.json"
 ```
+
+**API Discovery:**
+
+The `api` command returns a self-describing JSON specification containing:
+
+- All available commands with parameters and examples
+- Action types with format examples
+- Full JSON schemas embedded inline
+- Currently available named menus
+- Current menu items in default configuration
+
+Available schemas via the `schema` command:
+
+- `menu-configuration` - Input format for menu definitions
+- `menu-selection-result` - Output format for selection results
+- `api-spec` - Structure of the API specification itself
 
 ### Apple Shortcuts
 
@@ -286,14 +310,7 @@ The app provides App Intents for the Shortcuts app:
 
 **Return Values:**
 
-Show menu intents return a `MenuSelectionResult` with:
-
-- `wasDismissed`: Whether menu was dismissed without selection
-- `selectedTitle`: Title of selected item
-- `selectedID`: UUID of selected item
-- `selectedIconName`: Icon name of selected item
-- `actionType`: Type of action (launchApp, runShellCommand, etc.)
-- `position`: 1-based position in menu
+Show menu intents return a `MenuSelectionResult` (see [Selection Result Format](#selection-result-format)).
 
 ### AppleScript / JXA
 
@@ -392,6 +409,46 @@ Custom menus can be defined with JSON. The `version` field is required.
 | Activate App | `{ "activateApp": { "bundleID": "com.app.id" } }` |
 | Internal Command | `{ "internalCommand": { "command": "switchApp" } }` |
 | Task Switcher | `{ "openTaskSwitcher": {} }` |
+
+### Selection Result Format
+
+When the menu is invoked by an external process with `returnOnly` or `returnTo`, the result is returned as JSON. Schema: `schemas/menu-selection-result.schema.json`
+
+**Selection made:**
+
+```json
+{
+  "wasDismissed": false,
+  "selectedItem": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "title": "Terminal",
+    "iconName": "terminal",
+    "actionType": "launchApp",
+    "position": 0
+  }
+}
+```
+
+**Dismissed without selection:**
+
+```json
+{
+  "wasDismissed": true,
+  "selectedItem": null
+}
+```
+
+**Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `wasDismissed` | boolean | True if menu closed without selection |
+| `selectedItem` | object/null | Selected item details, or null if dismissed |
+| `selectedItem.id` | string (UUID) | Unique item identifier |
+| `selectedItem.title` | string | Display title |
+| `selectedItem.iconName` | string | Icon name (SF Symbol or custom) |
+| `selectedItem.actionType` | string | One of: `launchApp`, `runShellCommand`, `keyboardShortcut`, `taskSwitcher`, `activateApp`, `internalCommand` |
+| `selectedItem.position` | integer | 0-based position in menu |
 
 ## Icon Assets
 

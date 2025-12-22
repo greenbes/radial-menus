@@ -1,0 +1,80 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://radial-menu.app/schemas/menu-selection-result.schema.json",
+  "title": "MenuSelectionResult",
+  "description": "Result returned when radial menu is invoked by an external process (URL scheme, Shortcuts, AppleScript)",
+  "type": "object",
+  "properties": {
+    "wasDismissed": {
+      "type": "boolean",
+      "description": "True if the menu was dismissed without a selection, false if an item was selected"
+    },
+    "selectedItem": {
+      "oneOf": [
+        { "$ref": "#/$defs/MenuItemResult" },
+        { "type": "null" }
+      ],
+      "description": "The selected menu item, or null if the menu was dismissed"
+    }
+  },
+  "required": ["wasDismissed", "selectedItem"],
+  "additionalProperties": false,
+  "$defs": {
+    "MenuItemResult": {
+      "type": "object",
+      "description": "Information about the selected menu item",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Unique identifier of the menu item (UUID string)"
+        },
+        "title": {
+          "type": "string",
+          "description": "Display title of the menu item",
+          "minLength": 1
+        },
+        "iconName": {
+          "type": "string",
+          "description": "Icon name (SF Symbol or custom icon set key)",
+          "minLength": 1
+        },
+        "actionType": {
+          "type": "string",
+          "description": "Type of action associated with the menu item",
+          "enum": [
+            "launchApp",
+            "runShellCommand",
+            "keyboardShortcut",
+            "taskSwitcher",
+            "activateApp",
+            "internalCommand"
+          ]
+        },
+        "position": {
+          "type": "integer",
+          "description": "0-based position of the item in the menu",
+          "minimum": 0
+        }
+      },
+      "required": ["id", "title", "iconName", "actionType", "position"],
+      "additionalProperties": false
+    }
+  },
+  "examples": [
+    {
+      "wasDismissed": false,
+      "selectedItem": {
+        "id": "550e8400-e29b-41d4-a716-446655440000",
+        "title": "Terminal",
+        "iconName": "terminal",
+        "actionType": "launchApp",
+        "position": 0
+      }
+    },
+    {
+      "wasDismissed": true,
+      "selectedItem": null
+    }
+  ]
+}

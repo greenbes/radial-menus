@@ -1,0 +1,241 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://radial-menu.app/schemas/api-spec.schema.json",
+  "title": "APISpec",
+  "description": "API specification returned by radial-menu://api endpoint for external callers to discover available commands and types",
+  "type": "object",
+  "properties": {
+    "apiVersion": {
+      "type": "string",
+      "description": "API specification version (semver)",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "appVersion": {
+      "type": "string",
+      "description": "Application version from bundle"
+    },
+    "buildID": {
+      "type": "string",
+      "description": "Build identifier (git commit hash)"
+    },
+    "scheme": {
+      "type": "string",
+      "description": "URL scheme identifier",
+      "const": "radial-menu"
+    },
+    "baseURL": {
+      "type": "string",
+      "description": "Base URL for commands",
+      "const": "radial-menu://"
+    },
+    "commands": {
+      "type": "object",
+      "description": "Available URL scheme commands",
+      "additionalProperties": {
+        "$ref": "#/$defs/Command"
+      }
+    },
+    "actionTypes": {
+      "type": "object",
+      "description": "Available action types for menu items",
+      "additionalProperties": {
+        "$ref": "#/$defs/ActionTypeInfo"
+      }
+    },
+    "schemas": {
+      "type": "object",
+      "description": "JSON schemas for input/output validation",
+      "properties": {
+        "menuConfiguration": {
+          "type": "object",
+          "description": "Full menu-configuration.schema.json content"
+        },
+        "menuSelectionResult": {
+          "type": "object",
+          "description": "Full menu-selection-result.schema.json content"
+        }
+      },
+      "required": ["menuConfiguration", "menuSelectionResult"]
+    },
+    "namedMenus": {
+      "type": "array",
+      "description": "Currently available named menus",
+      "items": {
+        "$ref": "#/$defs/NamedMenu"
+      }
+    },
+    "currentMenuItems": {
+      "type": "array",
+      "description": "Current menu items in default configuration",
+      "items": {
+        "$ref": "#/$defs/MenuItemSummary"
+      }
+    }
+  },
+  "required": [
+    "apiVersion",
+    "appVersion",
+    "buildID",
+    "scheme",
+    "baseURL",
+    "commands",
+    "actionTypes",
+    "schemas",
+    "namedMenus",
+    "currentMenuItems"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "Command": {
+      "type": "object",
+      "description": "A URL scheme command",
+      "properties": {
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of the command"
+        },
+        "parameters": {
+          "type": "object",
+          "description": "Command parameters",
+          "additionalProperties": {
+            "$ref": "#/$defs/Parameter"
+          }
+        },
+        "examples": {
+          "type": "array",
+          "description": "Example URL strings",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["description", "parameters", "examples"],
+      "additionalProperties": false
+    },
+    "Parameter": {
+      "type": "object",
+      "description": "A command parameter",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Parameter type (string, array, etc.)"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description"
+        },
+        "required": {
+          "type": "boolean",
+          "description": "Whether the parameter is required",
+          "default": false
+        },
+        "format": {
+          "type": "string",
+          "description": "Format hint (uuid, uri, etc.)"
+        },
+        "enum": {
+          "type": "array",
+          "description": "Allowed values",
+          "items": {
+            "type": "string"
+          }
+        },
+        "default": {
+          "type": "string",
+          "description": "Default value if not specified"
+        }
+      },
+      "required": ["type", "description", "required"],
+      "additionalProperties": false
+    },
+    "ActionTypeInfo": {
+      "type": "object",
+      "description": "Information about an action type",
+      "properties": {
+        "description": {
+          "type": "string",
+          "description": "Human-readable description"
+        },
+        "format": {
+          "type": "object",
+          "description": "Example JSON format for this action type"
+        },
+        "properties": {
+          "type": ["object", "null"],
+          "description": "Properties for this action type",
+          "additionalProperties": {
+            "$ref": "#/$defs/Parameter"
+          }
+        },
+        "availableCommands": {
+          "type": ["array", "null"],
+          "description": "For internalCommand type, the available commands",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["description", "format"],
+      "additionalProperties": false
+    },
+    "NamedMenu": {
+      "type": "object",
+      "description": "Summary of a named menu",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Menu name/identifier"
+        },
+        "description": {
+          "type": ["string", "null"],
+          "description": "Optional description"
+        },
+        "itemCount": {
+          "type": "integer",
+          "description": "Number of items in the menu",
+          "minimum": 0
+        }
+      },
+      "required": ["name", "itemCount"],
+      "additionalProperties": false
+    },
+    "MenuItemSummary": {
+      "type": "object",
+      "description": "Summary of a menu item",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Unique item identifier"
+        },
+        "title": {
+          "type": "string",
+          "description": "Display title"
+        },
+        "iconName": {
+          "type": "string",
+          "description": "Icon name"
+        },
+        "actionType": {
+          "type": "string",
+          "description": "Action type identifier",
+          "enum": [
+            "launchApp",
+            "runShellCommand",
+            "keyboardShortcut",
+            "taskSwitcher",
+            "activateApp",
+            "internalCommand"
+          ]
+        },
+        "position": {
+          "type": "integer",
+          "description": "0-based position in menu",
+          "minimum": 0
+        }
+      },
+      "required": ["id", "title", "iconName", "actionType", "position"],
+      "additionalProperties": false
+    }
+  }
+}

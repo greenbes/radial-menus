@@ -24,6 +24,8 @@ import AppKit
 /// - `radial-menu://toggle` - Toggle menu visibility
 /// - `radial-menu://execute?item=<uuid>` - Execute item by UUID
 /// - `radial-menu://execute?title=<encoded-title>` - Execute item by title
+/// - `radial-menu://api?returnTo=<path>` - Get API specification
+/// - `radial-menu://schema?name=<name>&returnTo=<path>` - Get JSON schema by name
 ///
 /// x-callback-url Support:
 /// - `x-success=<url>` - Called with selection details on success (selected=title&id=uuid&position=N)
@@ -97,6 +99,12 @@ final class URLSchemeHandler {
 
         case "execute":
             return handleExecute(url)
+
+        case "api":
+            return handleAPI(url)
+
+        case "schema":
+            return handleSchema(url)
 
         default:
             LogShortcuts("URLSchemeHandler: Unknown command '\(host)'", level: .error)
@@ -482,5 +490,118 @@ final class URLSchemeHandler {
             LogShortcuts("URLSchemeHandler: Failed to execute '\(item.title)' - \(error)", level: .error)
             return false
         }
+    }
+
+    // MARK: - API Discovery
+
+    /// Handles the `api` command - returns API specification.
+    private func handleAPI(_ url: URL) -> Bool {
+        guard let returnToPath = parseReturnToPath(from: url) else {
+            LogShortcuts("URLSchemeHandler: api command requires returnTo parameter", level: .error)
+            return false
+        }
+
+        let spec = APISpecGenerator.generate()
+
+        do {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let data = try encoder.encode(spec)
+
+            guard let json = String(data: data, encoding: .utf8) else {
+                LogShortcuts("URLSchemeHandler: Failed to encode API spec as UTF-8", level: .error)
+                return false
+            }
+
+            try json.write(toFile: returnToPath, atomically: true, encoding: .utf8)
+            LogShortcuts("URLSchemeHandler: Wrote API spec to \(returnToPath)")
+            return true
+
+        } catch {
+            LogShortcuts("URLSchemeHandler: Failed to write API spec - \(error)", level: .error)
+            return false
+        }
+    }
+
+    /// Handles the `schema` command - returns a specific JSON schema.
+    private func handleSchema(_ url: URL) -> Bool {
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            LogShortcuts("URLSchemeHandler: Failed to parse schema URL", level: .error)
+            return false
+        }
+
+        let queryItems = components.queryItems ?? []
+
+        guard let schemaName = queryItems.first(where: { $0.name == "name" })?.value else {
+            LogShortcuts("URLSchemeHandler: schema command requires name parameter", level: .error)
+            return false
+        }
+
+        guard let returnToPath = parseReturnToPath(from: url) else {
+            LogShortcuts("URLSchemeHandler: schema command requires returnTo parameter", level: .error)
+            return false
+        }
+
+        // Map schema names to file paths
+        let validSchemas = ["menu-configuration", "menu-selection-result", "api-spec"]
+        guard validSchemas.contains(schemaName) else {
+            LogShortcuts("URLSchemeHandler: Unknown schema '\(schemaName)'", level: .error)
+            return false
+        }
+
+        // Try to load schema from bundle
+        if let schemaData = loadSchema(named: schemaName) {
+            do {
+                try schemaData.write(toFile: returnToPath, atomically: true, encoding: .utf8)
+                LogShortcuts("URLSchemeHandler: Wrote schema '\(schemaName)' to \(returnToPath)")
+                return true
+            } catch {
+                LogShortcuts("URLSchemeHandler: Failed to write schema - \(error)", level: .error)
+                return false
+            }
+        }
+
+        LogShortcuts("URLSchemeHandler: Schema '\(schemaName)' not found", level: .error)
+        return false
+    }
+
+    /// Loads a schema file from the bundle or resources directory.
+    private func loadSchema(named name: String) -> String? {
+        let filename = "\(name).schema"
+
+        // Try bundle resources (in schemas subdirectory)
+        if let url = Bundle.main.url(forResource: filename, withExtension: "json", subdirectory: "schemas"),
+           let data = try? Data(contentsOf: url),
+           let content = String(data: data, encoding: .utf8) {
+            LogShortcuts("URLSchemeHandler: Loaded schema '\(name)' from bundle subdirectory")
+            return content
+        }
+
+        // Try without subdirectory (flat Resources)
+        if let url = Bundle.main.url(forResource: filename, withExtension: "json"),
+           let data = try? Data(contentsOf: url),
+           let content = String(data: data, encoding: .utf8) {
+            LogShortcuts("URLSchemeHandler: Loaded schema '\(name)' from bundle root")
+            return content
+        }
+
+        // Try Resources/schemas directory relative to executable
+        if let executableURL = Bundle.main.executableURL {
+            let schemasURL = executableURL
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("Resources")
+                .appendingPathComponent("schemas")
+                .appendingPathComponent("\(name).schema.json")
+
+            if let data = try? Data(contentsOf: schemasURL),
+               let content = String(data: data, encoding: .utf8) {
+                LogShortcuts("URLSchemeHandler: Loaded schema '\(name)' from Resources/schemas")
+                return content
+            }
+        }
+
+        LogShortcuts("URLSchemeHandler: Schema '\(name)' not found in bundle", level: .error)
+        return nil
     }
 }

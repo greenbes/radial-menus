@@ -1,0 +1,328 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://radial-menu.app/schemas/menu-configuration.schema.json",
+  "title": "MenuDefinition",
+  "description": "Schema for radial menu definitions (named menus and dynamic menus via URL scheme)",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "integer",
+      "description": "Schema version for future migration",
+      "const": 1
+    },
+    "name": {
+      "type": "string",
+      "description": "Unique identifier for the menu",
+      "minLength": 1,
+      "pattern": "^[^./\\\\][^/\\\\]*$"
+    },
+    "description": {
+      "type": "string",
+      "description": "Optional human-readable description"
+    },
+    "centerTitle": {
+      "type": "string",
+      "description": "Optional title text to display in the center of the menu (replaces default icon)"
+    },
+    "items": {
+      "type": "array",
+      "description": "Array of menu items to display in the radial menu",
+      "items": {
+        "$ref": "#/$defs/MenuItem"
+      },
+      "minItems": 1,
+      "maxItems": 12
+    },
+    "appearanceSettings": {
+      "$ref": "#/$defs/AppearanceSettings"
+    },
+    "behaviorSettings": {
+      "$ref": "#/$defs/BehaviorSettings"
+    }
+  },
+  "required": ["version", "name", "items"],
+  "additionalProperties": false,
+  "$defs": {
+    "MenuItem": {
+      "type": "object",
+      "description": "A single item in the radial menu",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Unique identifier for the menu item (auto-generated if not provided)"
+        },
+        "title": {
+          "type": "string",
+          "description": "Display title for the menu item",
+          "minLength": 1
+        },
+        "iconName": {
+          "type": "string",
+          "description": "Icon name (SF Symbol name or custom icon set key)",
+          "minLength": 1
+        },
+        "action": {
+          "$ref": "#/$defs/ActionType"
+        },
+        "preserveColors": {
+          "type": "boolean",
+          "description": "When true, preserves icon's original colors instead of applying tint",
+          "default": false
+        },
+        "accessibilityLabel": {
+          "type": "string",
+          "description": "Custom VoiceOver label (uses title if not specified)"
+        },
+        "accessibilityHint": {
+          "type": "string",
+          "description": "Custom VoiceOver hint (uses action-based hint if not specified)"
+        }
+      },
+      "required": ["title", "iconName", "action"],
+      "additionalProperties": false
+    },
+    "ActionType": {
+      "oneOf": [
+        {
+          "type": "object",
+          "description": "Launch an application",
+          "properties": {
+            "launchApp": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "Path to the application bundle",
+                  "pattern": "^/.*\\.app$"
+                }
+              },
+              "required": ["path"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["launchApp"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "description": "Run a shell command",
+          "properties": {
+            "runShellCommand": {
+              "type": "object",
+              "properties": {
+                "command": {
+                  "type": "string",
+                  "description": "Shell command to execute",
+                  "minLength": 1
+                }
+              },
+              "required": ["command"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["runShellCommand"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "description": "Simulate a keyboard shortcut",
+          "properties": {
+            "simulateKeyboardShortcut": {
+              "type": "object",
+              "properties": {
+                "modifiers": {
+                  "type": "array",
+                  "description": "Modifier keys for the shortcut",
+                  "items": {
+                    "$ref": "#/$defs/KeyModifier"
+                  },
+                  "uniqueItems": true
+                },
+                "key": {
+                  "type": "string",
+                  "description": "The key to press (e.g., 'a', '4', 'space')",
+                  "minLength": 1
+                }
+              },
+              "required": ["modifiers", "key"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["simulateKeyboardShortcut"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "description": "Open the macOS task switcher",
+          "properties": {
+            "openTaskSwitcher": {
+              "type": "object",
+              "additionalProperties": false
+            }
+          },
+          "required": ["openTaskSwitcher"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "description": "Activate an application by bundle identifier",
+          "properties": {
+            "activateApp": {
+              "type": "object",
+              "properties": {
+                "bundleIdentifier": {
+                  "type": "string",
+                  "description": "Bundle identifier of the application (e.g., 'com.apple.Safari')",
+                  "minLength": 1
+                }
+              },
+              "required": ["bundleIdentifier"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["activateApp"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "description": "Execute a predefined internal command",
+          "properties": {
+            "internalCommand": {
+              "type": "string",
+              "description": "Internal command to execute",
+              "enum": ["switchApp", "finder"]
+            }
+          },
+          "required": ["internalCommand"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "KeyModifier": {
+      "type": "string",
+      "enum": ["command", "option", "control", "shift"],
+      "description": "Keyboard modifier key"
+    },
+    "AppearanceSettings": {
+      "type": "object",
+      "description": "Visual appearance settings for the radial menu",
+      "properties": {
+        "radius": {
+          "type": "number",
+          "description": "Outer radius of the menu in points",
+          "minimum": 50,
+          "maximum": 500,
+          "default": 150
+        },
+        "centerRadius": {
+          "type": "number",
+          "description": "Inner radius (dead zone) in points",
+          "minimum": 10,
+          "maximum": 100,
+          "default": 40
+        },
+        "sliceHighlightScale": {
+          "type": "number",
+          "description": "Scale factor when a slice is highlighted",
+          "minimum": 1.0,
+          "maximum": 2.0,
+          "default": 1.1
+        },
+        "animationDuration": {
+          "type": "number",
+          "description": "Animation duration in seconds",
+          "minimum": 0,
+          "maximum": 1.0,
+          "default": 0.15
+        },
+        "iconSetIdentifier": {
+          "type": "string",
+          "description": "Identifier for the icon set to use",
+          "default": "outline"
+        },
+        "backgroundColor": {
+          "$ref": "#/$defs/CodableColor"
+        },
+        "foregroundColor": {
+          "$ref": "#/$defs/CodableColor"
+        },
+        "selectedItemColor": {
+          "$ref": "#/$defs/CodableColor"
+        }
+      },
+      "additionalProperties": false
+    },
+    "BehaviorSettings": {
+      "type": "object",
+      "description": "Behavior settings for the radial menu",
+      "properties": {
+        "positionMode": {
+          "type": "string",
+          "enum": ["atCursor", "center", "fixedPosition"],
+          "description": "Where the menu appears on screen",
+          "default": "atCursor"
+        },
+        "fixedPosition": {
+          "type": ["object", "null"],
+          "description": "Fixed screen position (only used when positionMode is fixedPosition)",
+          "properties": {
+            "x": {
+              "type": "number"
+            },
+            "y": {
+              "type": "number"
+            }
+          },
+          "required": ["x", "y"],
+          "additionalProperties": false
+        },
+        "showOnAllSpaces": {
+          "type": "boolean",
+          "description": "Whether the menu appears on all macOS Spaces",
+          "default": false
+        },
+        "joystickDeadzone": {
+          "type": "number",
+          "description": "Joystick deadzone threshold (0-1)",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.3
+        }
+      },
+      "additionalProperties": false
+    },
+    "CodableColor": {
+      "type": "object",
+      "description": "RGBA color specification",
+      "properties": {
+        "red": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Red component (0-1)"
+        },
+        "green": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Green component (0-1)"
+        },
+        "blue": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Blue component (0-1)"
+        },
+        "alpha": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Alpha/opacity component (0-1)"
+        }
+      },
+      "required": ["red", "green", "blue", "alpha"],
+      "additionalProperties": false
+    }
+  }
+}
