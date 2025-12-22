@@ -30,4 +30,13 @@ protocol MenuProviderProtocol {
 
     /// Refresh the list of available named menus from disk.
     func refresh()
+
+    /// Checks if an app-specific menu exists for the given bundle identifier.
+    ///
+    /// App-specific menus use the bundle identifier as the menu name,
+    /// stored at `menus/<bundleID>.json`.
+    ///
+    /// - Parameter bundleIdentifier: The application's bundle identifier
+    /// - Returns: True if an app-specific menu exists for this bundle ID
+    func hasAppSpecificMenu(bundleIdentifier: String) -> Bool
 }

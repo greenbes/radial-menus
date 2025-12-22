@@ -10,7 +10,7 @@ Develop, deploy, test, and manage packages only via shell commands—never open 
 - `xcodebuild -scheme radial-menu -configuration Debug build`: primary build command; avoid Xcode UI entirely.
 - `xcodebuild test -scheme radial-menu -destination 'platform=macOS'`: executes all XCTest bundles from the command line.
 - `xcodebuild -scheme radial-menu -configuration Release archive`: produce signed archives when you need a distributable binary.
-- `./run-with-logs.sh`: launches the latest Debug build and tails `/tmp/radial-menu-debug.log`.
+- `./run-with-logs.sh`: launches the latest Debug build and streams logs from the unified system log.
 - `./test-hotkey.sh`: streams live logs so you can confirm Ctrl+Space hotkey events.
 
 ## Coding Style & Naming Conventions
@@ -23,4 +23,4 @@ Use XCTest with descriptive names (`testCalculateSlices_WithFourItems_CreatesCor
 History currently shows one imperative summary (“Initial Commit”); continue with concise, present-tense subjects (e.g., `Add controller navigation tests`). Pull requests should describe the change, list affected layers/modules, show `xcodebuild test` output, and attach screenshots or GIFs when UI shifts. Call out needed permissions, configuration migrations, and linked issues so reviewers can reproduce quickly.
 
 ## Security & Configuration Tips
-Global hotkeys need Accessibility access; add the built app under System Settings → Privacy & Security → Accessibility whenever `test-hotkey.sh` reports a failure. User configuration lives at `~/Library/Application Support/com.radial-menu/radial-menu-config.json`; keep it out of source control and document schema migrations. Prefer the provided logging scripts over ad-hoc `print` dumps so sensitive paths stay confined to `/tmp/radial-menu-debug.log`.
+Global hotkeys need Accessibility access; add the built app under System Settings → Privacy & Security → Accessibility whenever `test-hotkey.sh` reports a failure. User configuration lives at `~/Library/Application Support/Six-Gables-Software.radial-menu/radial-menu-config.json`; keep it out of source control and document schema migrations. Prefer the category-specific logging functions (`LogLifecycle`, `LogInput`, `LogMenu`, etc.) over ad-hoc `print` dumps. Logs are written to the unified system log and viewed via `log stream --predicate 'subsystem == "Six-Gables-Software.radial-menu"'`.

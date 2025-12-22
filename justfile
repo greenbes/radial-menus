@@ -68,9 +68,9 @@ test-hotkey: build
 kill:
   killall radial-menu 2>/dev/null || true
 
-# View the debug log file
+# Stream logs from the unified system log
 logs:
-  tail -f /tmp/radial-menu-debug.log
+  log stream --predicate 'subsystem == "Six-Gables-Software.radial-menu"' --level debug
 
 # Build, kill existing instances, and run
 restart: kill build run

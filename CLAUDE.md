@@ -42,7 +42,7 @@ Each build includes a unique build ID generated from git metadata:
 ### Running
 
 ```bash
-# Launch with logging (finds latest Debug build, tails /tmp/radial-menu-debug.log)
+# Launch with logging (finds latest Debug build, streams system log)
 ./scripts/run-with-logs.sh
 
 # Test hotkey detection with verbose logging
@@ -140,17 +140,83 @@ AccessibilityManager (Infrastructure) - VoiceOver announcements
 
 Configuration persists as JSON at:
 ```
-~/Library/Application Support/com.radial-menu/radial-menu-config.json
+~/Library/Application Support/Six-Gables-Software.radial-menu/radial-menu-config.json
 ```
 
 ### User Icon Sets
 
 User-imported icon sets are stored at:
 ```
-~/Library/Application Support/com.radial-menu/icon-sets/<identifier>/
+~/Library/Application Support/Six-Gables-Software.radial-menu/icon-sets/<identifier>/
 ```
 
 Each icon set directory contains a `manifest.json` and an `icons/` subdirectory.
+
+### App-Specific Menus
+
+App-specific menus allow different menu configurations for different applications. When the right shoulder button (RB/R1) is pressed, the app detects which application has keyboard focus and displays a menu tailored to that application.
+
+**Storage**: App-specific menus are stored as named menus using the application's bundle identifier as the filename:
+```
+~/Library/Application Support/Six-Gables-Software.radial-menu/menus/<bundleID>.json
+```
+
+**Example**: A menu for Firefox would be stored at:
+```
+~/Library/Application Support/Six-Gables-Software.radial-menu/menus/org.mozilla.firefox.json
+```
+
+**Fallback**: If no app-specific menu exists for the frontmost application, the default menu is displayed.
+
+**Navigation**:
+
+- Right shoulder (RB/R1): Open app-specific menu for frontmost app
+- Left shoulder (LB/L1): Return to previous menu in navigation stack
+- B button: Also returns to previous menu (or closes if at root)
+
+**Example app-specific menu** (`org.mozilla.firefox.json`):
+```json
+{
+  "version": 1,
+  "name": "org.mozilla.firefox",
+  "description": "Firefox browser shortcuts",
+  "centerTitle": "Firefox",
+  "items": [
+    {
+      "title": "New Tab",
+      "iconName": "plus",
+      "action": { "simulateKeyboardShortcut": { "modifiers": ["command"], "key": "t" } }
+    },
+    {
+      "title": "Close Tab",
+      "iconName": "xmark",
+      "action": { "simulateKeyboardShortcut": { "modifiers": ["command"], "key": "w" } }
+    },
+    {
+      "title": "Go Back",
+      "iconName": "arrow.left",
+      "action": { "simulateKeyboardShortcut": { "modifiers": ["command"], "key": "[" } }
+    },
+    {
+      "title": "Go Forward",
+      "iconName": "arrow.right",
+      "action": { "simulateKeyboardShortcut": { "modifiers": ["command"], "key": "]" } }
+    },
+    {
+      "title": "Reload",
+      "iconName": "arrow.clockwise",
+      "action": { "simulateKeyboardShortcut": { "modifiers": ["command"], "key": "r" } }
+    },
+    {
+      "title": "Find",
+      "iconName": "magnifyingglass",
+      "action": { "simulateKeyboardShortcut": { "modifiers": ["command"], "key": "f" } }
+    }
+  ]
+}
+```
+
+**Finding bundle identifiers**: Use `osascript -e 'id of app "App Name"'` or check the app's Info.plist.
 
 ### Default Configuration
 
@@ -175,14 +241,20 @@ The app uses Apple's Unified Logging System (os_log) with category-specific log 
 - `LogError()` - Errors (specify category)
 
 **Viewing logs:**
+
+Logs are stored in the macOS unified system log (not a file). Use `log` commands to access them:
+
 ```bash
-# Stream all logs
+# Stream logs in real-time
 log stream --predicate 'subsystem == "Six-Gables-Software.radial-menu"' --level debug
 
-# Filter by category
-log stream --predicate 'subsystem == "Six-Gables-Software.radial-menu" AND category == "Input"'
+# View recent logs (last 5 minutes)
+log show --predicate 'subsystem == "Six-Gables-Software.radial-menu"' --last 5m
 
-# Or use the helper script
+# Filter by category
+log show --predicate 'subsystem == "Six-Gables-Software.radial-menu" AND category == "Input"' --last 5m
+
+# Or use the helper script (streams logs)
 ./scripts/run-with-logs.sh
 ```
 
@@ -201,9 +273,16 @@ log stream --predicate 'subsystem == "Six-Gables-Software.radial-menu" AND categ
 
 - **Supported**: Xbox, PlayStation, MFi controllers
 - **Input mapping**:
-  - Left stick → Selection
-  - A button → Confirm
-  - Menu button → Toggle menu
+
+    - Left stick → Selection
+    - Right stick → Reposition menu
+    - A button → Confirm
+    - B button → Cancel / return to previous menu
+    - Menu button → Toggle default menu
+    - Right shoulder (RB/R1) → Open app-specific menu for frontmost app
+    - Left shoulder (LB/L1) → Return to previous menu
+    - D-pad left/right → Navigate slices
+
 - **Polling rate**: 60Hz
 - **Implementation**: GameController framework via `ControllerInputManager`
 

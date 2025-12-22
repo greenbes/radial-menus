@@ -20,6 +20,8 @@ struct ControllerState: Equatable {
     let homeButtonPressed: Bool
     let dpadLeft: Bool
     let dpadRight: Bool
+    let rightShoulderPressed: Bool  // RB on Xbox, R1 on PlayStation
+    let leftShoulderPressed: Bool   // LB on Xbox, L1 on PlayStation
 }
 
 /// Protocol for controller input management

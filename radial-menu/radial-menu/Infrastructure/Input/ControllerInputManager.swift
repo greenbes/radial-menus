@@ -81,7 +81,9 @@ class ControllerInputManager: ControllerInputProtocol {
                 menuButtonPressed: false,
                 homeButtonPressed: false,
                 dpadLeft: false,
-                dpadRight: false
+                dpadRight: false,
+                rightShoulderPressed: false,
+                leftShoulderPressed: false
             )
         }
 
@@ -96,7 +98,9 @@ class ControllerInputManager: ControllerInputProtocol {
             menuButtonPressed: gamepad.buttonMenu.isPressed,
             homeButtonPressed: gamepad.buttonHome?.isPressed ?? false,
             dpadLeft: gamepad.dpad.left.isPressed,
-            dpadRight: gamepad.dpad.right.isPressed
+            dpadRight: gamepad.dpad.right.isPressed,
+            rightShoulderPressed: gamepad.rightShoulder.isPressed,
+            leftShoulderPressed: gamepad.leftShoulder.isPressed
         )
     }
 
@@ -126,6 +130,16 @@ class ControllerInputManager: ControllerInputProtocol {
         guard controller != nil else { return }
 
         let newState = currentState
+
+        // Debug: Log shoulder button changes
+        if let prev = previousState {
+            if newState.rightShoulderPressed != prev.rightShoulderPressed {
+                LogInput("ControllerInputManager: rightShoulder changed to \(newState.rightShoulderPressed)")
+            }
+            if newState.leftShoulderPressed != prev.leftShoulderPressed {
+                LogInput("ControllerInputManager: leftShoulder changed to \(newState.leftShoulderPressed)")
+            }
+        }
 
         // Always call callback for continuous input (right stick for repositioning)
         // The handlers will decide what to process

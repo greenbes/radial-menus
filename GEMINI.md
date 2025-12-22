@@ -28,8 +28,8 @@
     ```bash
     ./run-with-logs.sh
     ```
-    *   Logs are streamed to `/tmp/radial-menu-debug.log`.
-    *   Use `tail -f /tmp/radial-menu-debug.log` to monitor.
+    *   Logs are streamed from the unified system log via `log stream`.
+    *   Use `log stream --predicate 'subsystem == "Six-Gables-Software.radial-menu"' --level debug` to monitor.
 *   **Archive (Release)**:
     ```bash
     xcodebuild -scheme radial-menu -configuration Release archive
@@ -40,8 +40,9 @@
     ```
 
 ### Logs & Debugging
-*   **Log File**: `/tmp/radial-menu-debug.log`
-*   **Observation**: Use the provided scripts (`run-with-logs.sh`, `test-hotkey.sh`) to observe application behavior and debug issues, as `print` statements are directed to these logs.
+*   **Logging**: Uses Apple's Unified Logging System (`os_log`) with subsystem `Six-Gables-Software.radial-menu`.
+*   **View Logs**: `log stream --predicate 'subsystem == "Six-Gables-Software.radial-menu"' --level debug`
+*   **Observation**: Use the provided scripts (`run-with-logs.sh`, `test-hotkey.sh`) to observe application behavior and debug issues. Never use `print` statements; use the category-specific log functions (`LogLifecycle`, `LogInput`, `LogMenu`, etc.).
 
 ## Project Structure
 
@@ -75,4 +76,4 @@ radial-menu/
 
 1.  **Xcode Project Sync**: When creating new Swift files, be aware they must be added to `radial-menu.xcodeproj` to be recognized by the build system. Since direct `pbxproj` manipulation is risky, prefer modifying existing files or clearly instructing the user if a file addition is critical and cannot be automated safely.
 2.  **Permissions**: The app requires **Accessibility** permissions for global hotkeys (`Ctrl+Space`). If hotkeys fail, check System Settings.
-3.  **Config**: User configuration is stored in `~/Library/Application Support/com.radial-menu/radial-menu-config.json`.
+3.  **Config**: User configuration is stored in `~/Library/Application Support/Six-Gables-Software.radial-menu/radial-menu-config.json`.

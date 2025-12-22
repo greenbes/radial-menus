@@ -34,6 +34,11 @@ class AppCoordinator {
     private var previousMenuButton = false
     private var previousButtonA = false
     private var previousButtonB = false
+    private var previousRightShoulder = false
+    private var previousLeftShoulder = false
+
+    /// Cached bundle ID of the frontmost app (captured before menu opens)
+    private var lastFrontmostBundleID: String?
 
     // MARK: - Initialization
 
@@ -60,6 +65,7 @@ class AppCoordinator {
             actionExecutor: actionExecutor,
             overlayWindow: overlayWindow,
             iconSetProvider: iconSetProvider,
+            menuProvider: menuProvider,
             accessibilityManager: accessibilityManager
         )
 
@@ -94,6 +100,14 @@ class AppCoordinator {
                 guard let self = self else {
                     LogError("self is nil in hotkey callback", category: .input)
                     return
+                }
+                // Capture frontmost app before opening menu
+                if !self.viewModel.isOpen {
+                    if let frontmost = NSWorkspace.shared.frontmostApplication,
+                       let bundleID = frontmost.bundleIdentifier {
+                        self.lastFrontmostBundleID = bundleID
+                        LogInput("Hotkey pressed, captured frontmost app: \(bundleID)")
+                    }
                 }
                 LogInput("Calling toggleMenu()")
                 self.viewModel.toggleMenu()
@@ -148,6 +162,14 @@ class AppCoordinator {
     private func handleControllerInput(_ state: ControllerState) {
         // Handle Menu button to toggle menu (edge-triggered)
         if state.menuButtonPressed && !previousMenuButton {
+            // Capture frontmost app before opening menu
+            if !viewModel.isOpen {
+                if let frontmost = NSWorkspace.shared.frontmostApplication,
+                   let bundleID = frontmost.bundleIdentifier {
+                    lastFrontmostBundleID = bundleID
+                    LogInput("Menu button pressed, captured frontmost app: \(bundleID)")
+                }
+            }
             viewModel.toggleMenu()
         }
         previousMenuButton = state.menuButtonPressed
@@ -190,5 +212,53 @@ class AppCoordinator {
             viewModel.handleCancel()
         }
         previousButtonB = state.buttonBPressed
+
+        // Handle right shoulder button for app-specific menu (edge-triggered)
+        // RB on Xbox, R1 on PlayStation
+        if state.rightShoulderPressed != previousRightShoulder {
+            LogInput("Right shoulder state changed: \(state.rightShoulderPressed)")
+        }
+        if state.rightShoulderPressed && !previousRightShoulder {
+            // If menu is closed, capture frontmost app now
+            // If menu is already open, use the cached frontmost app
+            let bundleID: String?
+            if viewModel.isOpen {
+                // Menu is already open, use cached value
+                bundleID = lastFrontmostBundleID
+                LogInput("Right shoulder pressed while menu open, using cached app: \(bundleID ?? "nil")")
+            } else {
+                // Menu is closed, capture frontmost app BEFORE menu opens
+                if let frontmost = NSWorkspace.shared.frontmostApplication,
+                   let frontmostBundleID = frontmost.bundleIdentifier {
+                    bundleID = frontmostBundleID
+                    lastFrontmostBundleID = frontmostBundleID
+                    LogInput("Right shoulder pressed, frontmost app: \(frontmostBundleID)")
+                } else {
+                    bundleID = nil
+                    LogInput("Right shoulder pressed, no frontmost app detected")
+                }
+            }
+
+            if let bundleID = bundleID {
+                viewModel.openAppSpecificMenu(bundleIdentifier: bundleID)
+            } else {
+                viewModel.toggleMenu()
+            }
+        }
+        previousRightShoulder = state.rightShoulderPressed
+
+        // Handle left shoulder button to return to previous menu (edge-triggered)
+        // LB on Xbox, L1 on PlayStation
+        if state.leftShoulderPressed != previousLeftShoulder {
+            LogInput("Left shoulder state changed: \(state.leftShoulderPressed)")
+        }
+        if state.leftShoulderPressed && !previousLeftShoulder {
+            LogInput("Left shoulder pressed, menu isOpen: \(viewModel.isOpen)")
+            if viewModel.isOpen {
+                LogInput("Left shoulder pressed, returning to previous menu")
+                viewModel.returnToPreviousMenu()
+            }
+        }
+        previousLeftShoulder = state.leftShoulderPressed
     }
 }

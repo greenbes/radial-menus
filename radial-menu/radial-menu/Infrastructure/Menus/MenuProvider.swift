@@ -83,6 +83,21 @@ final class MenuProvider: MenuProviderProtocol {
         LogConfig("Refreshed menus: \(descriptors.map { $0.name })")
     }
 
+    func hasAppSpecificMenu(bundleIdentifier: String) -> Bool {
+        // First check if already discovered/cached
+        if menuFilePaths[bundleIdentifier] != nil {
+            return true
+        }
+
+        // Otherwise check if file exists on disk
+        guard let menusDir = menusDirectory() else {
+            return false
+        }
+
+        let menuURL = menusDir.appendingPathComponent("\(bundleIdentifier).json")
+        return fileManager.fileExists(atPath: menuURL.path)
+    }
+
     // MARK: - Private Methods - Resolution
 
     private func resolveNamed(_ name: String) -> Result<MenuConfiguration, MenuError> {

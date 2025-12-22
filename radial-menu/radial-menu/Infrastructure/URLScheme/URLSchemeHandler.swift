@@ -114,32 +114,16 @@ final class URLSchemeHandler {
 
     // MARK: - Command Handlers
 
-    // Debug helper
-    private func debugLog(_ msg: String) {
-        let debugMsg = "[\(Date())] \(msg)\n"
-        if let data = debugMsg.data(using: .utf8) {
-            let debugPath = "/tmp/radial-menu-url-debug.log"
-            if let handle = FileHandle(forWritingAtPath: debugPath) {
-                handle.seekToEndOfFile()
-                handle.write(data)
-                handle.closeFile()
-            }
-        }
-    }
-
     @MainActor
     private func handleShow(_ url: URL) -> Bool {
-        debugLog("handleShow: START - \(url.absoluteString)")
         LogShortcuts("URLSchemeHandler.handleShow: URL = \(url.absoluteString)")
 
         let xCallback = parseXCallbackParams(from: url)
         let returnToPath = parseReturnToPath(from: url)
 
-        debugLog("handleShow: returnToPath = \(returnToPath ?? "nil")")
         LogShortcuts("URLSchemeHandler.handleShow: returnToPath = \(returnToPath ?? "nil")")
 
         guard let viewModel = ShortcutsServiceLocator.shared.viewModel else {
-            debugLog("handleShow: ViewModel NOT available")
             LogShortcuts("URLSchemeHandler: ViewModel not available for show", level: .error)
             // Write empty result so scripts don't hang
             if let path = returnToPath {
@@ -149,7 +133,6 @@ final class URLSchemeHandler {
             return false
         }
 
-        debugLog("handleShow: ViewModel available, isOpen = \(viewModel.isOpen)")
         LogShortcuts("URLSchemeHandler.handleShow: ViewModel available, isOpen = \(viewModel.isOpen)")
 
         // If menu is already open, don't reopen
@@ -189,25 +172,20 @@ final class URLSchemeHandler {
         let menuProvider = ShortcutsServiceLocator.shared.menuProvider
         let configResult: Result<MenuConfiguration, MenuError>
 
-        debugLog("handleShow: Available named menus = \(menuProvider.availableMenus.map { $0.name })")
         LogShortcuts("URLSchemeHandler.handleShow: Available named menus = \(menuProvider.availableMenus.map { $0.name })")
 
         if case .default = source {
-            debugLog("handleShow: Using default configuration")
             LogShortcuts("URLSchemeHandler.handleShow: Using default configuration")
             configResult = .success(ShortcutsServiceLocator.shared.configManager.currentConfiguration)
         } else {
-            debugLog("handleShow: Resolving menu from source \(source)...")
             LogShortcuts("URLSchemeHandler.handleShow: Resolving menu from source...")
             configResult = menuProvider.resolve(source)
         }
 
-        debugLog("handleShow: Resolution result = \(configResult)")
         LogShortcuts("URLSchemeHandler.handleShow: Resolution result = \(configResult)")
 
         switch configResult {
         case .success(var config):
-            debugLog("handleShow: Config resolved with \(config.items.count) items")
             LogShortcuts("URLSchemeHandler.handleShow: Config resolved with \(config.items.count) items")
             // Apply position override if specified
             if let position = position {
@@ -222,19 +200,16 @@ final class URLSchemeHandler {
                 }
             }
 
-            debugLog("handleShow: Calling viewModel.openMenu...")
             viewModel.openMenu(
                 with: config,
                 at: position?.toCGPoint(),
                 returnOnly: returnOnly,
                 completion: returnOnly ? completion : nil
             )
-            debugLog("handleShow: openMenu called successfully")
             LogShortcuts("URLSchemeHandler: Menu shown, returnOnly=\(returnOnly), position=\(String(describing: position))")
             return true
 
         case .failure(let error):
-            debugLog("handleShow: FAILED - \(error.localizedDescription)")
             LogShortcuts("URLSchemeHandler: Failed to resolve menu - \(error.localizedDescription)", level: .error)
             // Write empty result to returnTo file so scripts don't hang
             if let path = returnToPath {
