@@ -56,11 +56,11 @@ final class RadialMenuViewModel: ObservableObject {
     /// The original configuration to restore after override menu closes
     private var originalConfiguration: MenuConfiguration?
 
-    /// Navigation stack for menu history (enables left bumper return behavior)
-    private var menuNavigationStack: [MenuNavigationContext] = []
-
     /// Current menu context (what type of menu is currently displayed)
     private var currentMenuContext: MenuNavigationContext = .default
+
+    /// The bundle ID of the app we're navigating menus for (for ring navigation)
+    private var currentAppBundleID: String?
 
     /// Cache of resolved icons for running apps (by bundle identifier)
     private var taskSwitcherIconCache: [String: ResolvedIcon] = [:]
@@ -324,8 +324,8 @@ final class RadialMenuViewModel: ObservableObject {
             self.returnSelectionOnly = false
 
             // Reset navigation state
-            self.menuNavigationStack.removeAll()
             self.currentMenuContext = .default
+            self.currentAppBundleID = nil
 
             // Call completion handler after menu is fully closed
             completion?(selectedItem)
@@ -467,13 +467,9 @@ final class RadialMenuViewModel: ObservableObject {
         overlayWindow.moveWindow(dx: dx, dy: dy)
     }
 
-    /// Handles B button / cancel action - returns to previous menu if navigation stack has entries, otherwise closes
+    /// Handles B button / cancel action - closes the menu
     func handleCancel() {
-        if !menuNavigationStack.isEmpty {
-            returnToPreviousMenu()
-        } else {
-            closeMenu()
-        }
+        closeMenu()
     }
 
     // MARK: - App-Specific Menus
@@ -487,34 +483,75 @@ final class RadialMenuViewModel: ObservableObject {
     ///   - bundleIdentifier: The bundle ID of the frontmost application
     ///   - position: Optional position to show menu (uses config default if nil)
     func openAppSpecificMenu(bundleIdentifier: String, at position: CGPoint? = nil) {
-        LogMenu("Opening app-specific menu for \(bundleIdentifier)")
+        LogMenu("Opening app-specific menu for \(bundleIdentifier), menuState: \(menuState), currentContext: \(currentMenuContext)")
 
-        // If menu is already open, push current context to stack
-        if case .open = menuState {
-            menuNavigationStack.append(currentMenuContext)
-
-            // Capture current position and close
-            let currentPosition = overlayWindow.centerPosition
-
-            menuState = .closing
-            let animationDuration = configuration.appearanceSettings.animationDuration
-
-            DispatchQueue.main.asyncAfter(deadline: .now() + animationDuration) { [weak self] in
-                guard let self = self else { return }
-
-                self.overlayWindow.hide()
-                self.menuState = .closed
-                self.selectedIndex = nil
-
-                // Now open the app-specific menu
-                self.openAppSpecificMenuInternal(
-                    bundleIdentifier: bundleIdentifier,
-                    at: currentPosition
-                )
+        switch menuState {
+        case .open:
+            // Ring navigation: if on app-specific, go to default; if on default, go to app-specific
+            if case .appSpecific(let currentBundleID) = currentMenuContext, currentBundleID == bundleIdentifier {
+                // On app-specific menu, switch to default (ring navigation)
+                LogMenu("Ring navigation: switching from app-specific to default")
+                transitionToDefaultMenu()
+            } else {
+                // On default menu, switch to app-specific
+                LogMenu("Ring navigation: switching from default to app-specific")
+                currentAppBundleID = bundleIdentifier
+                transitionToAppSpecificMenu(bundleIdentifier: bundleIdentifier)
             }
-        } else {
-            // Menu is closed, open directly
+
+        case .closed:
+            // Menu is closed, open app-specific menu
+            currentAppBundleID = bundleIdentifier
             openAppSpecificMenuInternal(bundleIdentifier: bundleIdentifier, at: position)
+
+        case .opening, .closing, .executing:
+            // Menu is in transition, ignore request
+            LogMenu("Ignoring app-specific menu request during transition state: \(menuState)")
+        }
+    }
+
+    /// Transitions from current menu to the default menu (ring navigation)
+    private func transitionToDefaultMenu() {
+        let currentPosition = overlayWindow.centerPosition
+
+        menuState = .closing
+        let animationDuration = configuration.appearanceSettings.animationDuration
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + animationDuration) { [weak self] in
+            guard let self = self else { return }
+
+            self.overlayWindow.hide()
+            self.menuState = .closed
+            self.selectedIndex = nil
+
+            // Restore original configuration if we were using an override
+            if self.isUsingOverrideConfiguration, let original = self.originalConfiguration {
+                self.configuration = original
+                LogMenu("Restored original configuration")
+            }
+            self.isUsingOverrideConfiguration = false
+            self.originalConfiguration = nil
+
+            self.currentMenuContext = .default
+            self.openMenu(at: currentPosition)
+        }
+    }
+
+    /// Transitions from current menu to an app-specific menu (ring navigation)
+    private func transitionToAppSpecificMenu(bundleIdentifier: String) {
+        let currentPosition = overlayWindow.centerPosition
+
+        menuState = .closing
+        let animationDuration = configuration.appearanceSettings.animationDuration
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + animationDuration) { [weak self] in
+            guard let self = self else { return }
+
+            self.overlayWindow.hide()
+            self.menuState = .closed
+            self.selectedIndex = nil
+
+            self.openAppSpecificMenuInternal(bundleIdentifier: bundleIdentifier, at: currentPosition)
         }
     }
 
@@ -546,64 +583,36 @@ final class RadialMenuViewModel: ObservableObject {
         }
     }
 
-    /// Returns to the previous menu in the navigation stack.
+    /// Navigates to the previous menu in the ring (default ↔ app-specific).
     ///
-    /// If the stack is empty, closes the menu instead.
+    /// Ring navigation: LB toggles between default and app-specific menus.
     func returnToPreviousMenu() {
-        guard !menuNavigationStack.isEmpty else {
-            LogMenu("Navigation stack empty, closing menu")
-            closeMenu()
+        // Only allow navigation when menu is fully open, not during transitions
+        guard case .open = menuState else {
+            LogMenu("Ignoring ring navigation, not in open state: \(menuState)")
             return
         }
 
-        let previousContext = menuNavigationStack.removeLast()
-        LogMenu("Returning to previous menu context: \(previousContext)")
-
-        // Capture current position before closing
-        let currentPosition = overlayWindow.centerPosition
-
-        // Clear task switcher state if we're leaving it
-        if case .taskSwitcher = currentMenuContext {
-            taskSwitcherIconCache.removeAll()
-        }
-
-        // Close current menu
-        menuState = .closing
-
-        let animationDuration = configuration.appearanceSettings.animationDuration
-        DispatchQueue.main.asyncAfter(deadline: .now() + animationDuration) { [weak self] in
-            guard let self = self else { return }
-
-            self.overlayWindow.hide()
-            self.menuState = .closed
-            self.selectedIndex = nil
-
-            // Restore original configuration if we were using an override
-            if self.isUsingOverrideConfiguration, let original = self.originalConfiguration {
-                self.configuration = original
-                LogMenu("Restored original configuration")
+        // Ring navigation: toggle between default and app-specific
+        switch currentMenuContext {
+        case .default:
+            // On default menu, switch to app-specific (if we have a cached bundle ID)
+            if let bundleID = currentAppBundleID {
+                LogMenu("Ring navigation (LB): switching from default to app-specific for \(bundleID)")
+                transitionToAppSpecificMenu(bundleIdentifier: bundleID)
+            } else {
+                LogMenu("Ring navigation (LB): no cached app bundle ID, staying on default")
             }
-            self.isUsingOverrideConfiguration = false
-            self.originalConfiguration = nil
-            self.returnSelectionOnly = false
 
-            // Update current context
-            self.currentMenuContext = previousContext
+        case .appSpecific:
+            // On app-specific menu, switch to default
+            LogMenu("Ring navigation (LB): switching from app-specific to default")
+            transitionToDefaultMenu()
 
-            // Open the previous menu
-            switch previousContext {
-            case .default:
-                self.openMenu(at: currentPosition)
-
-            case .appSpecific(let bundleID):
-                // Re-resolve the app-specific menu
-                self.openAppSpecificMenuInternal(bundleIdentifier: bundleID, at: currentPosition)
-
-            case .taskSwitcher:
-                // Rebuild and open task switcher
-                let taskSwitcherConfig = self.buildTaskSwitcherConfiguration()
-                self.openMenu(with: taskSwitcherConfig, at: currentPosition)
-            }
+        case .taskSwitcher:
+            // Task switcher is separate from the ring, just close it
+            LogMenu("Closing task switcher")
+            closeMenu()
         }
     }
 
@@ -658,9 +667,6 @@ final class RadialMenuViewModel: ObservableObject {
     /// Opens the task switcher menu
     private func openTaskSwitcher() {
         LogMenu("Opening task switcher")
-
-        // Push current context to navigation stack
-        menuNavigationStack.append(currentMenuContext)
 
         // Capture current menu position before closing
         let currentPosition = overlayWindow.centerPosition

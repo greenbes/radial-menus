@@ -168,11 +168,13 @@ App-specific menus allow different menu configurations for different application
 
 **Fallback**: If no app-specific menu exists for the frontmost application, the default menu is displayed.
 
-**Navigation**:
+**Navigation** (Ring):
 
-- Right shoulder (RB/R1): Open app-specific menu for frontmost app
-- Left shoulder (LB/L1): Return to previous menu in navigation stack
-- B button: Also returns to previous menu (or closes if at root)
+Menus are linked in a ring. Shoulder buttons cycle between default and app-specific menus:
+
+- Right shoulder (RB/R1): Switch to next menu in ring (default ↔ app-specific)
+- Left shoulder (LB/L1): Switch to previous menu in ring (default ↔ app-specific)
+- B button: Close menu
 
 **Example app-specific menu** (`org.mozilla.firefox.json`):
 ```json
@@ -258,6 +260,8 @@ log show --predicate 'subsystem == "Six-Gables-Software.radial-menu" AND categor
 ./scripts/run-with-logs.sh
 ```
 
+**IMPORTANT**: Debug-level logs are NOT persisted to the system log. To capture debug logs, use `log stream` in a background task and read the output file after testing. For Info-level and above, use `log show`.
+
 **IMPORTANT**: Do NOT use `print()` statements. Always use the appropriate category log function.
 
 ## Input Handling
@@ -277,10 +281,10 @@ log show --predicate 'subsystem == "Six-Gables-Software.radial-menu" AND categor
     - Left stick → Selection
     - Right stick → Reposition menu
     - A button → Confirm
-    - B button → Cancel / return to previous menu
+    - B button → Close menu
     - Menu button → Toggle default menu
-    - Right shoulder (RB/R1) → Open app-specific menu for frontmost app
-    - Left shoulder (LB/L1) → Return to previous menu
+    - Right shoulder (RB/R1) → Cycle to next menu in ring (default ↔ app-specific)
+    - Left shoulder (LB/L1) → Cycle to previous menu in ring (default ↔ app-specific)
     - D-pad left/right → Navigate slices
 
 - **Polling rate**: 60Hz
