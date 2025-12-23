@@ -61,8 +61,25 @@ struct RadialMenuView: View {
                     )
                     .position(centerPoint)
 
-                // Center content: title text or default icon
-                if let title = viewModel.configuration.centerTitle {
+                // Center content: app icon + title for app-specific menus, or title/default icon
+                if let appIcon = viewModel.appSpecificIcon {
+                    // App-specific menu: show app icon and title
+                    VStack(spacing: 4) {
+                        Image(nsImage: appIcon)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: centerRadius * 0.8, height: centerRadius * 0.8)
+                        if let title = viewModel.configuration.centerTitle {
+                            Text(title)
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(foregroundColor)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                        }
+                    }
+                    .frame(width: centerRadius * 1.6, height: centerRadius * 1.6)
+                    .position(centerPoint)
+                } else if let title = viewModel.configuration.centerTitle {
                     Text(title)
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(foregroundColor)

@@ -86,7 +86,7 @@ class OverlayWindowController: OverlayWindowProtocol {
             return
         }
 
-        // Position the window
+        // Position the window and ensure correct size
         // Note: Cocoa coords are bottom-left origin. Mouse location is usually bottom-left relative to screen.
         let targetPosition = position ?? NSEvent.mouseLocation
         let windowOrigin = CGPoint(
@@ -94,9 +94,17 @@ class OverlayWindowController: OverlayWindowProtocol {
             y: targetPosition.y - windowSize.height / 2
         )
 
-        LogWindow("Positioning window at \(windowOrigin), mouse: \(NSEvent.mouseLocation)")
+        LogWindow("Positioning window at \(windowOrigin), size: \(windowSize), mouse: \(NSEvent.mouseLocation)")
 
-        window.setFrameOrigin(windowOrigin)
+        // Set full frame (origin and size) to handle cases where size changed while hidden
+        window.setFrame(
+            NSRect(origin: windowOrigin, size: windowSize),
+            display: true,
+            animate: false
+        )
+
+        // Update hosting view frame to match
+        hostingView?.frame = NSRect(origin: .zero, size: windowSize)
 
         // Force activation to ensure SwiftUI renders and we capture keyboard events
         NSApp.activate(ignoringOtherApps: true)

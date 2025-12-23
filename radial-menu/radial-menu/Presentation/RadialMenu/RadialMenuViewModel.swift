@@ -147,6 +147,27 @@ final class RadialMenuViewModel: ObservableObject {
         }
     }
 
+    /// Returns the app icon for the current app-specific menu, or nil if not an app-specific menu
+    var appSpecificIcon: NSImage? {
+        guard case .appSpecific(let bundleID) = currentMenuContext else {
+            return nil
+        }
+
+        // Try to get icon from running app first
+        if let app = NSWorkspace.shared.runningApplications
+            .first(where: { $0.bundleIdentifier == bundleID }),
+           let icon = app.icon {
+            return icon
+        }
+
+        // Try to get icon from bundle path
+        if let bundleURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
+            return NSWorkspace.shared.icon(forFile: bundleURL.path)
+        }
+
+        return nil
+    }
+
     func toggleMenu() {
         LogMenu("toggleMenu() called, state: \(menuState)")
 
@@ -198,7 +219,23 @@ final class RadialMenuViewModel: ObservableObject {
         isUsingOverrideConfiguration = true
         returnSelectionOnly = returnOnly
 
-        // Apply override configuration
+        // Pre-calculate all values BEFORE setting @Published properties to prevent double-render
+        let newRadius = configuration.appearanceSettings.radius
+        let windowSize = newRadius * 2.2
+        let windowCenter = CGPoint(x: windowSize / 2, y: windowSize / 2)
+        let centerRadius = configuration.appearanceSettings.centerRadius
+        let newSlices = RadialGeometry.calculateSlices(
+            itemCount: configuration.items.count,
+            radius: newRadius,
+            centerRadius: centerRadius,
+            centerPoint: windowCenter
+        )
+
+        // Update window size before setting @Published properties
+        overlayWindow.updateWindowSize(forRadius: newRadius)
+
+        // Apply configuration and slices together to batch SwiftUI updates
+        self.slices = newSlices
         self.configuration = configuration
         LogMenu("Applied override configuration with \(configuration.items.count) items, returnOnly=\(returnOnly)")
 
@@ -223,7 +260,7 @@ final class RadialMenuViewModel: ObservableObject {
         menuState = .opening
         selectedIndex = nil
 
-        // Calculate slices
+        // Calculate slices (skip if already calculated with correct count - e.g., from openMenu(with:))
         // Window size is dynamic based on radius (radius * 2.2)
         let radius = configuration.appearanceSettings.radius
         let windowSize = radius * 2.2
@@ -232,14 +269,19 @@ final class RadialMenuViewModel: ObservableObject {
         // Update window size before showing
         overlayWindow.updateWindowSize(forRadius: radius)
 
-        let centerRadius = configuration.appearanceSettings.centerRadius
-        slices = RadialGeometry.calculateSlices(
-            itemCount: configuration.items.count,
-            radius: radius,
-            centerRadius: centerRadius,
-            centerPoint: windowCenter
-        )
-        LogMenu("Calculated \(slices.count) slices, windowSize=\(windowSize), center=\(windowCenter)", level: .debug)
+        // Only recalculate slices if needed (count mismatch means we need fresh calculation)
+        if slices.count != configuration.items.count {
+            let centerRadius = configuration.appearanceSettings.centerRadius
+            slices = RadialGeometry.calculateSlices(
+                itemCount: configuration.items.count,
+                radius: radius,
+                centerRadius: centerRadius,
+                centerPoint: windowCenter
+            )
+            LogMenu("Calculated \(slices.count) slices, windowSize=\(windowSize), center=\(windowCenter)", level: .debug)
+        } else {
+            LogMenu("Using pre-calculated \(slices.count) slices", level: .debug)
+        }
 
         // Log slice positions for debugging
         for (index, slice) in slices.enumerated() where index < configuration.items.count {
@@ -526,6 +568,23 @@ final class RadialMenuViewModel: ObservableObject {
 
             // Restore original configuration if we were using an override
             if self.isUsingOverrideConfiguration, let original = self.originalConfiguration {
+                // Pre-calculate all values BEFORE setting @Published properties to prevent double-render
+                let newRadius = original.appearanceSettings.radius
+                let windowSize = newRadius * 2.2
+                let windowCenter = CGPoint(x: windowSize / 2, y: windowSize / 2)
+                let centerRadius = original.appearanceSettings.centerRadius
+                let newSlices = RadialGeometry.calculateSlices(
+                    itemCount: original.items.count,
+                    radius: newRadius,
+                    centerRadius: centerRadius,
+                    centerPoint: windowCenter
+                )
+
+                // Update window size before setting @Published properties
+                self.overlayWindow.updateWindowSize(forRadius: newRadius)
+
+                // Apply slices and configuration together
+                self.slices = newSlices
                 self.configuration = original
                 LogMenu("Restored original configuration")
             }
@@ -737,8 +796,17 @@ final class RadialMenuViewModel: ObservableObject {
                 LogError("Action failed: \(error.localizedDescription)", category: .action)
             }
 
-            // Close menu and report the selected item
-            self.closeMenu(withSelectedItem: item)
+            // For app-specific menus, keep menu open (sticky behavior)
+            // User must press B button or hamburger to close
+            if case .appSpecific(_) = self.currentMenuContext {
+                LogAction("Keeping app-specific menu open (sticky mode)")
+                // Reset to open state with no selection
+                self.menuState = .open(selectedIndex: nil)
+                self.selectedIndex = nil
+            } else {
+                // Close menu and report the selected item for default/task switcher menus
+                self.closeMenu(withSelectedItem: item)
+            }
         }
     }
 
