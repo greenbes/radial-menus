@@ -1,6 +1,15 @@
 # Radial Menu Overlay
 
-Lightweight macOS radial menu with configurable actions, icon sets, and keyboard/controller navigation.
+This project is a proof of concept built to establish that radial menus could be
+constructed on macOS and controlled with a game controller.
+
+There are no active users and no migration or backward compatibility requirements.
+A full rearchitecture is in scope. No existing code needs to be carried forward;
+reuse it only where it is useful.
+
+The new menu/controller implementation is in [prototype/](prototype/README.md).
+See [ARCHITECTURE.md](ARCHITECTURE.md) for its intended architecture. The sections
+below describe the original proof of concept.
 
 ## Features
 

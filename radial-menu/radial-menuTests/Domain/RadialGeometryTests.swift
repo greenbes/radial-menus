@@ -89,7 +89,7 @@ final class RadialGeometryTests: XCTestCase {
 
     func testNormalizeAngle_WithNegativeAngle_ConvertsToPositive() {
         // Given
-        let angle = -.pi / 2
+        let angle: Double = -.pi / 2
 
         // When
         let normalized = RadialGeometry.normalizeAngle(angle)

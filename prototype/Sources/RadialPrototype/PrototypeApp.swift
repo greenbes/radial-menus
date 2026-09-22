@@ -1,0 +1,211 @@
+import AppKit
+import Observation
+import SwiftUI
+import RadialCore
+import RadialRuntime
+import RadialMac
+import RadialUI
+
+@main @MainActor enum PrototypeApp {
+    static func main() {
+        let app = NSApplication.shared
+        let delegate = ApplicationDelegate()
+        app.setActivationPolicy(.accessory)
+        app.delegate = delegate
+        withExtendedLifetime(delegate) { app.run() }
+    }
+}
+
+@Observable @MainActor final class EventLog {
+    private(set) var lines: [String] = []
+    private var file: FileHandle?
+
+    init(url: URL?) throws {
+        if let url {
+            try Data().write(to: url, options: .atomic)
+            file = try FileHandle(forWritingTo: url)
+        }
+    }
+
+    func append(_ message: String) {
+        lines.append(message)
+        if lines.count > 150 { lines.removeFirst(lines.count - 150) }
+        if let file {
+            do { try file.write(contentsOf: Data((message + "\n").utf8)) }
+            catch { self.file = nil; lines.append("Recording failed: \(error.localizedDescription)") }
+        }
+    }
+}
+
+@MainActor final class ApplicationDelegate: NSObject, NSApplicationDelegate {
+    private var store: Store!
+    private let panel = PanelAdapter()
+    private let controllers = ControllerAdapter()
+    private let scheduler = TaskScheduler()
+    private var log: EventLog!
+    private var status: NSStatusItem?
+    private var diagnostics: NSWindow?
+    private var terminating = false
+    private var terminationSignal: DispatchSourceSignal?
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        do {
+            log = try EventLog(url: argument("--record").map { URL(fileURLWithPath: $0) })
+        } catch {
+            FileHandle.standardError.write(Data("Cannot create event recording: \(error)\n".utf8))
+            exit(1)
+        }
+        store = Store(menu: SampleMenu.definition, window: panel, controller: controllers, scheduler: scheduler)
+        panel.content = NSHostingView(rootView: MenuContainer(store: store))
+        panel.onNativeObservation = { [weak log] in log?.append("Window: " + $0) }
+        controllers.receive = { [weak store, weak log] event in
+            log?.append("Controller: \(event)")
+            store?.send(event)
+        }
+        store.onOutput = { [weak log] in log?.append("Result: \($0)") }
+        installMenu()
+        signal(SIGTERM, SIG_IGN)
+        let terminationSignal = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
+        terminationSignal.setEventHandler { [weak self] in self?.quitApp() }
+        terminationSignal.resume()
+        self.terminationSignal = terminationSignal
+        store.send(.start)
+        if let path = argument("--smoke-test") {
+            Task { @MainActor in
+                let probe = NativeSmoke(store: store, panel: panel)
+                let passed = await probe.run(report: URL(fileURLWithPath: path))
+                store.send(.stop)
+                exit(passed ? 0 : 1)
+            }
+        } else {
+            showDiagnostics()
+        }
+    }
+
+    private func argument(_ flag: String) -> String? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let index = args.firstIndex(of: flag), index + 1 < args.count else { return nil }
+        return args[index + 1]
+    }
+
+    private func installMenu() {
+        let mainMenu = NSMenu()
+        let appItem = NSMenuItem()
+        let appMenu = NSMenu()
+        let quit = NSMenuItem(title: "Quit Radial Prototype", action: #selector(quitApp), keyEquivalent: "q")
+        quit.target = self
+        appMenu.addItem(quit)
+        appItem.submenu = appMenu
+        mainMenu.addItem(appItem)
+        NSApp.mainMenu = mainMenu
+
+        let status = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        status.button?.image = NSImage(systemSymbolName: "circle.grid.2x2", accessibilityDescription: "Radial Prototype")
+        let menu = NSMenu()
+        for (title, action) in [("Open menu", #selector(openMenu)), ("Show diagnostics", #selector(showDiagnostics)),
+                                ("Recover window", #selector(recover)), ("Quit", #selector(quitApp))] {
+            let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+            item.target = self
+            menu.addItem(item)
+        }
+        status.menu = menu
+        self.status = status
+    }
+
+    @objc private func openMenu() { store.send(.open(nil)) }
+    @objc private func recover() { store.send(.recover) }
+    @objc private func quitApp() { NSApp.terminate(nil) }
+
+    @objc private func showDiagnostics() {
+        if diagnostics == nil {
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 660, height: 650),
+                                  styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
+            window.title = "Radial Menu Prototype"
+            window.isReleasedWhenClosed = false
+            window.contentView = NSHostingView(rootView: DiagnosticsView(store: store, log: log))
+            window.center()
+            diagnostics = window
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        diagnostics?.makeKeyAndOrderFront(nil)
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if terminating { return .terminateNow }
+        store.send(.stop)
+        Task { @MainActor in
+            let deadline = ContinuousClock.now.advanced(by: .seconds(4))
+            while store.model.phase.session != nil && ContinuousClock.now < deadline {
+                try? await Task.sleep(for: .milliseconds(20))
+            }
+            terminating = true
+            NSApp.terminate(nil)
+        }
+        return .terminateCancel
+    }
+}
+
+@MainActor private struct MenuContainer: View {
+    let store: Store
+    var body: some View { MenuView(model: store.view) { store.send($0) } }
+}
+
+@MainActor private struct DiagnosticsView: View {
+    let store: Store
+    let log: EventLog
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Radial Menu Prototype").font(.title2.bold())
+            Text("Choose a color using a controller, keyboard, or the menu buttons. Choices appear here; they do not execute commands.")
+            HStack {
+                Button("Open menu") { store.send(.open(nil)) }
+                    .disabled(!store.model.canOpen)
+                Button("Recover window") { store.send(.recover) }
+                    .disabled(!store.model.canRecover)
+                Spacer()
+                Text(store.model.phase.name).font(.headline)
+            }
+            GroupBox("Controllers") {
+                VStack(alignment: .leading, spacing: 8) {
+                    if store.model.controllers.isEmpty { Text("No controller detected by macOS.") }
+                    ForEach(store.model.controllers.keys.sorted(), id: \.self) { id in
+                        if let controller = store.model.controllers[id] {
+                            Text(controller.info.name).bold()
+                            Text(controller.info.supported ? controller.info.detail : "Unsupported: \(controller.info.detail)")
+                                .font(.caption)
+                        }
+                    }
+                }.frame(maxWidth: .infinity, alignment: .leading).padding(4)
+            }
+            Text("Controller: Menu opens or cancels. Left stick selects; D-pad left/right steps. Confirm chooses; Back returns or cancels. Release controls when entering a submenu.")
+            Text("Keyboard: arrows select, Return chooses, Escape goes back. You can also click an item.")
+            GroupBox("Recent results") {
+                VStack(alignment: .leading, spacing: 5) {
+                    if store.outputs.isEmpty { Text("No completed interaction yet.").foregroundStyle(.secondary) }
+                    ForEach(Array(store.outputs.suffix(4).enumerated()), id: \.offset) { _, output in
+                        Text(description(output)).textSelection(.enabled)
+                    }
+                }.frame(maxWidth: .infinity, alignment: .leading).padding(4)
+            }
+            GroupBox("Observed events") {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 5) {
+                        ForEach(Array(log.lines.suffix(35).enumerated()), id: \.offset) { _, line in
+                            Text(line).font(.system(size: 10, design: .monospaced)).textSelection(.enabled)
+                        }
+                    }.frame(maxWidth: .infinity, alignment: .leading)
+                }.frame(minHeight: 100)
+            }
+        }.padding(24).frame(minWidth: 570, minHeight: 610)
+    }
+
+    private func description(_ output: Output) -> String {
+        switch output {
+        case .rejected(let reason): "Could not open: \(reason.rawValue)"
+        case .completed(_, .selected(let choice)): "Selected \(choice.value)"
+        case .completed(_, .cancelled(let reason)): "Cancelled: \(reason.rawValue)"
+        case .completed(_, .failed(let failure)): "Failed: \(failure.message)"
+        }
+    }
+}
