@@ -6,6 +6,8 @@ import RadialRuntime
     private var tasks: [OperationID: Task<Void, Never>] = [:]
     private var movementTasks: [MovementID: Task<Void, Never>] = [:]
     public init() {}
+    public var activeDeadlineCount: Int { tasks.count }
+    public var activeMovementCount: Int { movementTasks.count }
     public func schedule(operation: OperationID, after seconds: Double, receive: @escaping EventReceiver) {
         cancel(operation: operation)
         tasks[operation] = Task { [weak self] in

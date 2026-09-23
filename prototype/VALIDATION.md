@@ -3,6 +3,79 @@
 These results apply to the fixed example menu and the recorded environment;
 they do not establish support for every device or desktop setup.
 
+## Controller lifecycle and shutdown milestone: 2026-09-23
+
+On the same macOS 27.0, Xcode 27.0, and Swift 6.4 environment:
+
+- **74 XCTest tests passed:** 66 core tests, 7 runtime tests, and 1 native
+  operation-order test. Eleven new core tests cover shutdown and reconnection;
+  two new runtime tests cover cleanup ordering and the overall deadline.
+- **Ten Python recording-verifier tests passed.** Positive and negative
+  fixtures cover movement, reconnection, and shutdown. Missing evidence,
+  contradictory results, resource leaks, wrong ordering, and early or late
+  shutdown deadlines are rejected.
+- **35 native menu assertions passed.** The additional five use controller
+  value fixtures with a real panel and movement timer to check disconnection,
+  fresh connection histories, held-button baselines, and obsolete callbacks.
+- **Seven separate application processes passed shutdown checks.** The script
+  observed their starting states, termination requests, terminal results,
+  resource state, AppKit termination notification, and process exit.
+- **Two deliberately broken variants failed their intended assertions.**
+  Accepting an obsolete resource-release reply failed the acknowledgment test.
+  Discarding a committed choice at the shutdown deadline failed the choice
+  preservation test. Both variants compiled before failing.
+
+The process cases start idle, opening, active, moving, dismissing a committed
+Blue choice, recovering, or waiting for a withheld resource-release reply.
+The test adapter holds selected acknowledgments and injects a cleanup failure
+for the recovery case. Native window operations still run. The missing-reply
+case reached the real overall deadline and reported failed shutdown; the
+observed interval from quit request to termination notification was about
+4.24 seconds. This is a recorded timeout check, not a latency benchmark.
+
+Every process recorded no remaining panel, pointer monitoring, window or
+controller observers, input handlers, movement timers, or operation deadlines
+at termination. The controller background-monitoring setting was restored.
+Session completion preceded shutdown completion, and the committed Blue
+choice survived a quit request during dismissal. A prior cleanup failure
+remained a session failure even when final resource release succeeded.
+
+The first process probe found an actual termination hang after successful
+cleanup. Calling AppKit termination from inside a Swift task left the task
+on the stack while AppKit entered its termination loop; the deferred reply
+did not execute. Routing the request through the main run loop allowed that
+task to return first. All seven process cases passed with the corrected path.
+
+A further regression test exposed loss of a committed choice if the operation
+identity counter is exhausted during shutdown. The test failed before the
+fix; exhaustion now preserves the choice in the terminal failure.
+
+**Physical Bluetooth disconnection and reconnection passed** with the
+GuliKit Controller XW. Connections 1 and 2 each opened a menu, moved the native
+panel, and disconnected. Sessions 1 and 2 each produced exactly one
+`controllerLost` cancellation after dismissal. Connection 3 received a fresh
+Menu input and a physical Confirm press; session 3 returned Red exactly once.
+The user confirmed that both requested behaviors worked. The verifier matched
+the complete sequence from connection 2 to connection 3.
+
+Both disconnects were preceded by neutral stick observations. The physical
+recording therefore establishes cancellation and fresh interaction after
+reconnection; it does not establish stopping an active movement timer at the
+instant of disconnection. The scripted native check covers that case. All
+physical reconnection baselines observed no held buttons, so the held-button
+case remains supported by deterministic and scripted checks only.
+
+After the physical test, a normal termination signal exercised the production
+quit path with the GuliKit connected. It recorded successful resource release,
+no remaining input handlers or native resources, restored background
+monitoring, and AppKit's termination notification. Multiple physical
+controllers, VoiceOver, display removal, and Spaces remain outside these
+results.
+
+Artifacts are saved locally under `build/verification/lifecycle/`, including
+native process recordings and reports, menu smoke results, test output, and
+mutation results. They are excluded from Git.
+
 ## Pointer and mixed-input milestone: 2026-09-23
 
 On the same macOS 27.0, Xcode 27.0, and Swift 6.4 environment:

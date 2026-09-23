@@ -1,6 +1,7 @@
 import AppKit
 import Observation
 import SwiftUI
+import GameController
 import RadialCore
 import RadialRuntime
 import RadialMac
@@ -40,6 +41,20 @@ import RadialUI
         write(TransitionRecording.value(event: event, transition: transition))
     }
 
+    func recordResources(_ values: [String: Any]) {
+        var record = values
+        record["kind"] = "shutdownResources"
+        record["uptime"] = ProcessInfo.processInfo.systemUptime
+        write(record)
+    }
+
+    func recordProbe(_ values: [String: Any]) {
+        var record = values
+        record["kind"] = "shutdownProbe"
+        record["uptime"] = ProcessInfo.processInfo.systemUptime
+        write(record)
+    }
+
     private func write(_ record: [String: Any]) {
         if let file {
             do {
@@ -59,8 +74,10 @@ import RadialUI
     private var log: EventLog!
     private var status: NSStatusItem?
     private var diagnostics: NSWindow?
-    private var terminating = false
+    private var terminationRequested = false
+    private var terminationReplyScheduled = false
     private var terminationSignal: DispatchSourceSignal?
+    private var shutdownProbe: ShutdownProbe?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         do {
@@ -69,7 +86,15 @@ import RadialUI
             FileHandle.standardError.write(Data("Cannot create event recording: \(error)\n".utf8))
             exit(1)
         }
-        store = Store(menu: SampleMenu.definition, window: panel, controller: controllers,
+        if let stage = argument("--shutdown-test") {
+            guard let stage = ShutdownProbe.Stage(rawValue: stage) else {
+                FileHandle.standardError.write(Data("Unknown shutdown test stage\n".utf8))
+                exit(2)
+            }
+            shutdownProbe = ShutdownProbe(stage: stage, panel: panel)
+        }
+        let window: any WindowDriver = shutdownProbe ?? panel
+        store = Store(menu: SampleMenu.definition, window: window, controller: controllers,
                       scheduler: scheduler, movementClock: scheduler)
         panel.content = NSHostingView(rootView: MenuContainer(store: store))
         panel.onNativeObservation = { [weak log] in log?.append("Window: " + $0) }
@@ -77,7 +102,12 @@ import RadialUI
             log?.append("Controller: \(event)")
             store?.send(event)
         }
-        store.onOutput = { [weak log] in log?.append("Result: \($0)") }
+        store.onOutput = { [weak self] output in
+            self?.log.append("Result: \(output)")
+            if case .shutdownCompleted = output, self?.terminationRequested == true {
+                self?.scheduleTerminationReply()
+            }
+        }
         store.onTransition = { [weak log] event, transition in log?.record(event, transition) }
         installMenu()
         signal(SIGTERM, SIG_IGN)
@@ -86,7 +116,9 @@ import RadialUI
         terminationSignal.resume()
         self.terminationSignal = terminationSignal
         store.send(.start)
-        if let path = argument("--smoke-test") {
+        if let shutdownProbe {
+            Task { @MainActor in await shutdownProbe.run(store: store, log: log, quit: quitApp) }
+        } else if let path = argument("--smoke-test") {
             Task { @MainActor in
                 let probe = NativeSmoke(store: store, panel: panel)
                 let passed = await probe.run(report: URL(fileURLWithPath: path))
@@ -130,7 +162,14 @@ import RadialUI
 
     @objc private func openMenu() { store.send(.open(nil)) }
     @objc private func recover() { store.send(.recover) }
-    @objc private func quitApp() { NSApp.terminate(nil) }
+    @objc private func quitApp() {
+        // terminateLater runs a nested AppKit loop. Enter it from the run loop,
+        // after the current Swift task or dispatch callback has returned, so
+        // that cleanup tasks and the final reply can still use the main queue.
+        RunLoop.main.perform(inModes: [.common]) {
+            MainActor.assumeIsolated { NSApp.terminate(nil) }
+        }
+    }
 
     @objc private func showDiagnostics() {
         if diagnostics == nil {
@@ -147,17 +186,44 @@ import RadialUI
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        if terminating { return .terminateNow }
-        store.send(.stop)
-        Task { @MainActor in
-            let deadline = ContinuousClock.now.advanced(by: .seconds(4))
-            while store.model.phase.session != nil && ContinuousClock.now < deadline {
-                try? await Task.sleep(for: .milliseconds(20))
-            }
-            terminating = true
-            NSApp.terminate(nil)
+        guard let store else { return .terminateNow }
+        if !terminationRequested {
+            terminationRequested = true
+            log.append("Application termination requested")
+            store.send(.stop)
         }
-        return .terminateCancel
+        if case .stopped = store.model.lifecycle { scheduleTerminationReply() }
+        return .terminateLater
+    }
+
+    private func scheduleTerminationReply() {
+        guard !terminationReplyScheduled else { return }
+        terminationReplyScheduled = true
+        // A synchronous native acknowledgment can reach this callback while
+        // applicationShouldTerminate is still on the stack. Reply on the next
+        // main-queue turn, after AppKit has received terminateLater.
+        DispatchQueue.main.async { [self] in
+            terminationSignal?.cancel()
+            terminationSignal = nil
+            if let status { NSStatusBar.system.removeStatusItem(status) }
+            status = nil
+            diagnostics?.close()
+            diagnostics = nil
+            log.recordResources([
+                "panelVisible": panel.isVisible,
+                "panelResources": panel.hasNativeResources,
+                "controllerResources": controllers.hasNativeResources,
+                "deadlineCount": scheduler.activeDeadlineCount,
+                "movementCount": scheduler.activeMovementCount,
+                "backgroundMonitoringRestored": controllers.backgroundMonitoringRestored,
+                "inputHandlersReleased": GCController.controllers().allSatisfy { $0.input.inputStateAvailableHandler == nil }
+            ])
+            NSApp.reply(toApplicationShouldTerminate: true)
+        }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        log?.append("Application will terminate")
     }
 }
 
@@ -222,6 +288,8 @@ import RadialUI
         case .completed(_, .selected(let choice)): "Selected \(choice.value)"
         case .completed(_, .cancelled(let reason)): "Cancelled: \(reason.rawValue)"
         case .completed(_, .failed(let failure)): "Failed: \(failure.message)"
+        case .shutdownCompleted(.completed): "Application resources released"
+        case .shutdownCompleted(.failed(let message)): "Shutdown failed: \(message)"
         }
     }
 }

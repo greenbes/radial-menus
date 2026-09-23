@@ -7,13 +7,17 @@ import RadialCore
     var synchronous = true
     var presented: [OperationID] = []
     var dismissed: [OperationID] = []
+    var released: [OperationID] = []
     var inspect: (() -> Void)?
+    var inspectDismissal: (() -> Void)?
+    var inspectRelease: (() -> Void)?
     func present(scope: InputScope, operation: OperationID) {
         inspect?(); presented.append(operation)
         if synchronous { receive?(.presented(operation)) }
     }
     func inspectPresentation(scope: InputScope, operation: OperationID) {}
     func dismiss(scope: InputScope, operation: OperationID) {
+        inspectDismissal?()
         dismissed.append(operation)
         if synchronous { receive?(.dismissed(operation)) }
     }
@@ -21,6 +25,10 @@ import RadialCore
         if synchronous { receive?(.moved(scope, operation, placement)) }
     }
     func recover(operation: OperationID) { if synchronous { receive?(.recovered(operation)) } }
+    func releaseResources(operation: OperationID) {
+        inspectRelease?(); released.append(operation)
+        if synchronous { receive?(.resourcesReleased(operation)) }
+    }
 }
 @MainActor private final class FakeController: ControllerDriver {
     var receive: EventReceiver?
@@ -40,13 +48,83 @@ import RadialCore
     func stopMovement(id: MovementID) { stoppedMovement.append(id); movement.removeValue(forKey: id) }
     var scheduled: [OperationID: EventReceiver] = [:]
     var cancelled: [OperationID] = []
+    var delays: [OperationID: Double] = [:]
     func schedule(operation: OperationID, after seconds: Double, receive: @escaping EventReceiver) {
         scheduled[operation] = receive
+        delays[operation] = seconds
     }
     func cancel(operation: OperationID) { cancelled.append(operation); scheduled.removeValue(forKey: operation) }
 }
 
 final class StoreTests: XCTestCase {
+    func testShutdownStopsSourcesBeforeCleanupAndPublishesResultsInOrder() async {
+        await MainActor.run {
+            let window = FakeWindow(), controller = FakeController(), clock = FakeClock()
+            let store = Store(menu: SampleMenu.definition, window: window, controller: controller,
+                              scheduler: clock, movementClock: clock)
+            store.send(.open(nil))
+            let scope = store.view.scope!
+            window.synchronous = false
+            window.inspectDismissal = {
+                XCTAssertEqual(controller.stops, 1)
+                XCTAssertTrue(clock.movement.isEmpty)
+                XCTAssertFalse(store.model.running)
+                XCTAssertTrue(store.outputs.isEmpty)
+            }
+            window.inspectRelease = {
+                XCTAssertEqual(controller.stops, 1)
+                XCTAssertEqual(store.model.phase, .idle)
+                XCTAssertFalse(store.model.running)
+            }
+            store.send(.stop)
+            guard case .stopping(let shutdown) = store.model.lifecycle else { return XCTFail("Not stopping") }
+            let dismissal = store.model.phase.operation!
+            XCTAssertEqual(clock.delays[shutdown.deadline], 4)
+            XCTAssertEqual(clock.delays[dismissal], 3)
+            XCTAssertEqual(Set(clock.scheduled.keys), [shutdown.deadline, dismissal])
+            XCTAssertTrue(window.released.isEmpty)
+            window.receive?(.dismissed(dismissal))
+            XCTAssertEqual(store.outputs, [.completed(scope.session, .cancelled(.applicationStopping))])
+            XCTAssertEqual(window.released.count, 1)
+            XCTAssertEqual(Set(clock.scheduled.keys), [shutdown.deadline])
+            window.receive?(.resourcesReleased(window.released[0]))
+            XCTAssertEqual(store.outputs.last, .shutdownCompleted(.completed))
+            XCTAssertTrue(clock.scheduled.isEmpty)
+            XCTAssertTrue(clock.movement.isEmpty)
+            XCTAssertEqual(store.model.lifecycle, .stopped(.completed))
+        }
+    }
+
+    func testMissingReleaseUsesOriginalOverallDeadlineAndLateCallbacksCannotSucceed() async {
+        await MainActor.run {
+            let window = FakeWindow(), controller = FakeController(), clock = FakeClock()
+            window.synchronous = false
+            let store = Store(menu: SampleMenu.definition, window: window, controller: controller,
+                              scheduler: clock, movementClock: clock)
+            store.send(.start)
+            store.send(.stop)
+            guard case .stopping(let shutdown) = store.model.lifecycle else { return XCTFail("Not stopping") }
+            let fire = clock.scheduled[shutdown.deadline]!
+            let originalRelease = window.released[0]
+            store.send(.stop)
+            XCTAssertEqual(clock.delays.count, 1)
+            XCTAssertEqual(window.released, [originalRelease])
+            fire(.deadline(shutdown.deadline))
+            XCTAssertEqual(store.outputs, [.shutdownCompleted(.failed("Application shutdown timed out"))])
+            XCTAssertEqual(window.released.count, 2)
+            XCTAssertGreaterThan(window.released[1], originalRelease)
+            XCTAssertTrue(clock.scheduled.isEmpty)
+            let stopped = store.model
+            window.receive?(.resourcesReleased(originalRelease))
+            window.receive?(.resourcesReleased(window.released[1]))
+            fire(.deadline(shutdown.deadline))
+            XCTAssertEqual(store.model, stopped)
+            XCTAssertEqual(store.outputs.count, 1)
+            XCTAssertEqual(controller.starts, 1)
+            XCTAssertEqual(controller.stops, 1)
+        }
+    }
+
     func testMovementClockStopsAndQueuedTickCannotMoveAfterNeutralOrShutdown() async {
         await MainActor.run {
             let window = FakeWindow(), controller = FakeController(), clock = FakeClock()
@@ -94,7 +172,8 @@ final class StoreTests: XCTestCase {
             let scope = store.view.scope!
             store.send(.stop)
             store.send(.stop)
-            XCTAssertEqual(store.outputs, [.completed(scope.session, .cancelled(.applicationStopping))])
+            XCTAssertEqual(store.outputs, [.completed(scope.session, .cancelled(.applicationStopping)),
+                                           .shutdownCompleted(.completed)])
             XCTAssertEqual(controller.stops, 1)
             XCTAssertTrue(clock.scheduled.isEmpty)
             XCTAssertFalse(store.model.canOpen)

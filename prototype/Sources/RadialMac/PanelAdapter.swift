@@ -43,6 +43,10 @@ public struct OperationOrder: Sendable {
     public var isKey: Bool { panel?.isKeyWindow == true }
     public var currentOperation: OperationID? { order.current }
     public var frame: NSRect? { panel?.frame }
+    public var hasNativeResources: Bool {
+        panel != nil || content != nil || workspaceObserver != nil || screenObserver != nil ||
+            activationObserver != nil || pointer.hasNativeResources
+    }
 
     public func present(scope: InputScope, operation: OperationID) {
         guard order.accept(operation) else { return }
@@ -153,18 +157,32 @@ public struct OperationOrder: Sendable {
 
     public func recover(operation: OperationID) {
         guard order.accept(operation) else { return }
+        guard destroyPanel(operation: operation) else { return }
+        receive?(.recovered(operation))
+    }
+
+    public func releaseResources(operation: OperationID) {
+        guard order.accept(operation) else { return }
+        guard destroyPanel(operation: operation) else { return }
+        content = nil
+        observe("Released window resources \(operation.value)")
+        receive?(.resourcesReleased(operation))
+    }
+
+    private func destroyPanel(operation: OperationID) -> Bool {
         pointer.stop()
         request = nil; readyScope = nil; restoration = nil; previousApplication = nil
         panel?.orderOut(nil)
+        panel?.contentView = nil
         panel?.close()
         guard panel?.isVisible != true else {
-            receive?(.operationFailed(operation, "Could not destroy the previous panel")); return
+            receive?(.operationFailed(operation, "Could not destroy the previous panel")); return false
         }
         panel = nil
         currentPlacement = nil
         assignedScreenID = nil
         removeObservers()
-        receive?(.recovered(operation))
+        return true
     }
 
     public func move(scope: InputScope, placement: Placement, operation: OperationID) {

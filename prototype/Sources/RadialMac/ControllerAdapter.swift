@@ -19,6 +19,10 @@ import RadialRuntime
     private var previousBackgroundMonitoring = false
 
     public init() {}
+    public var hasNativeResources: Bool { monitoring || !observers.isEmpty || !connections.isEmpty }
+    public var backgroundMonitoringRestored: Bool {
+        !monitoring && GCController.shouldMonitorBackgroundEvents == previousBackgroundMonitoring
+    }
 
     public func start() {
         guard !monitoring else { return }

@@ -1,6 +1,7 @@
 public func update(_ model: Model, _ event: Event) -> Transition {
     var change = Change(model)
     change.accept(event)
+    change.advanceShutdown()
     return change.result
 }
 
@@ -9,7 +10,8 @@ struct Change {
     let menu: Menu
     var phase: Phase
     var controllers: [ConnectionID: ControllerState]
-    var running: Bool
+    var lifecycle: ApplicationLifecycle
+    var running: Bool { lifecycle == .running }
     var nextSession: UInt64
     var nextOperation: UInt64
     var movement: MovementState
@@ -20,13 +22,13 @@ struct Change {
     var outputs: [Output] = []
 
     init(_ model: Model) {
-        menu = model.menu; phase = model.phase; controllers = model.controllers; running = model.running
+        menu = model.menu; phase = model.phase; controllers = model.controllers; lifecycle = model.lifecycle
         nextSession = model.nextSession; nextOperation = model.nextOperation
         movement = model.movement; movementSettings = model.movementSettings
         pointer = model.pointer; pointerSettings = model.pointerSettings
     }
     var result: Transition {
-        Transition(model: Model(menu: menu, phase: phase, controllers: controllers, running: running,
+        Transition(model: Model(menu: menu, phase: phase, controllers: controllers, lifecycle: lifecycle,
                                 nextSession: nextSession, nextOperation: nextOperation,
                                 movement: movement, movementSettings: movementSettings,
                                 pointer: pointer, pointerSettings: pointerSettings),
@@ -41,7 +43,9 @@ struct Change {
     }
 
     mutating func exhaustIdentities() {
-        let failure = SessionFailure(message: "Identity counter exhausted")
+        let choice: Choice?
+        if case .dismissing(_, _, let outcome) = phase { choice = outcome.choice } else { choice = nil }
+        let failure = SessionFailure(message: "Identity counter exhausted", committedChoice: choice)
         if let session = phase.session {
             outputs.append(.completed(session.scope.session, .failed(failure)))
             effects.append(.endInput(session.scope))
@@ -54,9 +58,7 @@ struct Change {
     mutating func accept(_ event: Event) {
         switch event {
         case .start: break
-        case .stop:
-            running = false
-            if let session = phase.session { cancel(session.scope, .applicationStopping) }
+        case .stop: stop()
         case .open(let owner): open(owner)
         case .select(let scope, let item, let source): select(scope, item, source)
         case .step(let scope, let direction): step(scope, direction)
@@ -85,16 +87,18 @@ struct Change {
             movementFailed(operation, "Window movement timed out")
             failed(operation, "Native operation timed out")
         case .operationFailed(let operation, let message):
+            releaseFailed(operation, message)
             movementFailed(operation, message)
             failed(operation, message)
         case .recover:
-            guard case .unavailable(let failure, nil) = phase, let operation = allocateOperation() else { return }
+            guard running, case .unavailable(let failure, nil) = phase, let operation = allocateOperation() else { return }
             phase = .unavailable(failure, operation)
             effects.append(.recover(operation))
         case .recovered(let operation):
             guard case .unavailable(_, operation?) = phase else { return }
             phase = .idle
         case .connected(let info, let frame):
+            guard running else { return }
             controllers[info.id] = ControllerState(info: info, frame: frame.isValid ? frame : nil)
             if case .active(let session) = phase { effects.append(.baseline(session.scope)) }
         case .disconnected(let connection):
@@ -109,6 +113,8 @@ struct Change {
         case .moved(let scope, let operation, let placement): moved(scope, operation, placement)
         case .pointerBaseline(let scope, let sample): pointerBaseline(scope, sample)
         case .pointerMoved(let scope, let sample): pointerMoved(scope, sample)
+        case .resourcesReleased(let operation): resourcesReleased(operation)
+        case .shutdownDeadline(let operation): shutdownDeadline(operation)
         }
     }
 

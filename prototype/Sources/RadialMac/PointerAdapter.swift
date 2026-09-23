@@ -11,6 +11,7 @@ import RadialRuntime
     private var monitor: Any?
     private var area: NSTrackingArea?
     private var receive: EventReceiver?
+    var hasNativeResources: Bool { monitor != nil || area != nil }
 
     func start(view: NSView, scope: InputScope, layout: UInt64, receive: @escaping EventReceiver) {
         stop()

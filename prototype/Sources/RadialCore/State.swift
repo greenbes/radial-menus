@@ -48,7 +48,9 @@ public enum Outcome: Equatable, Sendable {
     }
 }
 public enum Rejection: String, Equatable, Sendable { case busy, unavailable, stopped, unsupportedController }
-public enum Output: Equatable, Sendable { case rejected(Rejection), completed(SessionID, Outcome) }
+public enum Output: Equatable, Sendable {
+    case rejected(Rejection), completed(SessionID, Outcome), shutdownCompleted(ShutdownOutcome)
+}
 
 public struct Session: Equatable, Sendable {
     public let scope: InputScope
@@ -96,7 +98,8 @@ public struct Model: Equatable, Sendable {
     public let menu: Menu
     public let phase: Phase
     public let controllers: [ConnectionID: ControllerState]
-    public let running: Bool
+    public let lifecycle: ApplicationLifecycle
+    public var running: Bool { lifecycle == .running }
     public let movement: MovementState
     public let movementSettings: MovementSettings
     public let pointer: PointerState
@@ -106,16 +109,16 @@ public struct Model: Equatable, Sendable {
 
     public init(menu: Menu, movementSettings: MovementSettings = .standard,
                 pointerSettings: PointerSettings = .standard) {
-        self.init(menu: menu, phase: .idle, controllers: [:], running: true, nextSession: 1, nextOperation: 1,
+        self.init(menu: menu, phase: .idle, controllers: [:], lifecycle: .running, nextSession: 1, nextOperation: 1,
                   movementSettings: movementSettings, pointerSettings: pointerSettings)
     }
     public var canOpen: Bool { if case .idle = phase { running } else { false } }
-    public var canRecover: Bool { if case .unavailable(_, nil) = phase { true } else { false } }
-    init(menu: Menu, phase: Phase, controllers: [ConnectionID: ControllerState], running: Bool,
+    public var canRecover: Bool { if case .unavailable(_, nil) = phase { running } else { false } }
+    init(menu: Menu, phase: Phase, controllers: [ConnectionID: ControllerState], lifecycle: ApplicationLifecycle,
          nextSession: UInt64, nextOperation: UInt64, movement: MovementState = MovementState(),
          movementSettings: MovementSettings = .standard, pointer: PointerState = PointerState(),
          pointerSettings: PointerSettings = .standard) {
-        self.menu = menu; self.phase = phase; self.controllers = controllers; self.running = running
+        self.menu = menu; self.phase = phase; self.controllers = controllers; self.lifecycle = lifecycle
         self.nextSession = nextSession; self.nextOperation = nextOperation
         self.movement = movement; self.movementSettings = movementSettings
         self.pointer = pointer; self.pointerSettings = pointerSettings
@@ -136,14 +139,18 @@ public enum Event: Equatable, Sendable {
     case placementObserved(InputScope, Placement)
     case movementTick(MovementID, Double), moved(InputScope, OperationID, Placement)
     case pointerBaseline(InputScope, PointerSample), pointerMoved(InputScope, PointerSample)
+    case resourcesReleased(OperationID), shutdownDeadline(OperationID)
 }
 public enum Effect: Equatable, Sendable {
     case present(InputScope, OperationID), inspectPresentation(InputScope, OperationID)
     case dismiss(InputScope, OperationID), recover(OperationID)
     case baseline(InputScope), endInput(InputScope), resetInput(ConnectionID)
     case move(InputScope, Placement, OperationID)
+    case releaseResources(OperationID)
 }
-public enum Subscription: Hashable, Sendable { case controllers, deadline(OperationID), movement(MovementID) }
+public enum Subscription: Hashable, Sendable {
+    case controllers, deadline(OperationID), movement(MovementID), shutdownDeadline(OperationID)
+}
 public struct Transition: Equatable, Sendable {
     public let model: Model
     public let effects: [Effect]
@@ -170,7 +177,9 @@ public func render(_ model: Model) -> RenderModel {
 }
 
 public func subscriptions(_ model: Model) -> Set<Subscription> {
+    if case .stopped = model.lifecycle { return [] }
     var result: Set<Subscription> = model.running ? [.controllers] : []
+    if case .stopping(let shutdown) = model.lifecycle { result.insert(.shutdownDeadline(shutdown.deadline)) }
     if let operation = model.phase.operation { result.insert(.deadline(operation)) }
     if model.running, model.phase.isActive {
         if let activity = model.movement.activity { result.insert(.movement(activity.id)) }

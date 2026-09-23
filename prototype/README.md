@@ -74,6 +74,12 @@ After opening a menu or entering a submenu, release held buttons and center
 both sticks before selecting or moving again. Holding Confirm across navigation
 cannot activate an item in the new menu. A new press is required.
 
+Disconnecting the controller that opened the menu stops movement and cancels
+that interaction. Reconnecting gives the device a new connection identity;
+held buttons establish its initial state. Release them before pressing Menu
+or Confirm again. An unrelated controller disconnecting does not cancel the
+owner's menu. A choice already committed before disconnection is preserved.
+
 Right-stick deflection controls speed. Releasing it stops movement. The menu
 stays inside its assigned screen's usable area and does not cross onto another
 screen. Moving the menu preserves selection. Navigation stops movement until
@@ -123,6 +129,20 @@ item starts dismissal. The core emits the result after the adapter confirms
 that the panel is hidden and any requested focus restoration has finished.
 An unsuccessful cleanup produces a failure and blocks further opening until
 explicit recovery succeeds.
+
+Application shutdown is a separate core state transition. It disables new
+interactions, stops controller monitoring and movement, and completes any
+session cleanup before requesting final window-resource release. Only an
+acknowledgment of that release produces successful shutdown. A four-second
+overall deadline produces an explicit failure if cleanup does not finish;
+repeated quit requests do not extend it. A committed choice remains attached
+to its session result, including a cleanup failure. These cooperative deadlines
+require a responsive main thread.
+
+The AppKit delegate waits for the shutdown result before permitting process
+termination. Quit requests originating in Swift tasks or dispatch callbacks
+enter AppKit through the main run loop, allowing its termination loop to
+continue processing cleanup tasks and the final reply.
 
 Session identities reject events from an earlier interaction. Each navigation
 also changes the menu revision. Window operation identities are checked both
@@ -201,6 +221,7 @@ instance closed:
 
 ```sh
 ./prototype/scripts/smoke-test.sh
+./prototype/scripts/lifecycle-test.sh
 ```
 
 This temporarily opens menus and changes application focus. The script prints
@@ -209,6 +230,15 @@ the location of a fresh temporary directory containing `report.json`,
 It returns failure if the report is absent, malformed, or unsuccessful.
 The report distinguishes
 scripted input from physical controller operation.
+
+The lifecycle script starts seven separate app processes and checks actual
+exit, result ordering, and resource observations. It requests quit while idle,
+opening, active, moving, dismissing a committed choice, recovering, and waiting
+for a withheld final acknowledgment. An explicit test adapter holds selected
+acknowledgments to make these brief states observable; native window operations
+still run. The recovery case also injects a cleanup failure. These injected
+conditions do not establish how often native failures occur.
+See [LIFECYCLE_TESTS.md](LIFECYCLE_TESTS.md) for the expected traces.
 
 The expected interaction is:
 
@@ -231,10 +261,11 @@ actual-frame acknowledgments, screen changes, and subscription cleanup.
 The test script also runs the Python recording verifier's positive and
 negative fixtures.
 
-For a physical test, use Menu, hold the stick up, and press A to choose Red.
-Then open again, hold left and press A for More colors, release the controls,
-hold down and press A for Violet. Check the results in diagnostics. Also try
-B, D-pad navigation, and disconnecting the controller while its menu is open.
+For a physical test, use Menu, hold the stick up, and press Confirm to choose
+Red. Then open again, hold left and press Confirm for More colors, release the
+controls, hold down and press Confirm for Violet. Check the results in
+diagnostics. Also try Back and D-pad navigation. On the tested GuliKit,
+Confirm is the bottom button labeled B and Back is the right button labeled A.
 
 Optional recording, after quitting any running instance:
 
@@ -243,7 +274,8 @@ Optional recording, after quitting any running instance:
 ```
 
 For a movement recording, press Menu, move with the right stick, release it
-while the menu remains open, then hold the left stick up and press A for Red.
+while the menu remains open, then hold the left stick up and press Confirm
+for Red.
 Verify the resulting recording with:
 
 ```sh
@@ -255,6 +287,22 @@ The verifier requires input from the named controller, an observed frame
 change within screen bounds, a neutral release that stops movement before
 confirmation, and a selected result following dismissal. A manual report or
 the smoke test's scripted controller values cannot satisfy this check.
+
+For Bluetooth reconnection, open the menu, move it with the right stick, and
+power off the controller using its hardware controls. Avoid switching apps,
+which would cancel through focus loss. After the menu closes, reconnect,
+release the controls, press Menu, and choose Red with the left stick and
+Confirm. Check the recording with:
+
+```sh
+python3 prototype/scripts/verify-reconnection.py \
+    /tmp/radial-controller-events.jsonl --controller 'GuliKit Controller XW'
+```
+
+This requires physical movement from the named controller, one controller-loss
+cancellation, a new connection identity, a fresh Menu input, and one confirmed
+Red result after dismissal. It reports whether movement was still active when
+disconnection arrived and which buttons were observed at reconnection.
 
 Recording is explicit and writes JSON lines containing controller samples,
 core transitions, actual frames, window observations, and results to the

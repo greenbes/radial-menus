@@ -68,6 +68,7 @@ import RadialMac
             try await wait("Escape dismissal") { self.store.model.phase == .idle }
             try check(!panel.isVisible && store.outputs.count == 3, "Escape cancels exactly one interaction")
             try await exercisePointerAndMixedInput()
+            try await exerciseControllerReconnection()
         } catch {
             errorMessage = String(describing: error)
         }

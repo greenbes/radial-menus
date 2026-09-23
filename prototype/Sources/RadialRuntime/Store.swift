@@ -80,7 +80,7 @@ import RadialCore
         for subscription in removed {
             switch subscription {
             case .controllers: controller.stop()
-            case .deadline(let operation): scheduler.cancel(operation: operation)
+            case .deadline(let operation), .shutdownDeadline(let operation): scheduler.cancel(operation: operation)
             case .movement(let id): movementClock.stopMovement(id: id)
             }
         }
@@ -89,6 +89,8 @@ import RadialCore
             case .controllers: controller.start()
             case .deadline(let operation):
                 scheduler.schedule(operation: operation, after: 3) { [weak self] in self?.send($0) }
+            case .shutdownDeadline(let operation):
+                scheduler.schedule(operation: operation, after: 4) { [weak self] _ in self?.send(.shutdownDeadline(operation)) }
             case .movement(let id):
                 movementClock.startMovement(id: id) { [weak self] in self?.send($0) }
             }
@@ -105,6 +107,7 @@ import RadialCore
         case .endInput(let scope): controller.endInput(scope: scope)
         case .resetInput(let connection): controller.resetInput(connection: connection)
         case .move(let scope, let placement, let operation): window.move(scope: scope, placement: placement, operation: operation)
+        case .releaseResources(let operation): window.releaseResources(operation: operation)
         }
     }
 

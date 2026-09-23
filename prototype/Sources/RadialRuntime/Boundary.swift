@@ -9,6 +9,7 @@ public typealias EventReceiver = @MainActor (Event) -> Void
     func dismiss(scope: InputScope, operation: OperationID)
     func recover(operation: OperationID)
     func move(scope: InputScope, placement: Placement, operation: OperationID)
+    func releaseResources(operation: OperationID)
 }
 
 @MainActor public protocol MovementScheduler: AnyObject {
