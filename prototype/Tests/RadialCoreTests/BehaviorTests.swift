@@ -212,7 +212,7 @@ final class ControllerTests: XCTestCase {
     func frame(_ sequence: UInt64, _ buttons: Set<ControllerButton> = [],
                x: Double = 0, y: Double = 0) -> ControllerFrame {
         ControllerFrame(sequence: sequence, timestamp: Double(sequence),
-                        stick: Vector(x: x, y: y), buttons: buttons)
+                        stick: Vector(x: x, y: y), buttons: buttons, observedAt: Double(sequence))
     }
 
     func testHeldConfirmAcrossSubmenuWaitsForBaselineReleaseAndNewPress() {
@@ -338,7 +338,7 @@ final class ControllerTests: XCTestCase {
         let scope = run.scope
         run.send(.baseline(connection, scope, frame(10)))
         run.send(.select(scope, "red", .keyboard))
-        let regressed = ControllerFrame(sequence: 11, timestamp: 9, stick: .zero, buttons: [.confirm])
+        let regressed = ControllerFrame(sequence: 11, timestamp: 9, stick: .zero, buttons: [.confirm], observedAt: 11)
         run.send(.controllerFrame(connection, scope, regressed, true))
         run.finishDismissal()
         XCTAssertEqual(run.outputs.last, .completed(scope.session, .cancelled(.inputLost)))

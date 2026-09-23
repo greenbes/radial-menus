@@ -32,6 +32,9 @@ public struct OperationOrder: Sendable {
     private var workspaceObserver: NSObjectProtocol?
     private var screenObserver: NSObjectProtocol?
     private var activationObserver: NSObjectProtocol?
+    private var assignedScreenID: String?
+    private var layoutRevision: UInt64 = 0
+    public private(set) var currentPlacement: Placement?
 
     public override init() { super.init() }
 
@@ -43,7 +46,10 @@ public struct OperationOrder: Sendable {
     public func present(scope: InputScope, operation: OperationID) {
         guard order.accept(operation) else { return }
         let openingSession = request?.scope.session != scope.session
-        if openingSession { previousApplication = NSWorkspace.shared.frontmostApplication }
+        if openingSession {
+            previousApplication = NSWorkspace.shared.frontmostApplication
+            assignedScreenID = nil
+        }
         restoration = nil
         request = (scope, operation)
         readyScope = nil
@@ -68,8 +74,12 @@ public struct OperationOrder: Sendable {
         guard let panel, let placement = placement(center: openingSession ? NSEvent.mouseLocation : nil) else {
             receive?(.operationFailed(operation, "No screen fits the menu")); return
         }
-        panel.setFrame(placement, display: true)
-        content.frame = NSRect(origin: .zero, size: placement.size)
+        panel.setFrame(nativeRect(placement.frame), display: true)
+        content.frame = NSRect(origin: .zero, size: panel.frame.size)
+        assignedScreenID = placement.screenID
+        let observed = placement.replacingFrame(valueRect(panel.frame))
+        currentPlacement = observed
+        receive?(.placementObserved(scope, observed))
         // Opening the menu is an explicit request for keyboard focus. The
         // cooperative activate() API may leave an accessory app in the background.
         NSApp.activate(ignoringOtherApps: true)
@@ -145,8 +155,30 @@ public struct OperationOrder: Sendable {
             receive?(.operationFailed(operation, "Could not destroy the previous panel")); return
         }
         panel = nil
+        currentPlacement = nil
+        assignedScreenID = nil
         removeObservers()
         receive?(.recovered(operation))
+    }
+
+    public func move(scope: InputScope, placement: Placement, operation: OperationID) {
+        guard request?.scope == scope, acknowledged == request?.operation,
+              let current = currentPlacement, current.layout == placement.layout,
+              current.screenID == placement.screenID, current.bounds == placement.bounds,
+              let panel, order.accept(operation) else { return }
+        guard panel.isVisible, panel.isKeyWindow, placement.isValid,
+              placement.frame.width == current.frame.width, placement.frame.height == current.frame.height else {
+            receive?(.operationFailed(operation, "Window is not available for movement")); return
+        }
+        guard let screen = NSScreen.screens.first(where: { screenID($0) == assignedScreenID }),
+              valueRect(screen.visibleFrame) == placement.bounds else {
+            screenChanged(); return
+        }
+        panel.setFrame(nativeRect(placement.frame), display: true)
+        let observed = placement.replacingFrame(valueRect(panel.frame))
+        currentPlacement = observed
+        observe("Moved session \(scope.session.value) revision \(scope.revision), operation \(operation.value): \(observed.frame)")
+        receive?(.moved(scope, operation, observed))
     }
 
     public func windowDidBecomeKey(_ notification: Notification) {
@@ -204,17 +236,38 @@ public struct OperationOrder: Sendable {
 
     private func screenChanged() {
         guard let request, let panel, panel.isVisible else { return }
-        if let position = placement(center: nil) { panel.setFrame(position, display: true) }
+        if let position = placement(center: nil) {
+            panel.setFrame(nativeRect(position.frame), display: true)
+            assignedScreenID = position.screenID
+            let observed = position.replacingFrame(valueRect(panel.frame))
+            currentPlacement = observed
+            receive?(.placementObserved(request.scope, observed))
+        }
         else { receive?(.layoutUnavailable(request.scope)) }
     }
 
-    private func placement(center: NSPoint?) -> NSRect? {
+    private func placement(center: NSPoint?) -> Placement? {
         let anchor = center ?? panel.map { NSPoint(x: $0.frame.midX, y: $0.frame.midY) } ?? NSEvent.mouseLocation
-        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(anchor) }) ?? NSScreen.main else { return nil }
+        let assigned = NSScreen.screens.first { screenID($0) == assignedScreenID }
+        guard let screen = assigned ?? NSScreen.screens.first(where: { $0.frame.contains(anchor) }) ?? NSScreen.main,
+              let id = screenID(screen), layoutRevision < UInt64.max else { return nil }
         let bounds = screen.visibleFrame
         guard let frame = Geometry.place(center: Vector(x: anchor.x, y: anchor.y), diameter: Geometry.diameter,
             in: Rect(x: bounds.minX, y: bounds.minY, width: bounds.width, height: bounds.height)) else { return nil }
-        return NSRect(x: frame.x, y: frame.y, width: frame.width, height: frame.height)
+        layoutRevision += 1
+        return Placement(layout: layoutRevision, screenID: id, bounds: valueRect(bounds), frame: frame)
+    }
+
+    private func screenID(_ screen: NSScreen) -> String? {
+        (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.stringValue
+    }
+
+    private func valueRect(_ frame: NSRect) -> Rect {
+        Rect(x: frame.minX, y: frame.minY, width: frame.width, height: frame.height)
+    }
+
+    private func nativeRect(_ frame: Rect) -> NSRect {
+        NSRect(x: frame.x, y: frame.y, width: frame.width, height: frame.height)
     }
 
     private func observe(_ message: String) { onNativeObservation?(message) }

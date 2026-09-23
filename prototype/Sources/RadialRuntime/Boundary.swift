@@ -8,6 +8,12 @@ public typealias EventReceiver = @MainActor (Event) -> Void
     func inspectPresentation(scope: InputScope, operation: OperationID)
     func dismiss(scope: InputScope, operation: OperationID)
     func recover(operation: OperationID)
+    func move(scope: InputScope, placement: Placement, operation: OperationID)
+}
+
+@MainActor public protocol MovementScheduler: AnyObject {
+    func startMovement(id: MovementID, receive: @escaping EventReceiver)
+    func stopMovement(id: MovementID)
 }
 
 @MainActor public protocol ControllerDriver: AnyObject {

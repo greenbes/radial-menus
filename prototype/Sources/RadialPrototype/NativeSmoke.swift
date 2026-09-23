@@ -43,6 +43,7 @@ import RadialMac
             let second = try scope()
             panel.dismiss(scope: root, operation: firstDismissal)
             try check(panel.isVisible && store.model.phase.isActive, "Obsolete native dismissal cannot hide a newer session")
+            let obsoleteMove = try await exerciseMovement(scope: second)
             store.send(.activate(second, "more", .accessibility))
             try await wait("submenu presentation") {
                 self.store.model.phase.isActive && self.store.view.title == "More colors"
@@ -50,12 +51,16 @@ import RadialMac
             let child = try scope()
             try check(child.session == second.session && child.revision > second.revision,
                       "Submenu retains the session and receives a new input scope")
+            let childFrame = panel.frame
+            panel.move(scope: second, placement: obsoleteMove.placement, operation: obsoleteMove.operation)
+            try check(panel.frame == childFrame, "A move from the parent menu cannot move the submenu")
             try panel.saveRendering(to: report.deletingLastPathComponent().appendingPathComponent("submenu.png"))
             store.send(.activate(child, "violet", .accessibility))
             try await wait("submenu dismissal") { self.store.model.phase == .idle }
             try check(store.outputs.last == .completed(second.session, .selected(
                 Choice(menuPath: ["root", "colors"], itemID: "violet", value: "violet"))),
                       "Explicit submenu activation returns its stable item identity")
+            store.send(.disconnected(ConnectionID(UInt64.max - 1)))
 
             store.send(.open(nil))
             try await wait("cancel presentation") { self.store.model.phase.isActive }
@@ -93,8 +98,8 @@ import RadialMac
         checks.append(description)
     }
 
-    private func wait(_ description: String, until condition: () -> Bool) async throws {
-        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+    private func wait(_ description: String, timeout: Double = 5, until condition: () -> Bool) async throws {
+        let deadline = ContinuousClock.now.advanced(by: .seconds(timeout))
         while !condition() {
             guard ContinuousClock.now < deadline else {
                 throw ProbeFailure("Timed out waiting for \(description); phase: \(store.model.phase)")
@@ -103,6 +108,51 @@ import RadialMac
         }
         // Let the committed render update reach the native hosting view.
         await Task.yield()
+    }
+
+    private func exerciseMovement(scope: InputScope) async throws -> (placement: Placement, operation: OperationID) {
+        guard let initial = panel.currentPlacement else { throw ProbeFailure("Missing initial placement") }
+        let connection = ConnectionID(UInt64.max - 1)
+        func frame(_ sequence: UInt64, right: Vector = .zero) -> ControllerFrame {
+            let now = ProcessInfo.processInfo.systemUptime
+            return ControllerFrame(sequence: sequence, timestamp: now, stick: .zero, buttons: [],
+                                   rightStick: right, observedAt: now)
+        }
+        store.send(.connected(ControllerInfo(id: connection, name: "Scripted movement fixture",
+                                             supported: true, supportsMovement: true), frame(0)))
+        store.send(.baseline(connection, scope, frame(1)))
+        let left = initial.frame.x - initial.bounds.x
+        let right = initial.bounds.x + initial.bounds.width - initial.frame.width - initial.frame.x
+        let direction = (left >= 25 && left < right) || right < 25 ? -1.0 : 1.0
+        let distance = direction < 0 ? left : right
+        try check(distance >= 25, "Assigned screen has room for a visible movement test")
+        store.send(.controllerFrame(connection, scope, frame(2, right: Vector(x: direction, y: 0)), true))
+        guard let movement = store.model.movement.activity?.id else {
+            throw ProbeFailure("Scripted right-stick input did not start movement")
+        }
+        try await wait("real movement clock") {
+            abs((self.panel.frame.map { Double($0.minX) } ?? initial.frame.x) - initial.frame.x) >= 20
+        }
+        try check(panel.frame.map { Double($0.minY) } == initial.frame.y,
+                  "Right-stick input moves the native panel horizontally using real ticks")
+        let targetX = direction < 0 ? initial.bounds.x : initial.bounds.x + initial.bounds.width - initial.frame.width
+        try await wait("screen edge", timeout: distance / store.model.movementSettings.speed + 3) {
+            abs((self.panel.frame.map { Double($0.minX) } ?? initial.frame.x) - targetX) < 0.01
+        }
+        guard let nativeFrame = panel.frame else { throw ProbeFailure("No native frame at screen edge") }
+        let bounds = initial.bounds
+        try check(nativeFrame.minX >= bounds.x && nativeFrame.minY >= bounds.y &&
+                  nativeFrame.maxX <= bounds.x + bounds.width && nativeFrame.maxY <= bounds.y + bounds.height,
+                  "The complete native panel stops at the assigned screen edge")
+        let oldOperation = try operation()
+        store.send(.controllerFrame(connection, scope, frame(3), true))
+        let stopped = panel.frame
+        try await Task.sleep(for: .milliseconds(80))
+        store.send(.movementTick(movement, ProcessInfo.processInfo.systemUptime))
+        panel.move(scope: scope, placement: initial, operation: oldOperation)
+        try check(panel.frame == stopped && store.model.movement.activity == nil,
+                  "Neutral stops the clock and obsolete ticks and native moves have no effect")
+        return (initial, oldOperation)
     }
 
     private func scope() throws -> InputScope {

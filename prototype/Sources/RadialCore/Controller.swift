@@ -6,8 +6,10 @@ public struct ControllerInfo: Equatable, Sendable {
     public let name: String
     public let supported: Bool
     public let detail: String
-    public init(id: ConnectionID, name: String, supported: Bool, detail: String = "") {
+    public let supportsMovement: Bool
+    public init(id: ConnectionID, name: String, supported: Bool, detail: String = "", supportsMovement: Bool = false) {
         self.id = id; self.name = name; self.supported = supported; self.detail = detail
+        self.supportsMovement = supportsMovement
     }
 }
 public struct ControllerFrame: Equatable, Sendable {
@@ -15,11 +17,18 @@ public struct ControllerFrame: Equatable, Sendable {
     public let timestamp: Double
     public let stick: Vector
     public let buttons: Set<ControllerButton>
-    public init(sequence: UInt64, timestamp: Double, stick: Vector, buttons: Set<ControllerButton>) {
+    public let rightStick: Vector
+    /// Adapter receipt time, using the same monotonic clock as movement ticks.
+    public let observedAt: Double
+    public init(sequence: UInt64, timestamp: Double, stick: Vector, buttons: Set<ControllerButton>,
+                rightStick: Vector = .zero, observedAt: Double) {
         self.sequence = sequence; self.timestamp = timestamp; self.stick = stick; self.buttons = buttons
+        self.rightStick = rightStick; self.observedAt = observedAt
     }
     public var isValid: Bool {
-        timestamp.isFinite && timestamp >= 0 && stick.isFinite && abs(stick.x) <= 1 && abs(stick.y) <= 1
+        timestamp.isFinite && timestamp >= 0 && observedAt.isFinite && observedAt >= 0 &&
+            stick.isFinite && abs(stick.x) <= 1 && abs(stick.y) <= 1 &&
+            rightStick.isFinite && abs(rightStick.x) <= 1 && abs(rightStick.y) <= 1
     }
 }
 public struct ControllerState: Equatable, Sendable {
@@ -29,10 +38,12 @@ public struct ControllerState: Equatable, Sendable {
     public let analogArmed: Bool
     public let analogActive: Bool
     public let anchor: Vector
+    public let movementArmed: Bool
     init(info: ControllerInfo, frame: ControllerFrame?, baselineScope: InputScope? = nil,
-         analogArmed: Bool = false, analogActive: Bool = false, anchor: Vector = .zero) {
+         analogArmed: Bool = false, analogActive: Bool = false, anchor: Vector = .zero, movementArmed: Bool = false) {
         self.info = info; self.frame = frame; self.baselineScope = baselineScope
         self.analogArmed = analogArmed; self.analogActive = analogActive; self.anchor = anchor
+        self.movementArmed = movementArmed
     }
 }
 
@@ -41,8 +52,12 @@ extension Change {
         guard let old = controllers[connection], frame.isValid,
               old.frame.map({ frame.sequence > $0.sequence }) ?? true else { return }
         if let scope, active(scope) == nil { return }
+        if let scope, movement.activity?.id.connection == connection {
+            movementInput(connection, scope, frame, armed: false)
+        }
         controllers[connection] = ControllerState(info: old.info, frame: frame, baselineScope: scope,
-            analogArmed: frame.stick.magnitude <= 0.2, anchor: frame.stick)
+            analogArmed: frame.stick.magnitude <= 0.2, anchor: frame.stick,
+            movementArmed: frame.rightStick.magnitude <= movementSettings.deadZone)
     }
 
     mutating func lostInput(_ connection: ConnectionID) {
@@ -57,7 +72,7 @@ extension Change {
         guard let old = controllers[connection] else { return }
         if let previous = old.frame, frame.sequence <= previous.sequence { return }
         guard continuous, frame.isValid else { lostInput(connection); return }
-        if let previous = old.frame, frame.timestamp < previous.timestamp {
+        if let previous = old.frame, frame.timestamp < previous.timestamp || frame.observedAt < previous.observedAt {
             lostInput(connection); return
         }
         guard let previous = old.frame else {
@@ -73,8 +88,10 @@ extension Change {
         else if armed && magnitude > (old.analogActive ? 0.2 : 0.3) { analogActive = true }
         let moved = analogActive && (!old.analogActive || frame.stick.distance(to: old.anchor) >= 0.05)
         if moved || !analogActive { anchor = frame.stick }
+        let movementArmed = old.movementArmed || frame.rightStick.magnitude <= movementSettings.deadZone
         controllers[connection] = ControllerState(info: old.info, frame: frame,
-            baselineScope: old.baselineScope, analogArmed: armed, analogActive: analogActive, anchor: anchor)
+            baselineScope: old.baselineScope, analogArmed: armed, analogActive: analogActive, anchor: anchor,
+            movementArmed: movementArmed)
         guard old.info.supported else { return }
 
         if case .idle = phase {
@@ -88,7 +105,9 @@ extension Change {
             return
         }
         guard phase.isActive, scope == session.scope, old.baselineScope == session.scope else { return }
-        let relevant = !edges.isEmpty || moved
+        let rightActive = old.info.supportsMovement && movementArmed &&
+            frame.rightStick.magnitude > movementSettings.deadZone
+        let relevant = !edges.isEmpty || moved || rightActive
         if session.owner == nil && relevant { phase = .active(session.owned(by: connection)) }
         if edges.contains(.back) { back(session.scope); return }
         if edges.contains(.menu) { cancel(session.scope, .user); return }
@@ -101,5 +120,8 @@ extension Change {
             select(session.scope, nil, .stick)
         }
         if edges.contains(.confirm) { confirm(session.scope) }
+        if old.info.supportsMovement {
+            movementInput(connection, session.scope, frame, armed: movementArmed)
+        }
     }
 }

@@ -38,28 +38,44 @@ does not create a distributable or notarized release.
 | --- | --- |
 | Controller Menu | Open the menu, or cancel the current interaction |
 | Left stick | Select the item in that direction |
+| Right stick | Move the complete menu within its assigned screen |
 | D-pad left / right | Select the previous / next item |
-| Controller A | Confirm the current selection |
-| Controller B | Go back one menu, or cancel at the root |
+| Confirm button | Confirm the current selection |
+| Back button | Go back one menu, or cancel at the root |
 | Keyboard arrows | Select the previous / next item |
 | Return | Confirm the current selection |
 | Escape | Go back one menu, or cancel at the root |
 | Click an item | Activate that specific item |
 | Center button | Go back, or cancel at the root |
 
+On the tested **GuliKit Controller XW**, the **bottom face button labeled B**
+confirms, and the **right face button labeled A** goes back or cancels. macOS
+reports these as A and B respectively; the diagnostics window uses those
+macOS names. Printed labels can differ from the names reported by macOS.
+
 Keep the stick deflected while pressing Confirm. Returning the stick to its
 center clears a selection made by the stick. It does not clear a selection
 made with the keyboard, D-pad, or an accessibility action.
 
 After opening a menu or entering a submenu, release held buttons and center
-the stick before selecting again. Holding Confirm across navigation cannot
-activate an item in the new menu. A new press is required.
+both sticks before selecting or moving again. Holding Confirm across navigation
+cannot activate an item in the new menu. A new press is required.
+
+Right-stick deflection controls speed. Releasing it stops movement. The menu
+stays inside its assigned screen's usable area and does not cross onto another
+screen. Moving the menu preserves selection. Navigation stops movement until
+the right stick has returned to neutral. If the assigned screen disappears,
+the adapter chooses an available screen and reports its new bounds to the core.
 
 The diagnostics window shows the device name and button labels reported by
 macOS. On the connected GuliKit Controller XW, macOS reported A Button,
-B Button, a left stick, and a Menu button. A controller without the required
+B Button, both sticks, and a Menu button. A controller without the required
 stick and confirmation/back buttons is shown as unsupported. A controller
 without Menu can participate after opening the menu from the app.
+Without a right stick, selection remains available but movement is unavailable.
+
+Closing the menu while a wedge remains highlighted does not by itself establish
+confirmation; check diagnostics for a selected result.
 
 Background monitoring permits the controller to open the menu while another
 app is active. It does not give this app exclusive use of the controller or
@@ -84,8 +100,9 @@ These functions do not read the clock or interact with native resources.
 The runtime store owns the current model. It processes events synchronously
 on the main actor, commits each transition, and then runs its effects. Events
 produced by a synchronous native callback enter the queue; they cannot
-interrupt the transition being processed. Native APIs are behind three small
-interfaces: window operations, controller input, and deadline scheduling.
+interrupt the transition being processed. Native APIs are behind four small
+interfaces: window operations, controller input, deadline scheduling, and
+movement ticks.
 
 The window adapter acknowledges presentation only after the SwiftUI content
 identifies the current menu and the panel is visible and key. Selecting an
@@ -113,6 +130,34 @@ position, a 64-observation native buffer, a 256-event runtime input limit,
 and a three-second native-operation deadline. These are prototype choices,
 not performance measurements or a completed usability study.
 
+Movement has separately validated settings: a radial dead zone of 0.2,
+maximum speed of 600 logical screen points per second, and a maximum elapsed
+step of 0.1 seconds. Diagonal input cannot exceed the maximum speed. These
+values are initial tuning choices, not measured usability results.
+
+The core owns the desired frame, velocity, last integration time, and current
+movement identity. Input receipt times and movement ticks use the same
+monotonic clock. Device event timestamps remain separate and are used to
+validate input history. Changes in velocity integrate the elapsed interval
+with the previous velocity before adopting the new one.
+
+The runtime subscribes to approximately 60 movement ticks per second while
+movement is active. The core integrates elapsed time rather than counting
+ticks. Native timer accuracy is not assumed. A long pause contributes at most
+the maximum elapsed step; the discarded interval is not recovered later.
+
+Only one native movement request is outstanding at a time. Further ticks
+accumulate a desired position. An acknowledgment reports the actual frame,
+and the core carries forward displacement accumulated while waiting. A
+missing acknowledgment keeps its original deadline instead of indefinitely
+renewing it. Neutral release supersedes pending movement with a newer
+operation. Navigation and dismissal also invalidate older operations.
+
+Screen observations carry a layout revision. A changed screen resets movement
+and its input baseline while preserving selection. Both the core and window
+adapter reject obsolete movement identities, operations, and screen layouts
+at their respective boundaries.
+
 The SwiftUI view emits selection and activation events. Native window
 management and controller access do not belong to the view. Its local focus
 properties manage UI focus; they do not hold a second copy of menu selection.
@@ -133,8 +178,8 @@ instance closed:
 This temporarily opens menus and changes application focus. The script prints
 the location of a fresh temporary directory containing `report.json`,
 `events.log`, `root-menu.png`, `selected-menu.png`, and `submenu.png`.
-It returns failure if the
-report is absent, malformed, or unsuccessful. The report distinguishes
+It returns failure if the report is absent, malformed, or unsuccessful.
+The report distinguishes
 scripted input from physical controller operation.
 
 The expected interaction is:
@@ -151,6 +196,12 @@ lost input, reentrant callbacks, queue overflow, cleanup failure, and recovery.
 Geometry tests cover every generated sector boundary for 2 through 12 items,
 the single-item ring, center exclusion, and negative screen coordinates.
 A bounded sequence test visits 9,331 event prefixes through depth five.
+Movement tests compare one-second traces at 30, 60, and 120 ticks per second,
+irregular intervals, velocity changes, neutral release, and long gaps. They
+also cover clamping, stale ticks, competing controllers, pending requests,
+actual-frame acknowledgments, screen changes, and subscription cleanup.
+The test script also runs the Python recording verifier's positive and
+negative fixtures.
 
 For a physical test, use Menu, hold the stick up, and press A to choose Red.
 Then open again, hold left and press A for More colors, release the controls,
@@ -160,11 +211,26 @@ B, D-pad navigation, and disconnecting the controller while its menu is open.
 Optional recording, after quitting any running instance:
 
 ```sh
-./prototype/scripts/run.sh --record /tmp/radial-controller-events.log
+./prototype/scripts/run.sh --record /tmp/radial-controller-events.jsonl
 ```
 
-Recording is explicit and writes controller samples, window observations,
-and results to the supplied path. Without this option, recent diagnostics
+For a movement recording, press Menu, move with the right stick, release it
+while the menu remains open, then hold the left stick up and press A for Red.
+Verify the resulting recording with:
+
+```sh
+python3 prototype/scripts/verify-recording.py \
+    /tmp/radial-controller-events.jsonl --controller 'GuliKit Controller XW'
+```
+
+The verifier requires input from the named controller, an observed frame
+change within screen bounds, a neutral release that stops movement before
+confirmation, and a selected result following dismissal. A manual report or
+the smoke test's scripted controller values cannot satisfy this check.
+
+Recording is explicit and writes JSON lines containing controller samples,
+core transitions, actual frames, window observations, and results to the
+supplied path. Without this option, recent diagnostics
 remain in memory. Recording stops with the app. The file is not rotated;
 use this option for short verification sessions.
 
@@ -177,8 +243,8 @@ decoder handles button presses correctly.
 ## Scope and remaining checks
 
 This first prototype includes controller selection, keyboard input, clickable
-items, accessibility actions, submenu navigation, window lifecycle, failures,
-and diagnostic results. Right-stick repositioning, pointer-hover selection,
+items, accessibility actions, submenu navigation, right-stick repositioning,
+window lifecycle, failures, and diagnostic results. Pointer-hover selection,
 configuration editing, persistence, custom icons, global hotkeys, and command
 execution are outside this implementation milestone.
 

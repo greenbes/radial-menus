@@ -24,14 +24,28 @@ import RadialUI
         if let url {
             try Data().write(to: url, options: .atomic)
             file = try FileHandle(forWritingTo: url)
+            write(["kind": "environment", "format": 1,
+                   "os": ProcessInfo.processInfo.operatingSystemVersionString])
         }
     }
 
     func append(_ message: String) {
         lines.append(message)
         if lines.count > 150 { lines.removeFirst(lines.count - 150) }
+        write(["kind": "message", "uptime": ProcessInfo.processInfo.systemUptime, "message": message])
+    }
+
+    func record(_ event: Event, _ transition: RadialCore.Transition) {
+        guard file != nil else { return }
+        write(TransitionRecording.value(event: event, transition: transition))
+    }
+
+    private func write(_ record: [String: Any]) {
         if let file {
-            do { try file.write(contentsOf: Data((message + "\n").utf8)) }
+            do {
+                let data = try JSONSerialization.data(withJSONObject: record, options: [.sortedKeys])
+                try file.write(contentsOf: data + Data([10]))
+            }
             catch { self.file = nil; lines.append("Recording failed: \(error.localizedDescription)") }
         }
     }
@@ -55,7 +69,8 @@ import RadialUI
             FileHandle.standardError.write(Data("Cannot create event recording: \(error)\n".utf8))
             exit(1)
         }
-        store = Store(menu: SampleMenu.definition, window: panel, controller: controllers, scheduler: scheduler)
+        store = Store(menu: SampleMenu.definition, window: panel, controller: controllers,
+                      scheduler: scheduler, movementClock: scheduler)
         panel.content = NSHostingView(rootView: MenuContainer(store: store))
         panel.onNativeObservation = { [weak log] in log?.append("Window: " + $0) }
         controllers.receive = { [weak store, weak log] event in
@@ -63,6 +78,7 @@ import RadialUI
             store?.send(event)
         }
         store.onOutput = { [weak log] in log?.append("Result: \($0)") }
+        store.onTransition = { [weak log] event, transition in log?.record(event, transition) }
         installMenu()
         signal(SIGTERM, SIG_IGN)
         let terminationSignal = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
@@ -178,7 +194,7 @@ import RadialUI
                     }
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(4)
             }
-            Text("Controller: Menu opens or cancels. Left stick selects; D-pad left/right steps. Confirm chooses; Back returns or cancels. Release controls when entering a submenu.")
+            Text("Controller: Menu opens or cancels. Left stick selects; right stick moves the menu. D-pad left/right steps. Confirm chooses; Back returns or cancels. Center both sticks when entering a submenu.")
             Text("Keyboard: arrows select, Return chooses, Escape goes back. You can also click an item.")
             GroupBox("Recent results") {
                 VStack(alignment: .leading, spacing: 5) {

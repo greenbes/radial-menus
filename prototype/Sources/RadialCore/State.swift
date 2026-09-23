@@ -97,18 +97,23 @@ public struct Model: Equatable, Sendable {
     public let phase: Phase
     public let controllers: [ConnectionID: ControllerState]
     public let running: Bool
+    public let movement: MovementState
+    public let movementSettings: MovementSettings
     let nextSession: UInt64
     let nextOperation: UInt64
 
-    public init(menu: Menu) {
-        self.init(menu: menu, phase: .idle, controllers: [:], running: true, nextSession: 1, nextOperation: 1)
+    public init(menu: Menu, movementSettings: MovementSettings = .standard) {
+        self.init(menu: menu, phase: .idle, controllers: [:], running: true, nextSession: 1, nextOperation: 1,
+                  movementSettings: movementSettings)
     }
     public var canOpen: Bool { if case .idle = phase { running } else { false } }
     public var canRecover: Bool { if case .unavailable(_, nil) = phase { true } else { false } }
     init(menu: Menu, phase: Phase, controllers: [ConnectionID: ControllerState], running: Bool,
-         nextSession: UInt64, nextOperation: UInt64) {
+         nextSession: UInt64, nextOperation: UInt64, movement: MovementState = MovementState(),
+         movementSettings: MovementSettings = .standard) {
         self.menu = menu; self.phase = phase; self.controllers = controllers; self.running = running
         self.nextSession = nextSession; self.nextOperation = nextOperation
+        self.movement = movement; self.movementSettings = movementSettings
     }
 }
 
@@ -123,13 +128,16 @@ public enum Event: Equatable, Sendable {
     case baseline(ConnectionID, InputScope?, ControllerFrame)
     case controllerFrame(ConnectionID, InputScope?, ControllerFrame, Bool)
     case inputLost(ConnectionID)
+    case placementObserved(InputScope, Placement)
+    case movementTick(MovementID, Double), moved(InputScope, OperationID, Placement)
 }
 public enum Effect: Equatable, Sendable {
     case present(InputScope, OperationID), inspectPresentation(InputScope, OperationID)
     case dismiss(InputScope, OperationID), recover(OperationID)
     case baseline(InputScope), endInput(InputScope), resetInput(ConnectionID)
+    case move(InputScope, Placement, OperationID)
 }
-public enum Subscription: Hashable, Sendable { case controllers, deadline(OperationID) }
+public enum Subscription: Hashable, Sendable { case controllers, deadline(OperationID), movement(MovementID) }
 public struct Transition: Equatable, Sendable {
     public let model: Model
     public let effects: [Effect]
@@ -158,5 +166,9 @@ public func render(_ model: Model) -> RenderModel {
 public func subscriptions(_ model: Model) -> Set<Subscription> {
     var result: Set<Subscription> = model.running ? [.controllers] : []
     if let operation = model.phase.operation { result.insert(.deadline(operation)) }
+    if model.running, model.phase.isActive {
+        if let activity = model.movement.activity { result.insert(.movement(activity.id)) }
+        if let pending = model.movement.pending { result.insert(.deadline(pending.operation)) }
+    }
     return result
 }

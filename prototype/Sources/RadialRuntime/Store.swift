@@ -7,9 +7,11 @@ import RadialCore
     public private(set) var outputs: [Output] = []
     public private(set) var trace: [String] = []
     @ObservationIgnored public var onOutput: ((Output) -> Void)?
+    @ObservationIgnored public var onTransition: ((Event, Transition) -> Void)?
     @ObservationIgnored private let window: any WindowDriver
     @ObservationIgnored private let controller: any ControllerDriver
     @ObservationIgnored private let scheduler: any DeadlineScheduler
+    @ObservationIgnored private let movementClock: any MovementScheduler
     @ObservationIgnored private var pending: [Event] = []
     @ObservationIgnored private var lostConnections: Set<ConnectionID> = []
     @ObservationIgnored private var draining = false
@@ -17,12 +19,13 @@ import RadialCore
     @ObservationIgnored private let inputCapacity: Int
 
     public init(menu: Menu, window: any WindowDriver, controller: any ControllerDriver,
-                scheduler: any DeadlineScheduler, inputCapacity: Int = 256) {
+                scheduler: any DeadlineScheduler, movementClock: any MovementScheduler, inputCapacity: Int = 256) {
         precondition(inputCapacity > 0)
         let initial = Model(menu: menu)
         self.model = initial
         self.view = render(initial)
         self.window = window; self.controller = controller; self.scheduler = scheduler
+        self.movementClock = movementClock
         self.inputCapacity = inputCapacity
         window.receive = { [weak self] in self?.send($0) }
         controller.receive = { [weak self] in self?.send($0) }
@@ -57,6 +60,7 @@ import RadialCore
             model = transition.model
             view = render(model)
             record("\(Self.name(event)): \(before) → \(model.phase.name)")
+            onTransition?(event, transition)
             reconcile()
             for effect in transition.effects { dispatch(effect) }
             for output in transition.outputs {
@@ -77,6 +81,7 @@ import RadialCore
             switch subscription {
             case .controllers: controller.stop()
             case .deadline(let operation): scheduler.cancel(operation: operation)
+            case .movement(let id): movementClock.stopMovement(id: id)
             }
         }
         for subscription in added {
@@ -84,6 +89,8 @@ import RadialCore
             case .controllers: controller.start()
             case .deadline(let operation):
                 scheduler.schedule(operation: operation, after: 3) { [weak self] in self?.send($0) }
+            case .movement(let id):
+                movementClock.startMovement(id: id) { [weak self] in self?.send($0) }
             }
         }
     }
@@ -97,6 +104,7 @@ import RadialCore
         case .baseline(let scope): controller.baseline(scope: scope)
         case .endInput(let scope): controller.endInput(scope: scope)
         case .resetInput(let connection): controller.resetInput(connection: connection)
+        case .move(let scope, let placement, let operation): window.move(scope: scope, placement: placement, operation: operation)
         }
     }
 

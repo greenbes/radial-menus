@@ -17,6 +17,9 @@ import RadialCore
         dismissed.append(operation)
         if synchronous { receive?(.dismissed(operation)) }
     }
+    func move(scope: InputScope, placement: Placement, operation: OperationID) {
+        if synchronous { receive?(.moved(scope, operation, placement)) }
+    }
     func recover(operation: OperationID) { if synchronous { receive?(.recovered(operation)) } }
 }
 @MainActor private final class FakeController: ControllerDriver {
@@ -30,7 +33,11 @@ import RadialCore
     func endInput(scope: InputScope) {}
     func resetInput(connection: ConnectionID) { resets.append(connection) }
 }
-@MainActor private final class FakeClock: DeadlineScheduler {
+@MainActor private final class FakeClock: DeadlineScheduler, MovementScheduler {
+    var movement: [MovementID: EventReceiver] = [:]
+    var stoppedMovement: [MovementID] = []
+    func startMovement(id: MovementID, receive: @escaping EventReceiver) { movement[id] = receive }
+    func stopMovement(id: MovementID) { stoppedMovement.append(id); movement.removeValue(forKey: id) }
     var scheduled: [OperationID: EventReceiver] = [:]
     var cancelled: [OperationID] = []
     func schedule(operation: OperationID, after seconds: Double, receive: @escaping EventReceiver) {
@@ -40,10 +47,49 @@ import RadialCore
 }
 
 final class StoreTests: XCTestCase {
+    func testMovementClockStopsAndQueuedTickCannotMoveAfterNeutralOrShutdown() async {
+        await MainActor.run {
+            let window = FakeWindow(), controller = FakeController(), clock = FakeClock()
+            let store = Store(menu: SampleMenu.definition, window: window, controller: controller,
+                              scheduler: clock, movementClock: clock)
+            let id = ConnectionID(1)
+            func frame(_ n: UInt64, _ time: Double, _ right: Vector) -> ControllerFrame {
+                ControllerFrame(sequence: n, timestamp: time, stick: .zero, buttons: [],
+                                rightStick: right, observedAt: time)
+            }
+            store.send(.connected(ControllerInfo(id: id, name: "Fixture", supported: true,
+                                                 supportsMovement: true), frame(0, 0, .zero)))
+            store.send(.open(id))
+            let scope = store.view.scope!
+            store.send(.placementObserved(scope, Placement(layout: 1, screenID: "screen",
+                bounds: Rect(x: 0, y: 0, width: 2000, height: 1000),
+                frame: Rect(x: 400, y: 200, width: 360, height: 360))))
+            store.send(.baseline(id, scope, frame(1, 0, .zero)))
+            store.send(.controllerFrame(id, scope, frame(2, 1, Vector(x: 1, y: 0)), true))
+            let movement = store.model.movement.activity!.id
+            let deliver = clock.movement[movement]!
+            XCTAssertEqual(clock.movement.count, 1)
+            deliver(.movementTick(movement, 1.05))
+            XCTAssertEqual(store.model.movement.placement!.frame.x, 430, accuracy: 1e-8)
+            store.send(.controllerFrame(id, scope, frame(3, 1.1, .zero), true))
+            XCTAssertTrue(clock.movement.isEmpty)
+            XCTAssertTrue(clock.scheduled.isEmpty)
+            let stopped = store.model
+            deliver(.movementTick(movement, 1.2))
+            XCTAssertEqual(store.model, stopped)
+            store.send(.controllerFrame(id, scope, frame(4, 2, Vector(x: 1, y: 0)), true))
+            XCTAssertEqual(clock.movement.count, 1)
+            store.send(.stop)
+            XCTAssertTrue(clock.movement.isEmpty)
+            XCTAssertEqual(clock.stoppedMovement.count, 2)
+            XCTAssertTrue(clock.scheduled.isEmpty)
+        }
+    }
+
     func testStoppingClosesAnActiveInteractionAndStopsMonitoringOnce() async {
         await MainActor.run {
             let window = FakeWindow(), controller = FakeController(), clock = FakeClock()
-            let store = Store(menu: SampleMenu.definition, window: window, controller: controller, scheduler: clock)
+            let store = Store(menu: SampleMenu.definition, window: window, controller: controller, scheduler: clock, movementClock: clock)
             store.send(.open(nil))
             let scope = store.view.scope!
             store.send(.stop)
@@ -60,7 +106,7 @@ final class StoreTests: XCTestCase {
     func testSynchronousEffectsSeeCommittedModelAndReentrantOpenIsQueued() async {
         await MainActor.run {
             let window = FakeWindow(), controller = FakeController(), clock = FakeClock()
-            let store = Store(menu: SampleMenu.definition, window: window, controller: controller, scheduler: clock)
+            let store = Store(menu: SampleMenu.definition, window: window, controller: controller, scheduler: clock, movementClock: clock)
             window.inspect = { XCTAssertEqual(store.model.phase.name, "Presenting") }
             store.onOutput = { output in
                 if case .completed = output { store.send(.open(nil)) }
@@ -81,7 +127,7 @@ final class StoreTests: XCTestCase {
         await MainActor.run {
             let window = FakeWindow(), controller = FakeController(), clock = FakeClock()
             window.synchronous = false
-            let store = Store(menu: SampleMenu.definition, window: window, controller: controller, scheduler: clock)
+            let store = Store(menu: SampleMenu.definition, window: window, controller: controller, scheduler: clock, movementClock: clock)
             store.send(.open(nil))
             let operation = store.model.phase.operation!
             let fire = clock.scheduled[operation]!
@@ -100,10 +146,10 @@ final class StoreTests: XCTestCase {
         await MainActor.run {
             let window = FakeWindow(), controller = FakeController(), clock = FakeClock()
             let store = Store(menu: SampleMenu.definition, window: window, controller: controller,
-                              scheduler: clock, inputCapacity: 2)
+                              scheduler: clock, movementClock: clock, inputCapacity: 2)
             let connection = ConnectionID(1)
             func frame(_ n: UInt64) -> ControllerFrame {
-                ControllerFrame(sequence: n, timestamp: Double(n), stick: .zero, buttons: [.confirm])
+                ControllerFrame(sequence: n, timestamp: Double(n), stick: .zero, buttons: [.confirm], observedAt: Double(n))
             }
             store.send(.connected(ControllerInfo(id: connection, name: "Test", supported: true), frame(0)))
             store.send(.open(connection))

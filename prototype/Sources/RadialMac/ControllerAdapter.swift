@@ -87,14 +87,17 @@ import RadialRuntime
         let hasConfirm = input.buttons[GCInputButtonA] != nil
         let hasBack = input.buttons[GCInputButtonB] != nil
         let hasMenu = input.buttons[GCInputButtonMenu] != nil
+        let hasRightStick = input.dpads[GCInputRightThumbstick] != nil
         let detail = "Confirm: \(input.buttons[GCInputButtonA]?.localizedName ?? "missing"); "
             + "Back: \(input.buttons[GCInputButtonB]?.localizedName ?? "missing"); "
-            + "Menu: \(hasMenu ? "available" : "use menu bar"); buffered input"
+            + "Menu: \(hasMenu ? "available" : "use menu bar"); "
+            + "Right stick: \(hasRightStick ? "moves menu" : "unavailable"); buffered input"
         let info = ControllerInfo(id: id, name: controller.vendorName ?? "Controller",
-                                  supported: hasStick && hasConfirm && hasBack, detail: detail)
+                                  supported: hasStick && hasConfirm && hasBack, detail: detail,
+                                  supportsMovement: hasRightStick)
         connections[id] = Connection(controller: controller, info: info, sequence: 0, scope: nil)
         while input.nextInputState() != nil { /* Establish a current baseline. */ }
-        let frame = Self.decode(input.capture(), sequence: 0)
+        let frame = Self.decode(input.capture(), sequence: 0, observedAt: ProcessInfo.processInfo.systemUptime)
         receive?(.connected(info, frame))
         input.inputStateAvailableHandler = { [weak self] _ in
             MainActor.assumeIsolated { self?.drain(id) }
@@ -108,7 +111,8 @@ import RadialRuntime
         connection.sequence += 1
         connection.scope = scope
         connections[id] = connection
-        receive?(.baseline(id, scope, Self.decode(input.capture(), sequence: connection.sequence)))
+        receive?(.baseline(id, scope, Self.decode(input.capture(), sequence: connection.sequence,
+                                                 observedAt: ProcessInfo.processInfo.systemUptime)))
     }
 
     private func drain(_ id: ConnectionID) {
@@ -122,17 +126,19 @@ import RadialRuntime
             let elements: [any GCPhysicalInputElement] = [
                 state.buttons[GCInputButtonA], state.buttons[GCInputButtonB],
                 state.buttons[GCInputButtonMenu], state.dpads[GCInputLeftThumbstick],
-                state.dpads[GCInputDirectionPad]
+                state.dpads[GCInputDirectionPad], state.dpads[GCInputRightThumbstick]
             ].compactMap { $0 }
             let continuous = !elements.contains { state.change(for: $0) == .unknownChange }
             receive?(.controllerFrame(id, connection.scope,
-                                     Self.decode(state, sequence: connection.sequence), continuous))
+                                     Self.decode(state, sequence: connection.sequence,
+                                                 observedAt: ProcessInfo.processInfo.systemUptime), continuous))
             // A synchronous result can change the input scope or remove this connection.
         }
         DispatchQueue.main.async { [weak self] in self?.drain(id) }
     }
 
-    public static func decode(_ state: any GCDevicePhysicalInputState, sequence: UInt64) -> ControllerFrame {
+    public static func decode(_ state: any GCDevicePhysicalInputState, sequence: UInt64,
+                              observedAt: Double) -> ControllerFrame {
         var buttons = Set<ControllerButton>()
         if state.buttons[GCInputButtonA]?.pressedInput.isPressed == true { buttons.insert(.confirm) }
         if state.buttons[GCInputButtonB]?.pressedInput.isPressed == true { buttons.insert(.back) }
@@ -140,7 +146,10 @@ import RadialRuntime
         if state.dpads[GCInputDirectionPad]?.left.isPressed == true { buttons.insert(.previous) }
         if state.dpads[GCInputDirectionPad]?.right.isPressed == true { buttons.insert(.next) }
         let stick = state.dpads[GCInputLeftThumbstick]
+        let right = state.dpads[GCInputRightThumbstick]
         return ControllerFrame(sequence: sequence, timestamp: state.lastEventTimestamp,
-            stick: Vector(x: Double(stick?.xAxis.value ?? 0), y: Double(stick?.yAxis.value ?? 0)), buttons: buttons)
+            stick: Vector(x: Double(stick?.xAxis.value ?? 0), y: Double(stick?.yAxis.value ?? 0)), buttons: buttons,
+            rightStick: Vector(x: Double(right?.xAxis.value ?? 0), y: Double(right?.yAxis.value ?? 0)),
+            observedAt: observedAt)
     }
 }

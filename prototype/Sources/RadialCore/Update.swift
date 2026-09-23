@@ -12,16 +12,20 @@ struct Change {
     var running: Bool
     var nextSession: UInt64
     var nextOperation: UInt64
+    var movement: MovementState
+    let movementSettings: MovementSettings
     var effects: [Effect] = []
     var outputs: [Output] = []
 
     init(_ model: Model) {
         menu = model.menu; phase = model.phase; controllers = model.controllers; running = model.running
         nextSession = model.nextSession; nextOperation = model.nextOperation
+        movement = model.movement; movementSettings = model.movementSettings
     }
     var result: Transition {
         Transition(model: Model(menu: menu, phase: phase, controllers: controllers, running: running,
-                                nextSession: nextSession, nextOperation: nextOperation),
+                                nextSession: nextSession, nextOperation: nextOperation,
+                                movement: movement, movementSettings: movementSettings),
                    effects: effects, outputs: outputs)
     }
 
@@ -39,6 +43,7 @@ struct Change {
             effects.append(.endInput(session.scope))
         }
         phase = .unavailable(failure, nil)
+        resetMovement()
     }
 
     mutating func accept(_ event: Event) {
@@ -71,8 +76,12 @@ struct Change {
             guard case .dismissing(let session, operation, let outcome) = phase else { return }
             phase = .idle
             outputs.append(.completed(session.scope.session, outcome.cleanedUp()))
-        case .deadline(let operation): failed(operation, "Native operation timed out")
-        case .operationFailed(let operation, let message): failed(operation, message)
+        case .deadline(let operation):
+            movementFailed(operation, "Window movement timed out")
+            failed(operation, "Native operation timed out")
+        case .operationFailed(let operation, let message):
+            movementFailed(operation, message)
+            failed(operation, message)
         case .recover:
             guard case .unavailable(let failure, nil) = phase, let operation = allocateOperation() else { return }
             phase = .unavailable(failure, operation)
@@ -90,6 +99,9 @@ struct Change {
         case .controllerFrame(let connection, let scope, let frame, let continuous):
             controllerFrame(connection, scope, frame, continuous)
         case .inputLost(let connection): lostInput(connection)
+        case .placementObserved(let scope, let placement): placementObserved(scope, placement)
+        case .movementTick(let id, let time): movementTick(id, time)
+        case .moved(let scope, let operation, let placement): moved(scope, operation, placement)
         }
     }
 
@@ -110,6 +122,7 @@ struct Change {
         let scope = InputScope(session: SessionID(nextSession), revision: 1)
         nextSession += 1
         let session = Session(scope: scope, path: [menu], selection: nil, owner: owner)
+        resetMovement()
         phase = .presenting(session, operation)
         effects.append(.present(scope, operation))
     }
@@ -148,6 +161,7 @@ struct Change {
     mutating func navigate(_ session: Session, path: [Menu]) {
         guard session.scope.revision < UInt64.max else { exhaustIdentities(); return }
         guard let operation = allocateOperation() else { return }
+        resetMovement(keepingPlacement: true)
         let scope = InputScope(session: session.scope.session, revision: session.scope.revision + 1)
         phase = .presenting(Session(scope: scope, path: path, selection: nil, owner: session.owner), operation)
         effects += [.endInput(session.scope), .present(scope, operation)]
@@ -163,6 +177,7 @@ struct Change {
 
     mutating func dismiss(_ session: Session, _ outcome: Outcome) {
         guard let operation = allocateOperation() else { return }
+        resetMovement()
         phase = .dismissing(session, operation, outcome)
         effects += [.endInput(session.scope), .dismiss(session.scope, operation)]
     }
