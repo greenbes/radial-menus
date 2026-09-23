@@ -99,7 +99,10 @@ import RadialCore
 
     private func dispatch(_ effect: Effect) {
         switch effect {
-        case .present(let scope, let operation): window.present(scope: scope, operation: operation)
+        case .prepare(let scope, let menu, let canGoBack, let operation):
+            window.prepare(scope: scope, menu: menu, canGoBack: canGoBack, operation: operation)
+        case .present(let scope, let layout, let placement, let operation):
+            window.present(scope: scope, layout: layout, placement: placement, operation: operation)
         case .inspectPresentation(let scope, let operation): window.inspectPresentation(scope: scope, operation: operation)
         case .dismiss(let scope, let operation): window.dismiss(scope: scope, operation: operation)
         case .recover(let operation): window.recover(operation: operation)

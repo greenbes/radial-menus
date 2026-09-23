@@ -57,21 +57,31 @@ public struct Session: Equatable, Sendable {
     public let path: [Menu]
     public let selection: Selection?
     public let owner: ConnectionID?
+    public let layout: MenuLayout?
     public var menu: Menu { path[path.count - 1] }
-    func selecting(_ value: Selection?) -> Self { Self(scope: scope, path: path, selection: value, owner: owner) }
-    func owned(by owner: ConnectionID) -> Self { Self(scope: scope, path: path, selection: selection, owner: owner) }
+    init(scope: InputScope, path: [Menu], selection: Selection?, owner: ConnectionID?, layout: MenuLayout? = nil) {
+        self.scope = scope; self.path = path; self.selection = selection; self.owner = owner; self.layout = layout
+    }
+    func selecting(_ value: Selection?) -> Self { Self(scope: scope, path: path, selection: value, owner: owner, layout: layout) }
+    func owned(by owner: ConnectionID) -> Self { Self(scope: scope, path: path, selection: selection, owner: owner, layout: layout) }
+    func prepared(_ layout: MenuLayout) -> Self { Self(scope: scope, path: path, selection: selection, owner: owner, layout: layout) }
 }
 
 public enum Phase: Equatable, Sendable {
     case idle
+    case preparing(Session, OperationID)
     case presenting(Session, OperationID)
     case active(Session)
     case dismissing(Session, OperationID, Outcome)
     case unavailable(SessionFailure, OperationID?)
 
+    var isPreparingOrPresenting: Bool {
+        switch self { case .preparing, .presenting: true; default: false }
+    }
+
     public var session: Session? {
         switch self {
-        case .presenting(let session, _), .active(let session), .dismissing(let session, _, _): session
+        case .preparing(let session, _), .presenting(let session, _), .active(let session), .dismissing(let session, _, _): session
         default: nil
         }
     }
@@ -79,6 +89,7 @@ public enum Phase: Equatable, Sendable {
     public var name: String {
         switch self {
         case .idle: "Idle"
+        case .preparing: "Preparing"
         case .presenting: "Presenting"
         case .active: "Active"
         case .dismissing: "Dismissing"
@@ -87,7 +98,7 @@ public enum Phase: Equatable, Sendable {
     }
     public var operation: OperationID? {
         switch self {
-        case .presenting(_, let operation), .dismissing(_, let operation, _): operation
+        case .preparing(_, let operation), .presenting(_, let operation), .dismissing(_, let operation, _): operation
         case .unavailable(_, let operation): operation
         default: nil
         }
@@ -131,6 +142,7 @@ public enum Event: Equatable, Sendable {
     case activate(InputScope, String, SelectionSource), confirm(InputScope), back(InputScope)
     case cancel(InputScope, CancellationReason), focusLost(InputScope), layoutUnavailable(InputScope)
     case contentReady(InputScope), presented(OperationID), dismissed(OperationID), recovered(OperationID)
+    case prepared(InputScope, OperationID, MenuMeasurements, ScreenContext)
     case operationFailed(OperationID, String), deadline(OperationID)
     case connected(ControllerInfo, ControllerFrame), disconnected(ConnectionID)
     case baseline(ConnectionID, InputScope?, ControllerFrame)
@@ -142,7 +154,8 @@ public enum Event: Equatable, Sendable {
     case resourcesReleased(OperationID), shutdownDeadline(OperationID)
 }
 public enum Effect: Equatable, Sendable {
-    case present(InputScope, OperationID), inspectPresentation(InputScope, OperationID)
+    case prepare(InputScope, Menu, Bool, OperationID)
+    case present(InputScope, MenuLayout, Placement, OperationID), inspectPresentation(InputScope, OperationID)
     case dismiss(InputScope, OperationID), recover(OperationID)
     case baseline(InputScope), endInput(InputScope), resetInput(ConnectionID)
     case move(InputScope, Placement, OperationID)
@@ -161,7 +174,7 @@ public struct RenderModel: Equatable, Sendable {
     public let scope: InputScope?
     public let title: String
     public let items: [Item]
-    public let sectors: [Sector]
+    public let layout: MenuLayout?
     public let selectedID: String?
     public let acceptsInput: Bool
     public let canGoBack: Bool
@@ -171,7 +184,7 @@ public func render(_ model: Model) -> RenderModel {
     let session = model.phase.session
     let items = session?.menu.items ?? []
     return RenderModel(scope: session?.scope, title: session?.menu.title ?? "Radial Menu",
-                       items: items, sectors: Geometry.sectors(count: items.count),
+                       items: items, layout: session?.layout,
                        selectedID: session?.selection?.itemID, acceptsInput: model.phase.isActive,
                        canGoBack: (session?.path.count ?? 0) > 1)
 }

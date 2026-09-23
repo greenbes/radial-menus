@@ -28,10 +28,6 @@ public struct Sector: Equatable, Sendable {
 }
 
 public enum Geometry {
-    public static let outerRadius = 150.0
-    public static let innerRadius = 46.0
-    public static let diameter = 360.0
-
     public static func sectors(count: Int) -> [Sector] {
         guard (1...12).contains(count) else { return [] }
         let width = 2 * Double.pi / Double(count)

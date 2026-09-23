@@ -24,6 +24,8 @@ public struct OperationOrder: Sendable {
     public var onNativeObservation: ((String) -> Void)?
     private var panel: MenuPanel?
     private let pointer = PointerAdapter()
+    private let measurer: any MenuMeasurer
+    private var menuLayout: MenuLayout?
     private var order = OperationOrder()
     private var request: (scope: InputScope, operation: OperationID)?
     private var readyScope: InputScope?
@@ -37,7 +39,7 @@ public struct OperationOrder: Sendable {
     private var layoutRevision: UInt64 = 0
     public private(set) var currentPlacement: Placement?
 
-    public override init() { super.init() }
+    public init(measurer: any MenuMeasurer) { self.measurer = measurer; super.init() }
 
     public var isVisible: Bool { panel?.isVisible == true }
     public var isKey: Bool { panel?.isKeyWindow == true }
@@ -48,7 +50,7 @@ public struct OperationOrder: Sendable {
             activationObserver != nil || pointer.hasNativeResources
     }
 
-    public func present(scope: InputScope, operation: OperationID) {
+    public func prepare(scope: InputScope, menu: Menu, canGoBack: Bool, operation: OperationID) {
         guard order.accept(operation) else { return }
         pointer.stop()
         let openingSession = request?.scope.session != scope.session
@@ -60,6 +62,28 @@ public struct OperationOrder: Sendable {
         request = (scope, operation)
         readyScope = nil
         acknowledged = nil
+        menuLayout = nil
+        do {
+            let measurements = try measurer.measure(menu: menu, canGoBack: canGoBack)
+            guard let screen = screenContext(center: openingSession ? NSEvent.mouseLocation : nil) else {
+                throw LayoutFailure.doesNotFit
+            }
+            receive?(.prepared(scope, operation, measurements, screen))
+        } catch {
+            receive?(.operationFailed(operation, "Menu preparation failed: \(error)"))
+        }
+    }
+
+    public func present(scope: InputScope, layout: MenuLayout, placement: Placement, operation: OperationID) {
+        guard request?.scope == scope, order.accept(operation) else { return }
+        request = (scope, operation)
+        guard placement.isValid, placement.frame.width == layout.diameter,
+              placement.frame.height == layout.diameter,
+              let screen = NSScreen.screens.first(where: { screenID($0) == placement.screenID }),
+              valueRect(screen.visibleFrame) == placement.bounds else {
+            receive?(.operationFailed(operation, "Screen changed during menu preparation")); return
+        }
+        menuLayout = layout
         guard let content else {
             receive?(.operationFailed(operation, "No menu content view")); return
         }
@@ -78,7 +102,7 @@ public struct OperationOrder: Sendable {
             panel = window
             installObservers()
         }
-        guard let panel, let placement = placement(center: openingSession ? NSEvent.mouseLocation : nil) else {
+        guard let panel else {
             receive?(.operationFailed(operation, "No screen fits the menu")); return
         }
         panel.setFrame(nativeRect(placement.frame), display: true)
@@ -119,6 +143,7 @@ public struct OperationOrder: Sendable {
         let ownedFocus = panel?.isKeyWindow == true &&
             NSWorkspace.shared.frontmostApplication?.processIdentifier == ProcessInfo.processInfo.processIdentifier
         request = nil
+        menuLayout = nil
         readyScope = nil
         panel?.orderOut(nil)
         guard panel?.isVisible != true else {
@@ -180,6 +205,7 @@ public struct OperationOrder: Sendable {
         }
         panel = nil
         currentPlacement = nil
+        menuLayout = nil
         assignedScreenID = nil
         removeObservers()
         return true
@@ -243,7 +269,7 @@ public struct OperationOrder: Sendable {
             forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated {
-                guard let self, let request = self.request, self.order.current == request.operation else { return }
+                guard let self, self.menuLayout != nil, let request = self.request, self.order.current == request.operation else { return }
                 self.observe("Application became active")
                 self.panel?.makeKeyAndOrderFront(nil)
                 self.acknowledgePresentationIfReady()
@@ -260,7 +286,8 @@ public struct OperationOrder: Sendable {
 
     private func screenChanged() {
         guard let request, let panel, panel.isVisible else { return }
-        if let position = placement(center: nil) {
+        if let menuLayout, let context = screenContext(center: nil),
+           let position = try? menuLayout.placement(in: context) {
             panel.setFrame(nativeRect(position.frame), display: true)
             assignedScreenID = position.screenID
             let observed = position.replacingFrame(valueRect(panel.frame))
@@ -271,16 +298,15 @@ public struct OperationOrder: Sendable {
         else { receive?(.layoutUnavailable(request.scope)) }
     }
 
-    private func placement(center: NSPoint?) -> Placement? {
+    private func screenContext(center: NSPoint?) -> ScreenContext? {
         let anchor = center ?? panel.map { NSPoint(x: $0.frame.midX, y: $0.frame.midY) } ?? NSEvent.mouseLocation
         let assigned = NSScreen.screens.first { screenID($0) == assignedScreenID }
         guard let screen = assigned ?? NSScreen.screens.first(where: { $0.frame.contains(anchor) }) ?? NSScreen.main,
               let id = screenID(screen), layoutRevision < UInt64.max else { return nil }
         let bounds = screen.visibleFrame
-        guard let frame = Geometry.place(center: Vector(x: anchor.x, y: anchor.y), diameter: Geometry.diameter,
-            in: Rect(x: bounds.minX, y: bounds.minY, width: bounds.width, height: bounds.height)) else { return nil }
         layoutRevision += 1
-        return Placement(layout: layoutRevision, screenID: id, bounds: valueRect(bounds), frame: frame)
+        return ScreenContext(revision: layoutRevision, screenID: id, bounds: valueRect(bounds),
+                             anchor: Vector(x: anchor.x, y: anchor.y))
     }
 
     private func screenID(_ screen: NSScreen) -> String? {

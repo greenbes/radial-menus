@@ -21,7 +21,7 @@ def fixture():
             {"type": "cancelled", "reason": "controllerLost", "session": 1}]},
         {"kind": "transition", "event": "connected", "connection": 8, "controller": "Physical fixture", "phase": "Idle"},
         {"kind": "transition", "event": "controllerFrame", "connection": 8, "session": 2,
-         "owner": 8, "continuous": True, "buttons": ["menu"], "phase": "Presenting"},
+         "owner": 8, "continuous": True, "buttons": ["menu"], "phase": "Preparing"},
         {"kind": "transition", "event": "controllerFrame", "connection": 8, "session": 2,
          "continuous": True, "buttons": ["confirm"], "selected": "red", "phase": "Dismissing"},
         {"kind": "transition", "event": "dismissed", "phase": "Idle", "outputs": [

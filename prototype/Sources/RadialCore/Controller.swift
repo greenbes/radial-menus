@@ -100,7 +100,7 @@ extension Change {
         }
         guard let session = phase.session, session.owner == nil || session.owner == connection else { return }
         // Cancelling an opening menu remains possible, but cannot confirm it.
-        if case .presenting = phase {
+        if phase.isPreparingOrPresenting {
             if edges.contains(.menu), scope == nil || scope == session.scope { cancel(session.scope, .user) }
             return
         }

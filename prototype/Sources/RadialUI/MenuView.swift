@@ -14,28 +14,29 @@ import RadialCore
     }
 
     public var body: some View {
+        if let layout = model.layout { menu(layout) }
+    }
+
+    private func menu(_ layout: MenuLayout) -> some View {
         ZStack {
             ForEach(Array(model.items.enumerated()), id: \.element.id) { index, item in
-                let sector = model.sectors[index]
+                let sector = layout.sectors[index]
                 let selected = model.selectedID == item.id
-                let shape = Wedge(sector: sector, fullCircle: model.items.count == 1)
+                let bounds = layout.labels[index].bounds
+                let shape = Wedge(sector: sector, fullCircle: model.items.count == 1,
+                                  outer: layout.outerRadius, inner: layout.innerRadius)
                 Button {
                     emit { .activate($0, item.id, .pointer) }
                 } label: {
                     shape.fill(selected ? Color.accentColor : Color(nsColor: .windowBackgroundColor))
                         .overlay(shape.stroke(Color.primary.opacity(0.25), lineWidth: 1))
                         .overlay {
-                            VStack(spacing: 4) {
-                                Text(item.label).font(.system(size: 17, weight: selected ? .bold : .medium))
-                                if case .menu = item.destination {
-                                    Image(systemName: "chevron.right").font(.caption)
-                                }
-                            }
-                            .multilineTextAlignment(.center)
+                            MenuItemLabel(item: item, selected: selected, fontSize: layout.fontSize)
                             .foregroundStyle(selected ? .white : .primary)
-                            .frame(width: 96, height: 60)
-                            .position(x: Geometry.diameter / 2 + sin(sector.center) * 100,
-                                      y: Geometry.diameter / 2 - cos(sector.center) * 100)
+                            .frame(width: layout.wrappingWidth)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .position(x: layout.diameter / 2 + bounds.x + bounds.width / 2,
+                                      y: layout.diameter / 2 + bounds.y + bounds.height / 2)
                         }
                         .contentShape(shape)
                 }
@@ -50,18 +51,15 @@ import RadialCore
             Button {
                 emit { model.canGoBack ? .back($0) : .cancel($0, .user) }
             } label: {
-                VStack(spacing: 5) {
-                    Image(systemName: model.canGoBack ? "arrow.left" : "xmark")
-                    Text(model.canGoBack ? "Back" : "Cancel").font(.caption)
-                }
-                .frame(width: Geometry.innerRadius * 2 - 8, height: Geometry.innerRadius * 2 - 8)
+                MenuCenterLabel(canGoBack: model.canGoBack, fontSize: layout.fontSize)
+                .frame(width: layout.centerRadius * 2, height: layout.centerRadius * 2)
                 .background(Color(nsColor: .windowBackgroundColor), in: Circle())
                 .contentShape(Circle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(model.canGoBack ? "Back to parent menu" : "Cancel menu")
         }
-        .frame(width: Geometry.diameter, height: Geometry.diameter)
+        .frame(width: layout.diameter, height: layout.diameter)
         .disabled(!model.acceptsInput)
         .focusable()
         .focusEffectDisabled()
@@ -73,6 +71,7 @@ import RadialCore
         .onKeyPress(.return) { emit { .confirm($0) }; return .handled }
         .onKeyPress(.escape) { emit { .cancel($0, .user) }; return .handled }
         .onAppear { contentChanged() }
+        .onChange(of: model.layout) { _, _ in contentChanged() }
         .onChange(of: model.scope) { _, _ in contentChanged() }
         .onChange(of: model.acceptsInput) { _, active in if active { keyboardFocus = true } }
         .onChange(of: accessibleItem) { _, item in
@@ -104,11 +103,11 @@ import RadialCore
 private struct Wedge: Shape {
     let sector: Sector
     let fullCircle: Bool
+    let outer: Double
+    let inner: Double
 
     func path(in rect: CGRect) -> Path {
         let center = CGPoint(x: rect.midX, y: rect.midY)
-        let outer = Geometry.outerRadius
-        let inner = Geometry.innerRadius
         // SwiftUI angles begin at the right. Domain angles begin at the top.
         let start = sector.start - .pi / 2
         let end = sector.end - .pi / 2

@@ -13,7 +13,10 @@ private struct LifecycleRun {
     }
     mutating func open(presented: Bool = true) {
         send(.open(nil))
-        if presented { send(.presented(model.phase.operation!)) }
+        if presented {
+            send(TestPresentation.prepared(model))
+            send(.presented(model.phase.operation!))
+        }
     }
     mutating func dismiss() {
         guard case .dismissing(_, let operation, _) = model.phase else { return XCTFail("Expected dismissal") }
@@ -203,6 +206,7 @@ final class LifecycleTests: XCTestCase {
         }
         run.send(.connected(ControllerInfo(id: old, name: "Same device", supported: true, supportsMovement: true), frame(0)))
         run.send(.open(old))
+        run.send(TestPresentation.prepared(run.model))
         let firstScope = run.scope
         run.send(.placementObserved(firstScope, Placement(layout: 1, screenID: "screen",
             bounds: Rect(x: 0, y: 0, width: 2000, height: 1000), frame: Rect(x: 400, y: 200, width: 360, height: 360))))
@@ -220,6 +224,7 @@ final class LifecycleTests: XCTestCase {
         XCTAssertEqual(run.model.phase, .idle)
         run.send(.controllerFrame(new, nil, frame(2, [.confirm]), true))
         run.send(.controllerFrame(new, nil, frame(3, [.menu, .confirm]), true))
+        run.send(TestPresentation.prepared(run.model))
         let secondScope = run.scope
         XCTAssertNotEqual(firstScope.session, secondScope.session)
         run.send(.presented(try XCTUnwrap(run.model.phase.operation)))
@@ -246,6 +251,7 @@ final class LifecycleTests: XCTestCase {
         run.send(.connected(ControllerInfo(id: id, name: "Fixture", supported: true),
             ControllerFrame(sequence: 0, timestamp: 0, stick: .zero, buttons: [], observedAt: 0)))
         run.send(.open(id))
+        run.send(TestPresentation.prepared(run.model))
         run.send(.presented(run.model.phase.operation!))
         let scope = run.scope
         run.send(.activate(scope, "red", .keyboard))

@@ -3,6 +3,38 @@
 These results apply to the fixed example menu and the recorded environment;
 they do not establish support for every device or desktop setup.
 
+## Measured layout milestone: 2026-09-23
+
+**All 64 native layout fixtures passed:** the original 62 presentations plus
+two at double text size. The original fixed layout failed 50 of 62 fixtures.
+The core now derives menu dimensions from native text measurements and screen
+bounds. Representative native images show full labels without the earlier
+truncation and overlap.
+
+- **87 XCTest tests passed:** 79 core, 7 runtime, and 1 native operation-order
+  test. New tests cover measured geometry, preparation, stale observations,
+  cancellation, timeout, screen fit, and pointer selection in enlarged menus.
+- **18 Python verifier tests passed**, including deliberate overflow, overlap,
+  wrong-size, missing-observation, and incomplete-interaction cases.
+- **410 native keyboard steps and 63 keyboard-confirmed interactions passed.**
+  The parent-to-child transition is included in those interactions.
+- Native hover and clicking selected the expected item beyond the old ring.
+  An injected 100-by-100-point screen observation produced an explicit failure,
+  with no presentation request or selected result, and released resources.
+- All **35 existing native interaction assertions** and **eight process shutdown
+  cases** passed, including shutdown while preparation's reply was withheld.
+- Three deliberately broken temporary variants compiled and failed their
+  intended assertions: removing sector containment, restoring the fixed pointer
+  radius, and accepting obsolete measurement replies. The unmodified temporary
+  control passed its complete core suite.
+
+See [LAYOUT_VALIDATION.md](LAYOUT_VALIDATION.md) for the fixture matrix,
+geometry policy, visual findings, and limits. New artifacts are retained under
+`build/verification/measured-layout/`; the original failing baseline remains
+under `build/verification/layout/`. Both directories are excluded from Git.
+This milestone does not establish VoiceOver usability or a new physical
+controller test.
+
 ## Controller lifecycle and shutdown milestone: 2026-09-23
 
 On the same macOS 27.0, Xcode 27.0, and Swift 6.4 environment:

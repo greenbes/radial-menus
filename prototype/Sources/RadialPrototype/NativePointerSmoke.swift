@@ -78,12 +78,12 @@ extension NativeSmoke {
                   "Native click activates Green even when Blue was selected")
     }
 
-    private func screenPoint(x: Double, y: Double) throws -> NSPoint {
+    func screenPoint(x: Double, y: Double) throws -> NSPoint {
         guard let frame = panel.frame else { throw ProbeFailure("No menu frame") }
         return NSPoint(x: frame.midX + x, y: frame.midY - y)
     }
 
-    private func mouse(at screen: NSPoint) async throws {
+    func mouse(at screen: NSPoint) async throws {
         let previous = store.model.pointer.latest?.sequence ?? 0
         try postMouse(.mouseMoved, at: screen)
         try await wait("native pointer observation") { (self.store.model.pointer.latest?.sequence ?? 0) > previous }
@@ -93,7 +93,7 @@ extension NativeSmoke {
         }
     }
 
-    private func click(x: Double, y: Double) async throws {
+    func click(x: Double, y: Double) async throws {
         let screen = try screenPoint(x: x, y: y)
         try postMouse(.leftMouseDown, at: screen)
         try postMouse(.leftMouseUp, at: screen)

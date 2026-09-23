@@ -8,7 +8,7 @@ import time
 
 
 STAGES = {
-    "idle": "Idle", "opening": "Presenting", "active": "Active",
+    "idle": "Idle", "preparing": "Preparing", "opening": "Presenting", "active": "Active",
     "moving": "Active", "dismissing": "Dismissing", "recovering": "Unavailable",
     "missing-release": "Idle",
 }

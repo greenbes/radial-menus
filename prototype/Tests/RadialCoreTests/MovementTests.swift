@@ -14,6 +14,7 @@ private struct MovementRun {
         send(.connected(ControllerInfo(id: owner, name: "Fixture", supported: true,
                                        supportsMovement: true), sample(time: 0)))
         send(.open(owner))
+        send(TestPresentation.prepared(model))
         let operation = model.phase.operation!
         send(.placementObserved(scope, Placement(layout: 1, screenID: "screen",
             bounds: Rect(x: -1000, y: -500, width: 5000, height: 4000),
@@ -92,6 +93,7 @@ final class MovementTests: XCTestCase {
         run.send(.cancel(run.scope, .user))
         run.send(.dismissed(run.model.phase.operation!))
         run.send(.open(run.owner))
+        run.send(TestPresentation.prepared(run.model))
         run.send(.presented(run.model.phase.operation!))
         let reopened = run.model
         run.send(.movementTick(old, 1.1))
@@ -186,6 +188,7 @@ final class MovementTests: XCTestCase {
         let old = run.movementID
         run.send(.activate(run.scope, "more", .keyboard))
         XCTAssertNil(run.model.movement.activity)
+        run.send(TestPresentation.prepared(run.model))
         run.send(.presented(run.model.phase.operation!))
         run.sequence += 1
         run.send(.baseline(run.owner, run.scope, run.sample(time: 2, right: Vector(x: 1, y: 0))))

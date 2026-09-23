@@ -22,6 +22,7 @@ private struct PointerRun {
     }
 
     mutating func present(layout: UInt64 = 1) {
+        send(TestPresentation.prepared(model))
         guard case .presenting(_, let operation) = model.phase else {
             XCTFail("Expected pending presentation"); return
         }
@@ -277,7 +278,7 @@ final class PointerTests: XCTestCase {
                 run.send(.dismissed(run.model.phase.operation!))
                 XCTAssertEqual(run.outputs, [.completed(SessionID(1), .cancelled(.user))])
             } else {
-                XCTAssertEqual(run.model.phase.name, "Presenting")
+                XCTAssertEqual(run.model.phase.name, "Preparing")
                 XCTAssertEqual(run.model.phase.session?.menu.id, "root")
                 XCTAssertTrue(run.outputs.isEmpty)
             }

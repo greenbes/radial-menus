@@ -72,6 +72,8 @@ struct Change {
         case .focusLost(let scope):
             if active(scope) != nil { cancel(scope, .focusLost) }
         case .layoutUnavailable(let scope): cancel(scope, .layoutUnavailable)
+        case .prepared(let scope, let operation, let measurements, let screen):
+            prepared(scope, operation, measurements, screen)
         case .contentReady(let scope):
             guard case .presenting(let session, let operation) = phase, session.scope == scope else { return }
             effects.append(.inspectPresentation(scope, operation))
@@ -137,8 +139,8 @@ struct Change {
         let session = Session(scope: scope, path: [menu], selection: nil, owner: owner)
         resetMovement()
         pointer = PointerState()
-        phase = .presenting(session, operation)
-        effects.append(.present(scope, operation))
+        phase = .preparing(session, operation)
+        effects.append(.prepare(scope, session.menu, false, operation))
     }
 
     mutating func select(_ scope: InputScope, _ item: String?, _ source: SelectionSource) {
@@ -178,14 +180,15 @@ struct Change {
         resetMovement(keepingPlacement: true)
         pointer = PointerState()
         let scope = InputScope(session: session.scope.session, revision: session.scope.revision + 1)
-        phase = .presenting(Session(scope: scope, path: path, selection: nil, owner: session.owner), operation)
-        effects += [.endInput(session.scope), .present(scope, operation)]
+        let child = Session(scope: scope, path: path, selection: nil, owner: session.owner)
+        phase = .preparing(child, operation)
+        effects += [.endInput(session.scope), .prepare(scope, child.menu, path.count > 1, operation)]
     }
 
     mutating func cancel(_ scope: InputScope, _ reason: CancellationReason) {
         guard let session = phase.session, session.scope == scope else { return }
         switch phase {
-        case .active, .presenting: dismiss(session, .cancelled(reason))
+        case .active, .preparing, .presenting: dismiss(session, .cancelled(reason))
         default: break
         }
     }
@@ -201,7 +204,7 @@ struct Change {
     mutating func failed(_ operation: OperationID, _ message: String) {
         guard phase.operation == operation else { return }
         switch phase {
-        case .presenting(let session, _):
+        case .preparing(let session, _), .presenting(let session, _):
             dismiss(session, .failed(SessionFailure(message: message)))
         case .dismissing(let session, _, let outcome):
             let failure = SessionFailure(message: message, committedChoice: outcome.choice)

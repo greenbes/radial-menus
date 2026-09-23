@@ -19,6 +19,7 @@ private struct Interaction {
     }
 
     mutating func acknowledgePresentation() {
+        send(TestPresentation.prepared(model))
         guard case .presenting(_, let operation) = model.phase else {
             XCTFail("Expected pending presentation"); return
         }
@@ -125,6 +126,7 @@ final class BehaviorTests: XCTestCase {
     func testCancellationDuringOpeningDoesNotAllowLatePresentation() {
         var run = Interaction()
         run.send(.open(nil))
+        run.send(TestPresentation.prepared(run.model))
         guard case .presenting(_, let showing) = run.model.phase else {
             return XCTFail("Expected presentation")
         }
@@ -162,6 +164,7 @@ final class BehaviorTests: XCTestCase {
     func testPresentationTimeoutCleansUpBeforeFailureResult() {
         var run = Interaction()
         run.send(.open(nil))
+        run.send(TestPresentation.prepared(run.model))
         guard case .presenting(_, let operation) = run.model.phase else { return XCTFail() }
         run.send(.deadline(operation))
         XCTAssertTrue(run.outputs.isEmpty)
@@ -187,14 +190,16 @@ final class BehaviorTests: XCTestCase {
         start.open()
         let scope = start.scope
         let events: [Event] = [.select(scope, "red", .keyboard), .select(scope, "missing", .pointer),
-                               .confirm(scope), .cancel(scope, .user), .dismissed(OperationID(2)),
+                               .confirm(scope), .cancel(scope, .user), .dismissed(OperationID(start.model.nextOperation)),
                                .presented(OperationID(99))]
         var visited = 0
+        var observedCompletion = false
         func explore(_ model: Model, _ completed: Int, _ depth: Int) {
             let view = render(model)
             if let selected = view.selectedID { XCTAssertTrue(view.items.contains { $0.id == selected }) }
             XCTAssertLessThanOrEqual(completed, 1)
             visited += 1
+            if completed > 0 { observedCompletion = true }
             guard depth > 0 else { return }
             for event in events {
                 let next = update(model, event)
@@ -204,6 +209,7 @@ final class BehaviorTests: XCTestCase {
         }
         explore(start.model, 0, 5)
         XCTAssertEqual(visited, 9331)
+        XCTAssertTrue(observedCompletion)
     }
 }
 
@@ -306,7 +312,7 @@ final class ControllerTests: XCTestCase {
         var run = Interaction()
         run.send(.connected(ControllerInfo(id: connection, name: "Test", supported: true), frame(0)))
         run.send(.controllerFrame(connection, nil, frame(1, [.menu]), true))
-        XCTAssertEqual(run.model.phase.name, "Presenting")
+        XCTAssertEqual(run.model.phase.name, "Preparing")
         run.send(.controllerFrame(connection, nil, frame(2), true))
         run.send(.controllerFrame(connection, nil, frame(3, [.menu]), true))
         XCTAssertEqual(run.model.phase.name, "Dismissing")

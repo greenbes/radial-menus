@@ -68,7 +68,7 @@ import RadialUI
 
 @MainActor final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private var store: Store!
-    private let panel = PanelAdapter()
+    private let panel = PanelAdapter(measurer: SwiftUIMenuMeasurer())
     private let controllers = ControllerAdapter()
     private let scheduler = TaskScheduler()
     private var log: EventLog!
@@ -80,6 +80,13 @@ import RadialUI
     private var shutdownProbe: ShutdownProbe?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if let path = argument("--layout-test") {
+            Task { @MainActor in
+                let passed = await NativeLayoutProbe.run(directory: URL(fileURLWithPath: path))
+                exit(passed ? 0 : 1)
+            }
+            return
+        }
         do {
             log = try EventLog(url: argument("--record").map { URL(fileURLWithPath: $0) })
         } catch {
@@ -227,7 +234,7 @@ import RadialUI
     }
 }
 
-@MainActor private struct MenuContainer: View {
+@MainActor struct MenuContainer: View {
     let store: Store
     var body: some View { MenuView(model: store.view) { store.send($0) } }
 }

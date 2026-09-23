@@ -20,6 +20,8 @@ enum TransitionRecording {
             record["menu"] = session.menu.id
             record["owner"] = session.owner?.value
             record["selected"] = session.selection?.itemID
+            record["menuDiameter"] = session.layout?.diameter
+            record["menuOuterRadius"] = session.layout?.outerRadius
             record["selectionSource"] = session.selection.map { String(describing: $0.source) }
         }
         if let placement = model.movement.placement {
@@ -48,7 +50,7 @@ enum TransitionRecording {
             record["leftStick"] = [frame.stick.x, frame.stick.y]
             record["rightStick"] = [frame.rightStick.x, frame.rightStick.y]
             record["buttons"] = frame.buttons.map { String(describing: $0) }.sorted()
-        case .moved(_, let operation, _), .resourcesReleased(let operation), .shutdownDeadline(let operation),
+        case .prepared(_, let operation, _, _), .moved(_, let operation, _), .resourcesReleased(let operation), .shutdownDeadline(let operation),
              .presented(let operation), .dismissed(let operation), .recovered(let operation):
             record["operation"] = operation.value
         case .pointerBaseline(let scope, let sample), .pointerMoved(let scope, let sample):

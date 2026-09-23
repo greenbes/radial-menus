@@ -9,6 +9,11 @@ The fixed example has Red at the top, Blue on the right, Green at the bottom,
 and More colors on the left. More colors opens a submenu containing Amber and
 Violet. This is a separate Swift package; it does not import the original app.
 
+The menu grows to fit measured labels, including their selected font weight
+and submenu indicators. If it cannot fit the available screen without shrinking
+text, opening fails explicitly. See [layout validation results](LAYOUT_VALIDATION.md)
+for the supported fixture matrix and remaining validation limits.
+
 ## Build and run
 
 Requirements: macOS 14 or later, a Swift 6 toolchain with the macOS SDK, and a
@@ -119,9 +124,34 @@ These functions do not read the clock or interact with native resources.
 The runtime store owns the current model. It processes events synchronously
 on the main actor, commits each transition, and then runs its effects. Events
 produced by a synchronous native callback enter the queue; they cannot
-interrupt the transition being processed. Native APIs are behind four small
-interfaces: window operations, controller input, deadline scheduling, and
-movement ticks.
+interrupt the transition being processed. Native APIs are behind five small
+interfaces: window operations, text measurement, controller input, deadline
+scheduling, and movement ticks.
+
+Opening and navigation first enter a preparation phase. `SwiftUIMenuMeasurer`
+measures the shared label components at both font weights and measures the
+center control. The window adapter supplies those immutable sizes with the
+screen's usable bounds and the desired center point. It does not choose radii.
+
+`MenuLayout.make` validates complete measurements by item identity, reserves
+the maximum width and height needed by either weight, and calculates a common
+label radius. Each label rectangle stays within its sector and outside the
+center control. The outer radius encloses every rectangle with padding. The
+same immutable layout controls drawing, pointer selection, and window size;
+controller selection uses its shared angular geometry.
+
+Layout starts with inner radius 46, outer radius 150, and label radius 100,
+then grows as needed. Content padding is 8 points, the center-to-ring gap is
+4 points, and window padding is 30 points. Default text is 17 points with a
+96-point wrapping width; the default width scales with a requested font size.
+These are explicit prototype settings, not measured usability requirements.
+
+Preparation has its own operation identity and deadline. Invalid measurements
+or insufficient space cause cleanup and a failed result before interaction is
+enabled. Cancellation, shutdown, navigation, and later opening invalidate old
+measurement replies. Presentation rechecks the observed screen before using
+its calculated placement. Screen changes subsequently reuse the measured menu
+size or cancel when it no longer fits.
 
 The window adapter acknowledges presentation only after the SwiftUI content
 identifies the current menu and the panel is visible and key. Selecting an
@@ -216,6 +246,19 @@ confirm another input source's selection.
 
 See [VALIDATION.md](VALIDATION.md) for observed results and their limits.
 
+To reproduce layout validation across item counts and label profiles, run:
+
+```sh
+./prototype/scripts/layout-test.sh
+```
+
+This command captures 64 native renderings, checks keyboard interaction, and
+validates measured label rectangles against each menu's calculated geometry.
+It also checks native pointer selection and clicking beyond the original ring,
+and injects an undersized screen observation to verify failure before display.
+The normal prototype must be closed. See
+[LAYOUT_VALIDATION.md](LAYOUT_VALIDATION.md) for observed results.
+
 Run the native checks from an unlocked desktop with the normal prototype
 instance closed:
 
@@ -231,9 +274,10 @@ It returns failure if the report is absent, malformed, or unsuccessful.
 The report distinguishes
 scripted input from physical controller operation.
 
-The lifecycle script starts seven separate app processes and checks actual
+The lifecycle script starts eight separate app processes and checks actual
 exit, result ordering, and resource observations. It requests quit while idle,
-opening, active, moving, dismissing a committed choice, recovering, and waiting
+preparing, opening, active, moving, dismissing a committed choice, recovering,
+and waiting
 for a withheld final acknowledgment. An explicit test adapter holds selected
 acknowledgments to make these brief states observable; native window operations
 still run. The recovery case also injects a cleanup failure. These injected

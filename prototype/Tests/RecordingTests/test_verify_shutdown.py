@@ -19,6 +19,9 @@ def fixture(stage="idle"):
     if stage == "dismissing":
         records.append({"kind": "transition", "event": "dismissed",
                         "outputs": [{"type": "selected", "value": "blue"}]})
+    if stage == "preparing":
+        records.append({"kind": "transition", "event": "dismissed",
+                        "outputs": [{"type": "cancelled", "reason": "applicationStopping"}]})
     records.extend([
         {"kind": "transition", "event": "shutdownDeadline" if stage == "missing-release" else "resourcesReleased",
          "outputs": [{"type": "shutdown", "result": "failed" if stage == "missing-release" else "completed"}]},
@@ -32,7 +35,7 @@ def fixture(stage="idle"):
 
 class ShutdownRecordingTests(unittest.TestCase):
     def test_success_committed_choice_and_timeout_require_distinct_results(self):
-        for stage in ("idle", "dismissing", "missing-release"):
+        for stage in ("idle", "preparing", "dismissing", "missing-release"):
             with self.subTest(stage=stage):
                 self.assertEqual(verifier.verify(fixture(stage), stage)["stage"], stage)
 

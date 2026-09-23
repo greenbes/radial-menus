@@ -99,7 +99,8 @@ extension Change {
     mutating func placementObserved(_ scope: InputScope, _ placement: Placement) {
         guard phase.session?.scope == scope else { return }
         switch phase { case .active, .presenting: break; default: return }
-        guard placement.isValid else { cancel(scope, .layoutUnavailable); return }
+        guard placement.isValid, let layout = phase.session?.layout,
+              placement.frame.width == layout.diameter, placement.frame.height == layout.diameter else { cancel(scope, .layoutUnavailable); return }
         guard movement.placement.map({ placement.layout > $0.layout }) ?? true else { return }
         movement = MovementState(placement: placement, desired: placement.frame)
         pointer = PointerState()

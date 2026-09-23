@@ -7,7 +7,7 @@ import RadialRuntime
 /// are held so termination can be requested at an otherwise brief boundary.
 @MainActor final class ShutdownProbe: WindowDriver {
     enum Stage: String, CaseIterable {
-        case idle, opening, active, moving, dismissing, recovering
+        case idle, preparing, opening, active, moving, dismissing, recovering
         case missingRelease = "missing-release"
     }
 
@@ -22,7 +22,12 @@ import RadialRuntime
         panel.receive = { [weak self] in self?.observe($0) }
     }
 
-    func present(scope: InputScope, operation: OperationID) { panel.present(scope: scope, operation: operation) }
+    func prepare(scope: InputScope, menu: Menu, canGoBack: Bool, operation: OperationID) {
+        panel.prepare(scope: scope, menu: menu, canGoBack: canGoBack, operation: operation)
+    }
+    func present(scope: InputScope, layout: MenuLayout, placement: Placement, operation: OperationID) {
+        panel.present(scope: scope, layout: layout, placement: placement, operation: operation)
+    }
     func inspectPresentation(scope: InputScope, operation: OperationID) {
         panel.inspectPresentation(scope: scope, operation: operation)
     }
@@ -35,7 +40,7 @@ import RadialRuntime
 
     private func observe(_ event: Event) {
         switch (stage, event) {
-        case (.opening, .presented), (.dismissing, .dismissed),
+        case (.preparing, .prepared), (.opening, .presented), (.dismissing, .dismissed),
              (.recovering, .dismissed), (.recovering, .recovered),
              (.missingRelease, .resourcesReleased): held.append(event)
         default: receive?(event)
@@ -47,7 +52,7 @@ import RadialRuntime
         do {
             if stage != .idle && stage != .missingRelease {
                 store.send(.open(nil))
-                if stage == .opening {
+                if stage == .opening || stage == .preparing {
                     try await probe.wait("held presentation") { !self.held.isEmpty }
                 } else {
                     try await probe.wait("active shutdown fixture") { store.model.phase.isActive }

@@ -11,7 +11,16 @@ import RadialCore
     var inspect: (() -> Void)?
     var inspectDismissal: (() -> Void)?
     var inspectRelease: (() -> Void)?
-    func present(scope: InputScope, operation: OperationID) {
+    func prepare(scope: InputScope, menu: Menu, canGoBack: Bool, operation: OperationID) {
+        let measurements = MenuMeasurements(fontSize: 17, wrappingWidth: 96, labels: menu.items.map {
+            LabelMeasurement(itemID: $0.id, normal: Size(width: 30, height: 20), selected: Size(width: 30, height: 20))
+        }, center: Size(width: 36, height: 32))
+        if synchronous {
+            receive?(.prepared(scope, operation, measurements, ScreenContext(revision: 1, screenID: "screen",
+                bounds: Rect(x: 0, y: 0, width: 2000, height: 1000), anchor: Vector(x: 580, y: 380))))
+        }
+    }
+    func present(scope: InputScope, layout: MenuLayout, placement: Placement, operation: OperationID) {
         inspect?(); presented.append(operation)
         if synchronous { receive?(.presented(operation)) }
     }

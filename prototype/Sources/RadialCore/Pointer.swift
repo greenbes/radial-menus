@@ -54,8 +54,7 @@ extension Change {
         let moved = sample.screenPosition.distance(to: anchor) >= pointerSettings.movementThreshold
         pointer = PointerState(latest: sample, anchor: moved ? sample.screenPosition : anchor)
         guard moved else { return }
-        let index = Geometry.hit(sample.menuPosition, inner: Geometry.innerRadius,
-                                 outer: Geometry.outerRadius, count: session.menu.items.count)
+        let index = session.layout?.hit(sample.menuPosition)
         let item = index.map { session.menu.items[$0].id }
         select(scope, item, .pointer)
     }

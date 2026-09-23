@@ -42,7 +42,7 @@ def check_choice(transitions, start, end, connection):
         session = opened.get("session")
         if not (opened.get("event") == "controllerFrame" and opened.get("connection") == connection and
                 opened.get("continuous") is True and "menu" in opened.get("buttons", []) and
-                opened.get("phase") == "Presenting" and opened.get("owner") == connection and session is not None):
+                opened.get("phase") in ("Preparing", "Presenting") and opened.get("owner") == connection and session is not None):
             continue
         choices = session_outputs(transitions, session)
         if len(choices) != 1:
