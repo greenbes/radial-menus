@@ -99,21 +99,26 @@ public struct Model: Equatable, Sendable {
     public let running: Bool
     public let movement: MovementState
     public let movementSettings: MovementSettings
+    public let pointer: PointerState
+    public let pointerSettings: PointerSettings
     let nextSession: UInt64
     let nextOperation: UInt64
 
-    public init(menu: Menu, movementSettings: MovementSettings = .standard) {
+    public init(menu: Menu, movementSettings: MovementSettings = .standard,
+                pointerSettings: PointerSettings = .standard) {
         self.init(menu: menu, phase: .idle, controllers: [:], running: true, nextSession: 1, nextOperation: 1,
-                  movementSettings: movementSettings)
+                  movementSettings: movementSettings, pointerSettings: pointerSettings)
     }
     public var canOpen: Bool { if case .idle = phase { running } else { false } }
     public var canRecover: Bool { if case .unavailable(_, nil) = phase { true } else { false } }
     init(menu: Menu, phase: Phase, controllers: [ConnectionID: ControllerState], running: Bool,
          nextSession: UInt64, nextOperation: UInt64, movement: MovementState = MovementState(),
-         movementSettings: MovementSettings = .standard) {
+         movementSettings: MovementSettings = .standard, pointer: PointerState = PointerState(),
+         pointerSettings: PointerSettings = .standard) {
         self.menu = menu; self.phase = phase; self.controllers = controllers; self.running = running
         self.nextSession = nextSession; self.nextOperation = nextOperation
         self.movement = movement; self.movementSettings = movementSettings
+        self.pointer = pointer; self.pointerSettings = pointerSettings
     }
 }
 
@@ -130,6 +135,7 @@ public enum Event: Equatable, Sendable {
     case inputLost(ConnectionID)
     case placementObserved(InputScope, Placement)
     case movementTick(MovementID, Double), moved(InputScope, OperationID, Placement)
+    case pointerBaseline(InputScope, PointerSample), pointerMoved(InputScope, PointerSample)
 }
 public enum Effect: Equatable, Sendable {
     case present(InputScope, OperationID), inspectPresentation(InputScope, OperationID)

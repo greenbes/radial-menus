@@ -102,6 +102,7 @@ extension Change {
         guard placement.isValid else { cancel(scope, .layoutUnavailable); return }
         guard movement.placement.map({ placement.layout > $0.layout }) ?? true else { return }
         movement = MovementState(placement: placement, desired: placement.frame)
+        pointer = PointerState()
         if phase.isActive { effects.append(.baseline(scope)) }
     }
 

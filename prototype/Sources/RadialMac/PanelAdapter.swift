@@ -23,6 +23,7 @@ public struct OperationOrder: Sendable {
     public var content: NSView?
     public var onNativeObservation: ((String) -> Void)?
     private var panel: MenuPanel?
+    private let pointer = PointerAdapter()
     private var order = OperationOrder()
     private var request: (scope: InputScope, operation: OperationID)?
     private var readyScope: InputScope?
@@ -45,6 +46,7 @@ public struct OperationOrder: Sendable {
 
     public func present(scope: InputScope, operation: OperationID) {
         guard order.accept(operation) else { return }
+        pointer.stop()
         let openingSession = request?.scope.session != scope.session
         if openingSession {
             previousApplication = NSWorkspace.shared.frontmostApplication
@@ -66,6 +68,7 @@ public struct OperationOrder: Sendable {
             window.hidesOnDeactivate = false
             window.becomesKeyOnlyIfNeeded = false
             window.isReleasedWhenClosed = false
+            window.acceptsMouseMovedEvents = true
             window.delegate = self
             window.contentView = content
             panel = window
@@ -101,12 +104,14 @@ public struct OperationOrder: Sendable {
         guard let request, order.current == request.operation, readyScope == request.scope,
               acknowledged != request.operation, panel?.isVisible == true, panel?.isKeyWindow == true else { return }
         acknowledged = request.operation
+        startPointer(scope: request.scope)
         observe("Presented \(request.operation.value)")
         receive?(.presented(request.operation))
     }
 
     public func dismiss(scope: InputScope, operation: OperationID) {
         guard order.accept(operation) else { return }
+        pointer.stop()
         let ownedFocus = panel?.isKeyWindow == true &&
             NSWorkspace.shared.frontmostApplication?.processIdentifier == ProcessInfo.processInfo.processIdentifier
         request = nil
@@ -148,6 +153,7 @@ public struct OperationOrder: Sendable {
 
     public func recover(operation: OperationID) {
         guard order.accept(operation) else { return }
+        pointer.stop()
         request = nil; readyScope = nil; restoration = nil; previousApplication = nil
         panel?.orderOut(nil)
         panel?.close()
@@ -242,6 +248,7 @@ public struct OperationOrder: Sendable {
             let observed = position.replacingFrame(valueRect(panel.frame))
             currentPlacement = observed
             receive?(.placementObserved(request.scope, observed))
+            startPointer(scope: request.scope)
         }
         else { receive?(.layoutUnavailable(request.scope)) }
     }
@@ -260,6 +267,11 @@ public struct OperationOrder: Sendable {
 
     private func screenID(_ screen: NSScreen) -> String? {
         (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.stringValue
+    }
+
+    private func startPointer(scope: InputScope) {
+        guard let content, let placement = currentPlacement else { return }
+        pointer.start(view: content, scope: scope, layout: placement.layout) { [weak self] in self?.receive?($0) }
     }
 
     private func valueRect(_ frame: NSRect) -> Rect {

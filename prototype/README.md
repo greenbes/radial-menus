@@ -44,7 +44,8 @@ does not create a distributable or notarized release.
 | Back button | Go back one menu, or cancel at the root |
 | Keyboard arrows | Select the previous / next item |
 | Return | Confirm the current selection |
-| Escape | Go back one menu, or cancel at the root |
+| Escape | Cancel the whole interaction, including from a submenu |
+| Pointer movement | Select the item under the pointer |
 | Click an item | Activate that specific item |
 | Center button | Go back, or cancel at the root |
 
@@ -55,7 +56,19 @@ macOS names. Printed labels can differ from the names reported by macOS.
 
 Keep the stick deflected while pressing Confirm. Returning the stick to its
 center clears a selection made by the stick. It does not clear a selection
-made with the keyboard, D-pad, or an accessibility action.
+made with the keyboard, D-pad, pointer, or an accessibility action.
+
+Moving the mouse by at least two logical screen points takes selection from
+another input when the pointer is over an item. Smaller movements accumulate
+from the last accepted position. Leaving the ring or entering its center clears
+only a selection made by the pointer. A stationary mouse or stick does not
+overwrite a keyboard, D-pad, or other deliberate selection.
+
+Opening or entering a submenu establishes the current pointer position without
+selecting an item. Moving the menu beneath a stationary pointer preserves the
+selection. Clicking activates the specific clicked item, even if another item
+was selected. The controller Back button and center Back control return to the
+parent menu; Escape cancels the whole interaction.
 
 After opening a menu or entering a submenu, release held buttons and center
 both sticks before selecting or moving again. Holding Confirm across navigation
@@ -158,6 +171,21 @@ and its input baseline while preserving selection. Both the core and window
 adapter reject obsolete movement identities, operations, and screen layouts
 at their respective boundaries.
 
+The window adapter owns a pointer adapter while the panel is presented. It
+copies mouse events into immutable observations containing desktop and
+menu-relative positions, a sequence number, a timestamp, and a layout revision.
+Desktop positions come from the native event's global coordinates, so queued
+events do not acquire an apparent displacement when the window moves. The core
+compares desktop positions for deliberate motion and uses menu-relative
+positions for ring hit testing. The two-point threshold is a validated setting,
+not a measured usability result.
+
+Presentation and screen changes establish a pointer baseline without changing
+selection. Obsolete sessions, menu revisions, layouts, sequences, and timestamps
+cannot update pointer state. Navigation, dismissal, and recovery remove native
+pointer monitoring; every newly presented menu starts monitoring with a fresh
+baseline. Pointer observation does not require a global event monitor.
+
 The SwiftUI view emits selection and activation events. Native window
 management and controller access do not belong to the view. Its local focus
 properties manage UI focus; they do not hold a second copy of menu selection.
@@ -242,10 +270,10 @@ decoder handles button presses correctly.
 
 ## Scope and remaining checks
 
-This first prototype includes controller selection, keyboard input, clickable
-items, accessibility actions, submenu navigation, right-stick repositioning,
-window lifecycle, failures, and diagnostic results. Pointer-hover selection,
-configuration editing, persistence, custom icons, global hotkeys, and command
+This prototype includes controller selection, keyboard input, pointer-hover
+selection, clickable items, accessibility actions, submenu navigation,
+right-stick repositioning, window lifecycle, failures, and diagnostic results.
+Configuration editing, persistence, custom icons, global hotkeys, and command
 execution are outside this implementation milestone.
 
 Successful automated tests do not establish VoiceOver usability, behavior on

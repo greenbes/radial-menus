@@ -67,6 +67,7 @@ import RadialMac
             key(code: 53, characters: "\u{1b}")
             try await wait("Escape dismissal") { self.store.model.phase == .idle }
             try check(!panel.isVisible && store.outputs.count == 3, "Escape cancels exactly one interaction")
+            try await exercisePointerAndMixedInput()
         } catch {
             errorMessage = String(describing: error)
         }
@@ -80,7 +81,7 @@ import RadialMac
             },
             "trace": store.trace,
             "outputs": store.outputs.map { String(describing: $0) },
-            "limits": ["Scripted native keyboard and application events, not physical controller presses",
+            "limits": ["App-local scripted mouse and keyboard events and controller value fixtures; not physical input",
                        "VoiceOver, display changes, and device disconnection require separate observation"]
         ]
         do {
@@ -93,12 +94,12 @@ import RadialMac
         return errorMessage == nil
     }
 
-    private func check(_ condition: Bool, _ description: String) throws {
+    func check(_ condition: Bool, _ description: String) throws {
         guard condition else { throw ProbeFailure(description) }
         checks.append(description)
     }
 
-    private func wait(_ description: String, timeout: Double = 5, until condition: () -> Bool) async throws {
+    func wait(_ description: String, timeout: Double = 5, until condition: () -> Bool) async throws {
         let deadline = ContinuousClock.now.advanced(by: .seconds(timeout))
         while !condition() {
             guard ContinuousClock.now < deadline else {
@@ -110,7 +111,7 @@ import RadialMac
         await Task.yield()
     }
 
-    private func exerciseMovement(scope: InputScope) async throws -> (placement: Placement, operation: OperationID) {
+    func exerciseMovement(scope: InputScope) async throws -> (placement: Placement, operation: OperationID) {
         guard let initial = panel.currentPlacement else { throw ProbeFailure("Missing initial placement") }
         let connection = ConnectionID(UInt64.max - 1)
         func frame(_ sequence: UInt64, right: Vector = .zero) -> ControllerFrame {
@@ -155,7 +156,7 @@ import RadialMac
         return (initial, oldOperation)
     }
 
-    private func scope() throws -> InputScope {
+    func scope() throws -> InputScope {
         guard let scope = store.view.scope else { throw ProbeFailure("No current scope") }
         return scope
     }
@@ -165,7 +166,7 @@ import RadialMac
         return operation
     }
 
-    private func key(code: UInt16, characters: String) {
+    func key(code: UInt16, characters: String) {
         guard let window = NSApp.keyWindow else { return }
         for type in [NSEvent.EventType.keyDown, .keyUp] {
             if let event = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: [],
@@ -178,7 +179,7 @@ import RadialMac
     }
 }
 
-private struct ProbeFailure: Error, CustomStringConvertible {
+struct ProbeFailure: Error, CustomStringConvertible {
     let description: String
     init(_ description: String) { self.description = description }
 }

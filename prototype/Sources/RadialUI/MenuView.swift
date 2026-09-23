@@ -71,7 +71,7 @@ import RadialCore
         .onKeyPress(.leftArrow) { step(-1) }
         .onKeyPress(.upArrow) { step(-1) }
         .onKeyPress(.return) { emit { .confirm($0) }; return .handled }
-        .onKeyPress(.escape) { emit { .back($0) }; return .handled }
+        .onKeyPress(.escape) { emit { .cancel($0, .user) }; return .handled }
         .onAppear { contentChanged() }
         .onChange(of: model.scope) { _, _ in contentChanged() }
         .onChange(of: model.acceptsInput) { _, active in if active { keyboardFocus = true } }

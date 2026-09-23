@@ -14,6 +14,8 @@ struct Change {
     var nextOperation: UInt64
     var movement: MovementState
     let movementSettings: MovementSettings
+    var pointer: PointerState
+    let pointerSettings: PointerSettings
     var effects: [Effect] = []
     var outputs: [Output] = []
 
@@ -21,11 +23,13 @@ struct Change {
         menu = model.menu; phase = model.phase; controllers = model.controllers; running = model.running
         nextSession = model.nextSession; nextOperation = model.nextOperation
         movement = model.movement; movementSettings = model.movementSettings
+        pointer = model.pointer; pointerSettings = model.pointerSettings
     }
     var result: Transition {
         Transition(model: Model(menu: menu, phase: phase, controllers: controllers, running: running,
                                 nextSession: nextSession, nextOperation: nextOperation,
-                                movement: movement, movementSettings: movementSettings),
+                                movement: movement, movementSettings: movementSettings,
+                                pointer: pointer, pointerSettings: pointerSettings),
                    effects: effects, outputs: outputs)
     }
 
@@ -44,6 +48,7 @@ struct Change {
         }
         phase = .unavailable(failure, nil)
         resetMovement()
+        pointer = PointerState()
     }
 
     mutating func accept(_ event: Event) {
@@ -102,6 +107,8 @@ struct Change {
         case .placementObserved(let scope, let placement): placementObserved(scope, placement)
         case .movementTick(let id, let time): movementTick(id, time)
         case .moved(let scope, let operation, let placement): moved(scope, operation, placement)
+        case .pointerBaseline(let scope, let sample): pointerBaseline(scope, sample)
+        case .pointerMoved(let scope, let sample): pointerMoved(scope, sample)
         }
     }
 
@@ -123,6 +130,7 @@ struct Change {
         nextSession += 1
         let session = Session(scope: scope, path: [menu], selection: nil, owner: owner)
         resetMovement()
+        pointer = PointerState()
         phase = .presenting(session, operation)
         effects.append(.present(scope, operation))
     }
@@ -162,6 +170,7 @@ struct Change {
         guard session.scope.revision < UInt64.max else { exhaustIdentities(); return }
         guard let operation = allocateOperation() else { return }
         resetMovement(keepingPlacement: true)
+        pointer = PointerState()
         let scope = InputScope(session: session.scope.session, revision: session.scope.revision + 1)
         phase = .presenting(Session(scope: scope, path: path, selection: nil, owner: session.owner), operation)
         effects += [.endInput(session.scope), .present(scope, operation)]
@@ -178,6 +187,7 @@ struct Change {
     mutating func dismiss(_ session: Session, _ outcome: Outcome) {
         guard let operation = allocateOperation() else { return }
         resetMovement()
+        pointer = PointerState()
         phase = .dismissing(session, operation, outcome)
         effects += [.endInput(session.scope), .dismiss(session.scope, operation)]
     }
