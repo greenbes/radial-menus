@@ -18,6 +18,42 @@ import RadialCore
     }
 
     private func menu(_ layout: MenuLayout) -> some View {
+        controls(layout)
+        .frame(width: layout.diameter, height: layout.diameter)
+        .background {
+            if let ring = layout.iconRing {
+                MenuIconRing(ring: ring, items: model.items, diameter: layout.diameter,
+                             fontSize: layout.fontSize, selectedID: model.selectedID)
+                    .allowsHitTesting(false).accessibilityHidden(true)
+            }
+        }
+        .disabled(!model.acceptsInput)
+        .focusable()
+        .focusEffectDisabled()
+        .focused($keyboardFocus)
+        .onKeyPress(.rightArrow) { step(1) }
+        .onKeyPress(.downArrow) { step(1) }
+        .onKeyPress(.leftArrow) { step(-1) }
+        .onKeyPress(.upArrow) { step(-1) }
+        .onKeyPress(.return) { emit { .confirm($0) }; return .handled }
+        .onKeyPress(.escape) { emit { .cancel($0, .user) }; return .handled }
+        .onKeyPress(keys: [.delete, KeyEquivalent("\u{7F}")]) { _ in back(); return .handled }
+        .onAppear { contentChanged() }
+        .onChange(of: model.layout) { _, _ in contentChanged() }
+        .onChange(of: model.scope) { _, _ in contentChanged() }
+        .onChange(of: model.acceptsInput) { _, active in if active { keyboardFocus = true } }
+        .onChange(of: accessibleItem) { _, item in
+            if let item { emit { .select($0, item, .accessibility) } }
+        }
+        // Explicit children keep decoration out of single-item button bounds.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(model.title)
+        .accessibilityChildren {
+            controls(layout).frame(width: layout.diameter, height: layout.diameter)
+        }
+    }
+
+    private func controls(_ layout: MenuLayout) -> some View {
         ZStack {
             if let guide = layout.directionGuide {
                 MenuDirectionGuide(guide: guide, diameter: layout.diameter, selectedID: model.selectedID)
@@ -45,7 +81,7 @@ import RadialCore
                     .background(Color(nsColor: .windowBackgroundColor), in: RoundedRectangle(cornerRadius: 18))
                     .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.primary.opacity(0.15), lineWidth: 1)
                         .allowsHitTesting(false))
-            } else {
+            } else if layout.style != .iconLabels {
                 Button(action: back) {
                     MenuCenterLabel(canGoBack: model.canGoBack, fontSize: layout.fontSize)
                     .frame(width: layout.centerRadius * 2, height: layout.centerRadius * 2)
@@ -56,31 +92,13 @@ import RadialCore
                 .accessibilityLabel(model.canGoBack ? "Back to parent menu" : "Cancel menu")
             }
         }
-        .frame(width: layout.diameter, height: layout.diameter)
-        .disabled(!model.acceptsInput)
-        .focusable()
-        .focusEffectDisabled()
-        .focused($keyboardFocus)
-        .onKeyPress(.rightArrow) { step(1) }
-        .onKeyPress(.downArrow) { step(1) }
-        .onKeyPress(.leftArrow) { step(-1) }
-        .onKeyPress(.upArrow) { step(-1) }
-        .onKeyPress(.return) { emit { .confirm($0) }; return .handled }
-        .onKeyPress(.escape) { emit { .cancel($0, .user) }; return .handled }
-        .onAppear { contentChanged() }
-        .onChange(of: model.layout) { _, _ in contentChanged() }
-        .onChange(of: model.scope) { _, _ in contentChanged() }
-        .onChange(of: model.acceptsInput) { _, active in if active { keyboardFocus = true } }
-        .onChange(of: accessibleItem) { _, item in
-            if let item { emit { .select($0, item, .accessibility) } }
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(model.title)
     }
 
     private func itemButton(_ item: Item, index: Int, layout: MenuLayout) -> some View {
         let selected = model.selectedID == item.id
         let isCard = layout.style == .cards
+        let selectedOutline: Color = layout.style == .iconLabels ? .white : .accentColor
+        let outlineWidth: Double = selected ? (layout.style == .iconLabels ? 3 : isCard ? 2 : 1) : 1
         let bounds = layout.labels[index].bounds
         let shape = Wedge(sector: layout.sectors[index], fullCircle: model.items.count == 1,
                           outer: layout.outerRadius, inner: layout.innerRadius)
@@ -111,8 +129,8 @@ import RadialCore
                         if selected { shape.fill(Color.accentColor.opacity(isCard ? 0.12 : 1)) }
                     }
                     .overlay(RoundedRectangle(cornerRadius: isCard ? 17 : 10)
-                        .strokeBorder(selected ? Color.accentColor : Color.primary.opacity(0.25),
-                                      lineWidth: selected && isCard ? 2 : 1))
+                        .strokeBorder(selected ? selectedOutline : Color.primary.opacity(0.25),
+                                      lineWidth: outlineWidth))
                     .contentShape(Rectangle())
             }
         }
@@ -122,8 +140,9 @@ import RadialCore
         .accessibilityHint([isCard ? "" : item.detail, hint(for: item)].filter { !$0.isEmpty }.joined(separator: ". "))
         .accessibilityFocused($accessibleItem, equals: item.id)
         .accessibilityAction { emit { .activate($0, item.id, .accessibility) } }
+        .accessibilityAction(named: Text(model.canGoBack ? "Back to parent menu" : "Cancel menu")) { back() }
         return Group {
-            if layout.style.usesDirectionGuide {
+            if layout.style.showsFullTitles {
                 // The full text is already visible. Let SwiftUI derive the
                 // accessible name from that text, with decorative icons hidden.
                 button

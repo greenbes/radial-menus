@@ -1,19 +1,27 @@
 import Foundation
 
+/// Built-in semantic symbols. The presentation layer chooses their artwork.
+public enum ItemIcon: String, CaseIterable, Equatable, Sendable {
+    case item, documents, workspace, writing, history, capture, commands, color
+}
+
 public struct Item: Equatable, Sendable {
     public enum Destination: Equatable, Sendable { case value(String), menu(Menu) }
     public let id: String
     public let label: String
     public let title: String
     public let detail: String
+    public let icon: ItemIcon
     public let destination: Destination
 
-    public init(id: String, label: String, title: String? = nil, detail: String = "", value: String) {
+    public init(id: String, label: String, title: String? = nil, detail: String = "", icon: ItemIcon = .item, value: String) {
+        self.icon = icon
         self.title = title ?? label; self.detail = detail
         self.id = id; self.label = label; self.destination = .value(value)
     }
 
-    public init(id: String, label: String, title: String? = nil, detail: String = "", menu: Menu) {
+    public init(id: String, label: String, title: String? = nil, detail: String = "", icon: ItemIcon = .commands, menu: Menu) {
+        self.icon = icon
         self.title = title ?? label; self.detail = detail
         self.id = id; self.label = label; self.destination = .menu(menu)
     }
@@ -59,13 +67,13 @@ public enum SampleMenu {
     public static let definition: Menu = {
         do {
             let colors = try Menu(id: "colors", title: "More colors", items: [
-                Item(id: "amber", label: "Amber", value: "amber"),
-                Item(id: "violet", label: "Violet", value: "violet")
+                Item(id: "amber", label: "Amber", icon: .color, value: "amber"),
+                Item(id: "violet", label: "Violet", icon: .color, value: "violet")
             ])
             return try Menu(id: "root", title: "Choose a color", items: [
-                Item(id: "red", label: "Red", value: "red"),
-                Item(id: "blue", label: "Blue", value: "blue"),
-                Item(id: "green", label: "Green", value: "green"),
+                Item(id: "red", label: "Red", icon: .color, value: "red"),
+                Item(id: "blue", label: "Blue", icon: .color, value: "blue"),
+                Item(id: "green", label: "Green", icon: .color, value: "green"),
                 Item(id: "more", label: "More colors", menu: colors)
             ])
         } catch { preconditionFailure("Invalid built-in fixture: \(error)") }

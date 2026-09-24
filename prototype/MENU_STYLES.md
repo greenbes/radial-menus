@@ -2,15 +2,19 @@
 
 Use the **Menu style** dropdown in the diagnostics window. **Full labels**
 implements design 1: complete titles in buttons around a compact ring, with
-lines connecting the titles to markers at their controller directions.
-Selection highlights the title button, connection, and marker, and shows a
-checkmark. **Cards** implements design 2: titles and descriptions are visible
-together in radial cards. Selection adds a light tint, an accent outline, and
-a checkmark. **Selected message** shows short labels arranged around a ring, with
-a full title and description in the center. **Pie wedges** shows short labels inside
-sectors. The default demo uses Selected message and six illustrative workspace
-actions. Selecting an action reports its value; it does not perform the
-described operation.
+lines connecting the titles to markers at their controller directions. Selection
+highlights the title button, connection, and marker, and shows a checkmark.
+**Full labels with icons** replaces the direction markers with action icons,
+removes connecting lines, and leaves the center empty. Selection fills the icon
+badge and title button with the same accent color and adds a three-point white
+outline inside their bounds. There is no selection checkmark; submenu arrows
+remain visible. **Cards** implements design
+2: titles and descriptions are visible together in radial cards. Selection adds
+a light tint, an accent outline, and a checkmark. **Selected message** shows
+short labels arranged around a ring, with a full title and description in the
+center. **Pie wedges** shows short labels inside sectors. The default demo uses
+Selected message and six illustrative workspace actions. Selecting an action
+reports its value; it does not perform the described operation.
 
 A style change applies to the next opening. An active interaction, including
 its submenus, retains its original style. The preference remains in memory
@@ -18,21 +22,26 @@ until quitting. The prototype does not persist settings between launches.
 
 ## Content and behavior
 
-An immutable item supplies its short label, full title, optional description,
-and destination. When no distinct title is supplied, the label is also its
-title. Definitions currently limit labels to 24 characters, titles to 160,
-and descriptions to 600. These are input limits; native measurements determine
-whether a particular menu fits the screen.
+An immutable item supplies its short label, full title, optional description, a
+semantic built-in icon, and destination. The view layer maps icons to SF
+Symbols; unspecified leaf items use a dotted circle and submenus use a grid.
+When no distinct title is supplied, the label is also its title. Definitions
+currently limit labels to 24 characters, titles to 160, and descriptions to 600.
+These are input limits; native measurements determine whether a particular menu
+fits the screen.
 
-Controller direction and keyboard order are identical in all styles. The
-pointer targets visible sectors in Pie wedges and discrete label buttons in
-Full labels, Cards, and Selected message. Moving off a target clears only
-pointer-owned selection. Rings, markers, connections, and central message text
-do not activate items. A card's description is part of its item button, so
-clicking it chooses that item. Back and Cancel are separate controls.
-Accessibility exposes the full title and description
-for every style. Full labels displays titles; descriptions appear visually
-when using Cards or Selected message.
+Controller direction and keyboard order are identical in all styles. The pointer
+targets visible sectors in Pie wedges and discrete label buttons in Full labels,
+Full labels with icons, Cards, and Selected message. Moving off a target clears
+only pointer-owned selection. Rings, markers, connections, and central message
+text do not activate items. A card's description is part of its item button, so
+clicking it chooses that item. Back and Cancel are separate controls except in
+Full labels with icons. That style uses controller Back, keyboard Delete, or a
+named accessibility action to go back or cancel at the root. Escape cancels the
+whole interaction. Clicking its empty center or icons has no effect.
+Accessibility exposes the full title and description for every style. Full
+labels displays titles; descriptions appear visually when using Cards or
+Selected message.
 
 Before display, the native boundary measures normal and selected labels,
 including padding and submenu indicators. For Selected message it also measures
@@ -41,17 +50,16 @@ requires one measurement per item and one for the neutral state, then reserves
 the largest required height. Item bounds, the window, and the navigation button
 remain fixed while selection changes.
 
-The geometry remains deterministic. Pie labels clear a circular center;
-Full labels and Cards clear a compact ring; Selected message clears a central
-rectangle.
-Full labels and Selected message stay within their sectors. Cards can extend
-across sector boundaries, but remain disjoint and cannot obscure another item's
-connection. Their centers retain the same controller directions. Full-label
-connections end at the inward edge of each label and cannot cross another label.
-Their angular order
-is shared with controller selection. The window encloses all visible elements.
-A layout that cannot fit at the requested text size fails explicitly before
-accepting input. There is no automatic truncation or text-size reduction.
+The geometry remains deterministic. Pie labels clear a circular center; both
+full-label styles and Cards clear a compact ring; Selected message clears a
+central rectangle. Both full-label styles and Selected message stay within their
+sectors. Cards can extend across sector boundaries, but remain disjoint and
+cannot obscure another item's connection. Their centers retain the same
+controller directions. Full-label connections end at the inward edge of each
+label and cannot cross another label. Their angular order is shared with
+controller selection. The window encloses all visible elements. A layout that
+cannot fit at the requested text size fails explicitly before accepting input.
+There is no automatic truncation or text-size reduction.
 
 ## Reproduce the checks
 
@@ -62,18 +70,21 @@ Quit the running prototype first, then use an unlocked macOS desktop:
 ./prototype/scripts/layout-test.sh
 ./prototype/scripts/layout-test.sh --selected-message
 ./prototype/scripts/layout-test.sh --full-labels
+./prototype/scripts/layout-test.sh --icon-labels
 ./prototype/scripts/layout-test.sh --cards
 ./prototype/scripts/smoke-test.sh
 ./prototype/scripts/smoke-test.sh --selected-message
 ./prototype/scripts/smoke-test.sh --full-labels
+./prototype/scripts/smoke-test.sh --icon-labels
 ./prototype/scripts/smoke-test.sh --cards
 ./prototype/scripts/lifecycle-test.sh
 ```
 
-The layout checks click all four choices in the actual diagnostics window, reopen
-menus with the chosen style, and exercise native Back and Cancel buttons. They
-also check a style change during an interaction: the current submenu retains
-its style and the next opening adopts the preference.
+The layout checks click all five choices in the actual diagnostics window,
+reopen menus with the chosen style, and exercise native Back and Cancel buttons
+(Delete and Escape for Full labels with icons). They also check a style change
+during an interaction: the current submenu retains its style and the next
+opening adopts the preference.
 
 The selected-message matrix checks item counts 1 through 12, several label
 profiles, submenus, and requested text sizes of 17 and 34 points. It measures
@@ -97,6 +108,75 @@ SwiftUI's accessibility nodes expose Objective-C accessors without declaring
 the complete AppKit accessibility protocol. The native probe checks for those
 accessors before reading them. It does not use private method names or represent
 a VoiceOver session.
+
+## Icon-label validation
+
+Run `./prototype/scripts/run.sh --icon-labels` to select this style. Before
+presentation, the native boundary measures each symbol at normal and selected
+weights. The core encloses the glyphs in badges with padding and separates
+adjacent badges for every supported item count. Labels retain their full-title
+measurements and controller directions. No center control is measured or
+rendered, and no connection geometry is supplied.
+
+The native probe records rendered pixels in each icon badge and its label, at
+the center, and in the gap where a connecting line would appear. The independent
+verifier requires matching opaque icon and label colors, exactly one highlight
+for the selected item, and transparent center and gap pixels. It also checks
+native glyph sizes, badge separation, item directions, full title button bounds,
+and stable placement through every selection. Controlled invalid reports
+exercise missing highlights, mismatched colors, visible lines or center content,
+incorrect directions, and oversized glyphs.
+
+The menu supplies explicit accessibility children from the same control views
+used for display. This keeps decorative geometry out of the button frames,
+including when there is only one item. Native accessibility actions exercise
+submenu activation, Back, Cancel, and choosing an item when another is selected.
+These checks invoke the real native actions; they do not establish VoiceOver
+usability.
+
+The selection outline update removes the checkmark and its reserved space from
+leaf items. Submenu arrows stay visible in both selection states. Selected
+labels and icon badges have a three-point white outline drawn inside their
+existing bounds. A separate native pixel probe measures the contrasting border
+on both shapes and checks that unselected labels keep their thin border.
+
+The update passed 109 Swift tests, 26 Python verifier tests, 68 native layout
+cases with 500 selection states, and 68 independent outline pixel checks.
+Interaction smoke tests passed 35 checks each for the icon-label and original
+full-label styles. The connected GuliKit was detected; these checks used
+scripted input and do not establish physical controller usability.
+
+Current selection renderings and probe results are retained under
+`build/verification/icon-selection-outline/`. The original icon-style validation
+below remains under `build/verification/icon-labels/`.
+
+![Selection outline](build/verification/icon-selection-outline/layout/rich.png)
+
+### Initial icon-style validation
+
+| Check | Observed result |
+| --- | --- |
+| Swift tests | 109 passed: 100 core, 8 runtime, 1 native operation-order test |
+| Python verifier tests | 26 passed, including invalid icon reports |
+| Icon-label layout matrix | 68 fixtures and 500 selection states passed |
+| Existing style layout regressions | 279 fixtures passed across four styles |
+| Native keyboard traversal | 2,208 steps across all five matrices |
+| Native interaction smoke tests | 35 checks passed per style |
+| Native accessibility actions | Submenu, Back, Cancel, activation passed |
+
+The six-item demo occupies a 728-point square at 17-point text and a
+1,364-point square at 34 points on the observed screen. Visual inspection
+covered the dropdown, this demo at both sizes, and the twelve-item wide-label
+fixture in Aqua. The measurements do not establish fit on every screen.
+Physical controller operation, a VoiceOver session, and other appearances
+remain separate checks. The smoke reports list no connected controllers.
+
+Evidence is retained in `build/verification/icon-labels/`, including native
+reports, renderings, test logs, and source snapshots. A diagnostic run with the
+ring removed failed all 68 pixel checks. The earlier single-item
+accessibility-frame failure is retained separately.
+
+![Full labels with icons](build/verification/icon-labels/icon-labels/rich.png)
 
 ## Card validation
 

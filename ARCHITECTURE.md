@@ -220,13 +220,20 @@ submenu navigation. A preference change applies to the next interaction; it
 does not replace the geometry beneath an active pointer or stick selection.
 Preference persistence belongs to the application shell.
 
-Support four presentations of the same menu:
+Support five presentations of the same menu:
 
 - **Pie wedges:** short labels inside selectable sectors.
 - **Full labels:** complete titles in separate buttons outside a compact ring.
   Connect each button to a marker at its controller direction. Highlight the
   selected button, connection, and marker together, with a checkmark in the
   button. Keep Back or Cancel in the center.
+- **Full labels with icons:** complete titles outside a ring of action icons.
+  Leave the center empty and omit connecting lines. Fill the selected icon
+  badge and title button with the same accent color and a thicker contrasting
+  outline. Do not show a selection checkmark. Keep submenu arrows visible.
+  Controller Back and keyboard Delete go back one menu or cancel at the root;
+  Escape cancels the interaction. Expose a named Back or Cancel accessibility
+  action on each item. Icons are decorative; the outer labels are the targets.
 - **Cards:** complete titles and descriptions in separate radial cards. Use a
   light selection tint, an outline, and a checkmark. Connect each card to its
   direction marker, and keep Back or Cancel in the center. The whole card,
@@ -235,9 +242,9 @@ Support four presentations of the same menu:
   and description in the center. Before selection, show the menu title and
   instructions. Back or Cancel remains a separate control in the center.
 
-Decorative rings, markers, connecting lines, and the central message text have
-no action. All styles return the same item identities and outcomes. Full labels
-shows every title simultaneously; Cards also shows every description.
+Decorative rings, icons, markers, connecting lines, and central message text
+have no action. All styles return the same item identities and outcomes. Full
+labels shows every title simultaneously; Cards also shows every description.
 Descriptions remain available to accessibility in all styles, and appear
 visually for the current selection in Selected message.
 
@@ -651,6 +658,15 @@ the labels outward without changing the compact ring. Measure both normal and
 selected titles, including space for the checkmark and submenu indicator.
 Store marker positions and connection endpoints in the immutable layout; the
 view draws those values without recalculating geometry.
+
+For Full labels with icons, measure native glyphs in both selection states.
+Reserve circular badges that enclose those measurements with padding and space
+the ring so adjacent badges cannot overlap. The outer labels must clear all
+badges and remain in their directional sectors. Represent an empty center
+explicitly; do not measure or reserve an invisible Cancel control. Keep semantic
+icon identities in the menu definition and platform artwork in the view layer.
+Store icon positions and badge dimensions in the immutable layout. Selection
+changes only their appearance.
 
 Cards can extend across sector boundaries. Their centers still follow the
 controller directions, but reserve space from their measured rectangles and

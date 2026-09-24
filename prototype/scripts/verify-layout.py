@@ -76,19 +76,73 @@ def check_direction_guide(fixture):
     return issues
 
 
+def check_icon_ring(fixture):
+    if any(fixture.get(key) is not True for key in
+           ("stableSelectionLayout", "nativeFullTitleTextVerified", "nativeLabelFramesVerified")):
+        raise ValueError("Missing native icon label or stable frame evidence")
+    if fixture["directionGuide"] or fixture["centerBounds"] != [0, 0, 0, 0]:
+        raise ValueError("Icon labels contain a center control or connecting lines")
+    labels, geometry = fixture["labels"], fixture["geometry"]
+    states = fixture["iconStates"]
+    ids = [label["id"] for label in labels]
+    if len(states) != len(ids) + 1 or {state["selectedID"] for state in states} != {None, *ids}:
+        raise ValueError("Missing icon selection observations")
+    issues = []
+    original = None
+    for state in states:
+        radius, badge = numbers([state["radius"], state["badgeRadius"]], 2)
+        if not 0 < badge < radius or radius + badge > min(geometry["innerRadius"], geometry["diameter"] / 2):
+            raise ValueError("Icon ring exceeds its reserved space")
+        if numbers(state["centerPixel"], 4)[3] != 0:
+            issues.append({"kind": "centerIsNotEmpty"})
+        icons = state["icons"]
+        if [icon["id"] for icon in icons] != ids:
+            raise ValueError("Missing or incorrect icon identities")
+        positions = [numbers(icon["center"], 2) for icon in icons]
+        if original is not None and original != (radius, badge, positions):
+            raise ValueError("Selection moved the icon ring")
+        original = radius, badge, positions
+        for index, icon in enumerate(icons):
+            angle = index * 2 * math.pi / len(ids)
+            if any(abs(a - b) > EPSILON for a, b in zip(positions[index], (math.sin(angle) * radius, -math.cos(angle) * radius))):
+                issues.append({"kind": "iconHasWrongDirection", "item": icon["id"]})
+            for key in ("normal", "selected"):
+                size = numbers(icon[key], 2)
+                if min(size) <= 0 or math.hypot(*size) / 2 >= badge:
+                    issues.append({"kind": "glyphExceedsBadge", "item": icon["id"]})
+            fill, label = numbers(icon["iconFill"], 4), numbers(icon["labelFill"], 4)
+            if min(fill[3], label[3]) < 0.99 or any(abs(a - b) > 0.02 for a, b in zip(fill, label)):
+                issues.append({"kind": "iconAndLabelColorsDiffer", "item": icon["id"]})
+            if numbers(icon["gapPixel"], 4)[3] != 0:
+                issues.append({"kind": "connectingLineIsVisible", "item": icon["id"]})
+        for a, b in itertools.combinations(positions, 2):
+            if math.dist(a, b) <= 2 * badge:
+                issues.append({"kind": "iconBadgesOverlap"})
+    neutral = next(state for state in states if state["selectedID"] is None)
+    for state in states:
+        for base, icon in zip(neutral["icons"], state["icons"]):
+            changed = any(abs(a - b) > 0.02 for a, b in zip(base["iconFill"], icon["iconFill"]))
+            if changed != (icon["id"] == state["selectedID"]):
+                issues.append({"kind": "wrongIconHighlighted", "item": icon["id"]})
+    return issues
+
+
 def check_fixture(fixture):
     issues = []
     geometry = fixture["geometry"]
     values = numbers([geometry[key] for key in
                       ("innerRadius", "outerRadius", "diameter", "labelRadius", "labelWidth", "fontSize", "centerRadius")], 7)
-    if min(values[:3] + values[4:]) <= 0 or not values[0] < values[1]:
+    if min(values[:3] + values[4:6]) <= 0 or not values[0] < values[1] or values[6] < 0:
         raise ValueError("Invalid recorded rendering parameters")
     if fixture.get("style", "pie") == "pie" and not values[6] < values[0] < values[1] <= values[2] / 2:
         raise ValueError("Invalid pie rendering parameters")
     if geometry["labelRadius"] > geometry["diameter"] / 2:
         raise ValueError("The guide circle exceeds the panel")
     center = numbers(fixture["centerMeasured"], 2)
-    if min(center) <= 0:
+    if fixture.get("style") == "iconLabels":
+        if center != [0, 0] or values[6] != 0:
+            raise ValueError("Icon labels must have an empty center")
+    elif min(center) <= 0 or values[6] <= 0:
         raise ValueError("Invalid center measurement")
     if math.hypot(*center) / 2 > geometry["centerRadius"] + EPSILON:
         issues.append({"kind": "centerContentExceedsCircle"})
@@ -172,17 +226,19 @@ def check_fixture(fixture):
         issues.extend(check_direction_guide(fixture))
     if fixture.get("style") == "cards" and fixture.get("nativeCardTextVerified") is not True:
         raise ValueError("Missing native card title and description evidence")
+    if fixture.get("style") == "iconLabels":
+        issues.extend(check_icon_ring(fixture))
     return issues
 
 
 def verify(report):
     expected = {f"{count}-{profile}" for count in range(1, 13) for profile in PROFILES} | {"nested", "nested-child", "large-type-4-long", "large-type-2-unicode"}
     style = report.get("style", "pie")
-    if style not in ("pie", "fullLabels", "cards", "selectedMessage"):
+    if style not in ("pie", "fullLabels", "iconLabels", "cards", "selectedMessage"):
         raise ValueError("Unknown menu style")
     if style != "pie":
         expected |= {"rich", "large-type-rich"}
-    if style in ("fullLabels", "cards"):
+    if style in ("fullLabels", "iconLabels", "cards"):
         expected |= {"6-full-title", "4-unicode-title"}
     if style == "cards":
         expected |= {f"{count}-details" for count in range(1, 13)} | {"2-max-detail"}
@@ -194,7 +250,7 @@ def verify(report):
         count = 6 if name in ("rich", "large-type-rich") else 2 if name == "nested" else 12 if name == "nested-child" else int(name.removeprefix("large-type-").split("-", 1)[0])
         if fixture.get("style", "pie") != style:
             raise ValueError("Fixture uses the wrong menu style")
-        width = {"pie": 96, "fullLabels": 226, "cards": 210, "selectedMessage": 150}[style]
+        width = {"pie": 96, "fullLabels": 226, "iconLabels": 226, "cards": 210, "selectedMessage": 150}[style]
         if fixture["geometry"]["labelWidth"] != width * (2 if name.startswith("large-type-") else 1):
             raise ValueError("Fixture changed the requested wrapping width")
         if fixture["geometry"]["fontSize"] != (34 if name.startswith("large-type-") else 17):
@@ -222,6 +278,9 @@ def verify(report):
         raise ValueError("Missing message pointer evidence")
     if style in ("fullLabels", "cards") and extra.get("directionGuideIsNotAButton") is not True:
         raise ValueError("Missing direction guide pointer evidence")
+    if style == "iconLabels" and any(extra.get(key) is not True for key in
+                                     ("iconsAndCenterAreNotButtons", "nativeIconAccessibilityActions")):
+        raise ValueError("Missing native icon and empty center click evidence")
     if style == "cards" and extra.get("nativeCardDescriptionClick") is not True:
         raise ValueError("Missing native description activation evidence")
     results = [{"name": fixture["name"], "issues": check_fixture(fixture)} for fixture in fixtures]

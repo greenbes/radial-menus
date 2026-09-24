@@ -20,6 +20,7 @@ import RadialUI
         var preparation: [String: Any] = [:]
         do {
             try await checkNavigationControls(style: style, directory: directory)
+            if style == .iconLabels { try await checkAccessibleIconLabels() }
             if style == .cards { try await checkCardDescriptionClick() }
             for fixture in try LayoutFixture.all(style: style) {
                 let panel = PanelAdapter(measurer: SwiftUIMenuMeasurer(fontSize: fixture.fontSize)), clock = TaskScheduler()
@@ -113,6 +114,16 @@ import RadialUI
                 throw ProbeFailure("The decorative direction marker activated or cancelled an item")
             }
         }
+        if let ring = layout.iconRing {
+            for point in [Vector.zero, ring.icons[0].center] {
+                store.send(.select(scope, "item-0", .keyboard))
+                try await probe.click(x: point.x, y: point.y)
+                try await probe.mouse(at: probe.screenPoint(x: point.x + 1, y: point.y))
+                guard store.model.phase.isActive, store.outputs.isEmpty, store.view.selectedID == "item-0" else {
+                    throw ProbeFailure("An icon or empty center acted as a button")
+                }
+            }
+        }
         try await probe.click(x: 0, y: -layout.labelRadius)
         try await probe.wait("expanded native click") { store.model.phase == .idle }
         guard store.outputs == [.completed(scope.session, .selected(Choice(menuPath: ["root"], itemID: "item-0", value: "value-0")))] else {
@@ -151,7 +162,41 @@ import RadialUI
                 "smallScreenFailure": true, "smallScreenObservationInjected": true,
                 "messageTextIsNotAButton": style == .selectedMessage,
                 "nativeCardDescriptionClick": style == .cards,
-                "directionGuideIsNotAButton": style.usesDirectionGuide]
+                "directionGuideIsNotAButton": style.usesDirectionGuide,
+                "iconsAndCenterAreNotButtons": style == .iconLabels,
+                "nativeIconAccessibilityActions": style == .iconLabels]
+    }
+
+    private static func checkAccessibleIconLabels() async throws {
+        let panel = PanelAdapter(measurer: SwiftUIMenuMeasurer()), clock = TaskScheduler()
+        let store = Store(menu: SampleMenu.definition, menuStyle: .iconLabels, window: panel,
+                          controller: LayoutProbeController(), scheduler: clock, movementClock: clock)
+        panel.content = NSHostingView(rootView: MenuContainer(store: store))
+        let probe = NativeSmoke(store: store, panel: panel)
+        store.send(.open(nil))
+        try await probe.wait("accessible root") { store.model.phase.isActive }
+        let scope = try probe.scope()
+        try NativeAccessibility.press(NativeAccessibility.button("More colors", in: panel.content))
+        try await probe.wait("accessible submenu") { store.model.phase.isActive && store.view.canGoBack }
+        try NativeAccessibility.perform("Back to parent menu", on: NativeAccessibility.button("Amber", in: panel.content))
+        try await probe.wait("accessible Back") { store.model.phase.isActive && !store.view.canGoBack }
+        try NativeAccessibility.perform("Cancel menu", on: NativeAccessibility.button("Red", in: panel.content))
+        try await probe.wait("accessible Cancel") { store.model.phase == .idle }
+        guard store.outputs == [.completed(scope.session, .cancelled(.user))] else {
+            throw ProbeFailure("Accessible Back/Cancel produced the wrong result")
+        }
+        store.send(.open(nil))
+        try await probe.wait("accessible confirmation root") { store.model.phase.isActive }
+        let second = try probe.scope()
+        store.send(.select(second, "blue", .keyboard))
+        try NativeAccessibility.press(NativeAccessibility.button("Red", in: panel.content))
+        try await probe.wait("accessible confirmation") { store.model.phase == .idle }
+        guard store.outputs.last == .completed(second.session, .selected(
+            Choice(menuPath: ["root"], itemID: "red", value: "red"))) else {
+            throw ProbeFailure("Accessible activation chose the wrong item")
+        }
+        store.send(.stop)
+        try await probe.wait("accessible fixture cleanup") { store.model.lifecycle == .stopped(.completed) }
     }
 
     private static func checkCardDescriptionClick() async throws {
@@ -195,10 +240,16 @@ import RadialUI
         guard store.view.layout?.style == style else { throw ProbeFailure("Style changed during navigation") }
         for label in ["Back to parent menu", "Cancel menu"] {
             try await Task.sleep(for: .milliseconds(30))
-            let button = try NativeAccessibility.button(label, in: panel.content)
-            guard let frame = button.frame else { throw ProbeFailure("Missing native control frame") }
-            guard let menuFrame = panel.frame, frame.width > 0, frame.height > 0 else { throw ProbeFailure("Missing navigation control frame") }
-            try await probe.click(x: frame.midX - menuFrame.midX, y: menuFrame.midY - frame.midY)
+            if style == .iconLabels {
+                _ = try NativeItemButtonProbe.check(store: store, panel: panel, navigationFrame: nil)
+                probe.key(code: label == "Back to parent menu" ? 51 : 53,
+                          characters: label == "Back to parent menu" ? "\u{7F}" : "\u{1B}")
+            } else {
+                let button = try NativeAccessibility.button(label, in: panel.content)
+                guard let frame = button.frame else { throw ProbeFailure("Missing native control frame") }
+                guard let menuFrame = panel.frame, frame.width > 0, frame.height > 0 else { throw ProbeFailure("Missing navigation control frame") }
+                try await probe.click(x: frame.midX - menuFrame.midX, y: menuFrame.midY - frame.midY)
+            }
             if label == "Back to parent menu" {
                 try await probe.wait("native Back button") { store.model.phase.isActive && !store.view.canGoBack }
                 guard store.view.layout?.style == style else { throw ProbeFailure("Back changed style") }
@@ -217,6 +268,7 @@ import RadialUI
     private static func capture(_ name: String, store: Store, panel: PanelAdapter, directory: URL) async throws -> [String: Any] {
         let items = store.view.items
         guard let layout = store.view.layout else { throw ProbeFailure("Missing measured layout") }
+        try panel.saveRendering(to: directory.appendingPathComponent(name + "-neutral.png"))
         var labels: [[String: Any]] = []
         for (index, item) in items.enumerated() {
             let measurements = [false, true].map { selected in
@@ -233,7 +285,8 @@ import RadialUI
         }
         var messages: [[String: Any]] = []
         var navigationFrame: NSRect?
-        if layout.style.usesDirectionGuide {
+        var iconStates: [[String: Any]] = []
+        if layout.style.showsFullTitles {
             try await Task.sleep(for: .milliseconds(30))
             navigationFrame = try NativeItemButtonProbe.check(store: store, panel: panel, navigationFrame: nil)
         }
@@ -268,6 +321,9 @@ import RadialUI
                 }
             }
         }
+        if layout.style == .iconLabels {
+            iconStates.append(try NativeIconRingProbe.capture(store: store, panel: panel))
+        }
         if let scope = store.view.scope, let first = items.first { store.send(.select(scope, first.id, .keyboard)) }
         try await Task.sleep(for: .milliseconds(30))
         panel.content?.layoutSubtreeIfNeeded()
@@ -284,9 +340,12 @@ import RadialUI
                   store.view.layout == layout, panel.frame == originalFrame else {
                 throw ProbeFailure("Selection changed layout or displayed the wrong message")
             }
-            if layout.style.usesDirectionGuide {
+            if layout.style.showsFullTitles {
                 try await Task.sleep(for: .milliseconds(30))
                 navigationFrame = try NativeItemButtonProbe.check(store: store, panel: panel, navigationFrame: navigationFrame)
+                if layout.style == .iconLabels {
+                    iconStates.append(try NativeIconRingProbe.capture(store: store, panel: panel))
+                }
             }
         }
         guard steps == items.count else { throw ProbeFailure("Keyboard did not traverse the complete fixture") }
@@ -301,18 +360,19 @@ import RadialUI
              }]
         } ?? [:]
         return ["name": name, "style": layout.style.rawValue, "directionGuide": guide,
+                "iconStates": iconStates,
                 "messages": messages, "stableSelectionLayout": true,
                 "nativeMessageTextVerified": layout.style == .selectedMessage,
-                "stableNavigationControl": layout.style != .pie,
-                "nativeFullTitleTextVerified": layout.style.usesDirectionGuide,
+                "stableNavigationControl": layout.style != .pie && layout.style != .iconLabels,
+                "nativeFullTitleTextVerified": layout.style.showsFullTitles,
                 "nativeCardTextVerified": layout.style == .cards,
-                "nativeLabelFramesVerified": layout.style.usesDirectionGuide,
+                "nativeLabelFramesVerified": layout.style.showsFullTitles,
                 "centerBounds": [layout.centerBounds.x, layout.centerBounds.y, layout.centerBounds.width, layout.centerBounds.height], "count": items.count, "labels": labels,
                 "geometry": ["innerRadius": layout.innerRadius, "outerRadius": layout.outerRadius,
                              "diameter": layout.diameter, "labelRadius": layout.labelRadius,
                              "labelWidth": layout.wrappingWidth, "fontSize": layout.fontSize,
                              "centerRadius": layout.centerRadius],
-                "centerMeasured": layout.style != .selectedMessage ? [center.width, center.height] : [layout.centerBounds.width, layout.centerBounds.height],
+                "centerMeasured": layout.style == .iconLabels ? [0, 0] : layout.style != .selectedMessage ? [center.width, center.height] : [layout.centerBounds.width, layout.centerBounds.height],
                 "keyboardSteps": steps,
                 "backingScale": panel.content?.window?.backingScaleFactor ?? 0,
                 "frame": [placement.frame.x, placement.frame.y, placement.frame.width, placement.frame.height],

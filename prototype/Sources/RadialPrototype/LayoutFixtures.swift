@@ -39,7 +39,7 @@ struct LayoutFixture {
             fixtures.append(Self(name: "rich", menu: DemoMenu.definition))
             fixtures.append(Self(name: "large-type-rich", menu: DemoMenu.definition, fontSize: 34))
         }
-        if style.usesDirectionGuide {
+        if style.showsFullTitles {
             for (name, count, title) in [
                 ("6-full-title", 6, String(String(repeating: "Open recent documents in the research workspace. ", count: 4).prefix(160))),
                 ("4-unicode-title", 4, String(repeating: "界", count: 160))

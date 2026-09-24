@@ -12,13 +12,15 @@ import RadialCore
     var inspectDismissal: (() -> Void)?
     var inspectRelease: (() -> Void)?
     func prepare(scope: InputScope, menu: Menu, canGoBack: Bool, style: MenuStyle, operation: OperationID) {
-        let center: MenuMeasurements.Center = style != .selectedMessage ? .control(Size(width: 36, height: 32)) :
+        let center: MenuMeasurements.Center = style == .iconLabels ? .empty : style != .selectedMessage ? .control(Size(width: 36, height: 32)) :
             .messages(wrappingWidth: 300, states: MenuMessage.all(in: menu).map {
                 MessageMeasurement(itemID: $0.itemID, size: Size(width: 300, height: 180))
             })
         let measurements = MenuMeasurements(fontSize: 17, wrappingWidth: 96, labels: menu.items.map {
             LabelMeasurement(itemID: $0.id, normal: Size(width: 30, height: 20), selected: Size(width: 30, height: 20))
-        }, content: center, style: style)
+        }, content: center, style: style, icons: style == .iconLabels ? menu.items.map {
+            LabelMeasurement(itemID: $0.id, normal: Size(width: 18, height: 18), selected: Size(width: 20, height: 20))
+        } : [])
         if synchronous {
             receive?(.prepared(scope, operation, measurements, ScreenContext(revision: 1, screenID: "screen",
                 bounds: Rect(x: 0, y: 0, width: 2000, height: 1000), anchor: Vector(x: 580, y: 380))))

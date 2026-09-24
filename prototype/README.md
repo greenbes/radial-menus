@@ -10,19 +10,23 @@ labels, full titles, and descriptions. More commands opens the color menu.
 These choices only report values; the described actions do not execute.
 This is a separate Swift package; it does not import the original app.
 
-Use the **Menu style** dropdown in diagnostics to choose **Full labels**,
-**Cards**, **Selected message**, or **Pie wedges**. Full labels implements
-design 1:
-complete titles surround a compact ring, with a line connecting each title
-to its controller direction. Cards implements design 2: each radial card shows
-its full title and description, with a tinted outline and checkmark on selection.
+Use the **Menu style** dropdown in diagnostics to choose **Full labels**, **Full
+labels with icons**, **Cards**, **Selected message**, or **Pie wedges**. Full
+labels implements design 1: complete titles surround a compact ring, with a line
+connecting each title to its controller direction. Full labels with icons places
+action symbols on the compact ring, leaves the center empty, and omits
+connecting lines. Selection fills the icon badge and its title button with the
+same accent color and adds a thicker white outline. There is no selection
+checkmark in this style; submenu arrows remain visible. Cards implements
+design 2: each radial card shows its full
+title and description, with a tinted outline and checkmark on selection.
 Clicking anywhere on the card, including the description, chooses that item.
-Selected message displays short labels around a
-ring and the selected item's full text in the center. Pie wedges display the
-short labels inside sectors. All four styles use the same content, item order,
-navigation, and results. Style changes apply on the next opening and remain in
-memory until quitting. A submenu retains the style of its current interaction.
-See [menu style behavior and validation](MENU_STYLES.md) for details.
+Selected message displays short labels around a ring and the selected item's
+full text in the center. Pie wedges display the short labels inside sectors. All
+five styles use the same content, item order, navigation, and results. Style
+changes apply on the next opening and remain in memory until quitting. A submenu
+retains the style of its current interaction. See [menu style behavior and
+validation](MENU_STYLES.md) for details.
 
 The original color example remains available with `--color-demo`: Red at the
 top, Blue on the right, Green at the bottom, and More colors on the left.
@@ -49,7 +53,8 @@ From the repository root:
 ```
 
 To start with design 1 selected, use `./prototype/scripts/run.sh --full-labels`.
-For design 2, use `./prototype/scripts/run.sh --cards`.
+For the icon alternative, use `./prototype/scripts/run.sh --icon-labels`. For
+design 2, use `./prototype/scripts/run.sh --cards`.
 
 The run script builds an app bundle, signs it locally with an ad hoc signature,
 and opens its diagnostics window. The menu bar icon provides Open menu, Show
@@ -72,10 +77,13 @@ does not create a distributable or notarized release.
 | Back button | Go back one menu, or cancel at the root |
 | Keyboard arrows | Select the previous / next item |
 | Return | Confirm the current selection |
+| Delete | Go back one menu, or cancel at the root |
 | Escape | Cancel the whole interaction, including from a submenu |
 | Pointer movement | Select the item under the pointer |
 | Click an item | Activate that specific item |
 | Back / Cancel control | Go back, or cancel at the root |
+
+Full labels with icons has no center Back / Cancel control.
 
 On the tested **GuliKit Controller XW**, the **bottom face button labeled B**
 confirms, and the **right face button labeled A** goes back or cancels. macOS
@@ -89,16 +97,18 @@ made with the keyboard, D-pad, pointer, or an accessibility action.
 Moving the mouse by at least two logical screen points takes selection from
 another input when the pointer is over an item. Smaller movements accumulate
 from the last accepted position. Leaving a selectable target clears only a
-selection made by the pointer. In Pie wedges, the targets are sectors; in
-Selected message, they are the label buttons. The guide circle and message
-text are not selectable. A stationary mouse or stick does not
-overwrite a keyboard, D-pad, or other deliberate selection.
+selection made by the pointer. In Pie wedges, the targets are sectors; in the
+other styles, they are the label or card buttons. Rings, icons, connecting
+lines, and central message text are not selectable. A stationary mouse or stick
+does not overwrite a keyboard, D-pad, or other deliberate selection.
 
 Opening or entering a submenu establishes the current pointer position without
 selecting an item. Moving the menu beneath a stationary pointer preserves the
 selection. Clicking activates the specific clicked item, even if another item
-was selected. The controller Back button and center Back control return to the
-parent menu; Escape cancels the whole interaction.
+was selected. Controller Back and keyboard Delete return to the parent menu. The
+center Back control also does this in styles that show it. Escape cancels the
+whole interaction. Full labels with icons exposes a named Back or Cancel action
+on each accessible item without displaying a center button.
 
 After opening a menu or entering a submenu, release held buttons and center
 both sticks before selecting or moving again. Holding Confirm across navigation
@@ -155,10 +165,12 @@ scheduling, and movement ticks.
 
 Opening and navigation first enter a preparation phase. `SwiftUIMenuMeasurer`
 measures the shared label components at both font weights and measures the
-center control. For Selected message it measures every full message and the
-neutral instructions, including the Back or Cancel button. The window adapter
-supplies those immutable sizes with the
-screen's usable bounds and the desired center point. It does not choose radii.
+center control where present. Full labels with icons measures its native symbols
+in both selection states and supplies an explicitly empty center. For Selected
+message it measures every full message and the neutral instructions, including
+the Back or Cancel button. The window adapter supplies those immutable sizes
+with the screen's usable bounds and the desired center point. It does not choose
+radii.
 
 `MenuLayout.make` validates complete measurements by item identity, reserves
 the maximum width and height needed by either weight, and calculates a common

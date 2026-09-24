@@ -141,6 +141,7 @@ import RadialUI
     }
 
     private var requestedStyle: RadialCore.MenuStyle? {
+        if CommandLine.arguments.contains("--icon-labels") { return .iconLabels }
         if CommandLine.arguments.contains("--cards") { return .cards }
         if CommandLine.arguments.contains("--full-labels") { return .fullLabels }
         if CommandLine.arguments.contains("--selected-message") { return .selectedMessage }
@@ -289,7 +290,7 @@ import RadialUI
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(4)
             }
             Text("Controller: Menu opens or cancels. Left stick selects; right stick moves the menu. D-pad left/right steps. Confirm chooses; Back returns or cancels. Center both sticks when entering a submenu.")
-            Text("Mouse movement selects; clicking chooses that item. Keyboard: arrows select, Return chooses, Escape cancels the whole interaction. A stationary mouse or stick does not override another input's selection.")
+            Text("Mouse movement selects; clicking chooses that item. Keyboard: arrows select, Return chooses, Delete goes back, Escape cancels the whole interaction. A stationary mouse or stick does not override another input's selection.")
             GroupBox("Recent results") {
                 VStack(alignment: .leading, spacing: 5) {
                     if store.outputs.isEmpty { Text("No completed interaction yet.").foregroundStyle(.secondary) }

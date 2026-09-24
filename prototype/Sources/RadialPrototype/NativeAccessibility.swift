@@ -49,4 +49,23 @@ import AppKit
         }
         return button
     }
+
+    static func press(_ element: Element) throws {
+        let selector = NSSelectorFromString("accessibilityPerformPress")
+        guard element.object.responds(to: selector), let method = element.object.method(for: selector) else {
+            throw ProbeFailure("Native button has no accessibility press action")
+        }
+        // Public Objective-C accessor, with its declared BOOL return type.
+        typealias Press = @convention(c) (AnyObject, Selector) -> Bool
+        guard unsafeBitCast(method, to: Press.self)(element.object, selector) else {
+            throw ProbeFailure("Native accessibility press failed")
+        }
+    }
+
+    static func perform(_ name: String, on element: Element) throws {
+        guard element.object.responds(to: NSSelectorFromString("accessibilityCustomActions")),
+              let actions = element.object.value(forKey: "accessibilityCustomActions") as? [NSAccessibilityCustomAction],
+              let action = actions.first(where: { $0.name == name }), let handler = action.handler,
+              handler() else { throw ProbeFailure("Native custom accessibility action failed: \(name)") }
+    }
 }

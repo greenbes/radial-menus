@@ -15,16 +15,18 @@ public struct MenuItemLabel: View {
     public var body: some View {
         if style == .cards {
             MenuItemCard(item: item, selected: selected, fontSize: fontSize)
-        } else if style == .fullLabels {
+        } else if style == .fullLabels || style == .iconLabels {
             HStack(spacing: fontSize * 0.5) {
                 Text(item.title)
                     .font(.system(size: fontSize, weight: selected ? .bold : .medium))
                     .frame(maxWidth: .infinity, alignment: .leading)
-                Image(systemName: selected ? "checkmark" : "chevron.right")
-                    .font(.system(size: fontSize * 0.8, weight: .semibold))
-                    .frame(width: fontSize)
-                    .opacity(selected || isSubmenu ? 1 : 0)
-                    .accessibilityHidden(true)
+                if style != .iconLabels || isSubmenu {
+                    Image(systemName: selected && style != .iconLabels ? "checkmark" : "chevron.right")
+                        .font(.system(size: fontSize * 0.8, weight: .semibold))
+                        .frame(width: fontSize)
+                        .opacity(selected || isSubmenu ? 1 : 0)
+                        .accessibilityHidden(true)
+                }
             }
             .multilineTextAlignment(.leading)
             .padding(fontSize * 0.7)

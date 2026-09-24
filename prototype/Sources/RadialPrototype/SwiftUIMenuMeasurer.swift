@@ -17,7 +17,7 @@ import RadialUI
         let labelWidth: Double
         switch style {
         case .pie: labelWidth = wrappingWidth
-        case .fullLabels: labelWidth = 226 * fontSize / 17
+        case .fullLabels, .iconLabels: labelWidth = 226 * fontSize / 17
         case .cards: labelWidth = 210 * fontSize / 17
         case .selectedMessage: labelWidth = 150 * fontSize / 17
         }
@@ -27,6 +27,15 @@ import RadialUI
                     .fixedSize(horizontal: false, vertical: true), width: labelWidth)
             }
             return LabelMeasurement(itemID: item.id, normal: size(selected: false), selected: size(selected: true))
+        }
+        if style == .iconLabels {
+            let icons = menu.items.map { item in
+                LabelMeasurement(itemID: item.id,
+                    normal: measureView(MenuIconGlyph(icon: item.icon, selected: false, fontSize: fontSize), width: 10000),
+                    selected: measureView(MenuIconGlyph(icon: item.icon, selected: true, fontSize: fontSize), width: 10000))
+            }
+            return MenuMeasurements(fontSize: fontSize, wrappingWidth: labelWidth, labels: labels,
+                                    content: .empty, style: style, icons: icons)
         }
         if style == .selectedMessage {
             let width = 300 * fontSize / 17

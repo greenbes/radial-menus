@@ -25,6 +25,7 @@ public struct MessageMeasurement: Equatable, Sendable {
 
 public struct MenuMeasurements: Equatable, Sendable {
     public enum Center: Equatable, Sendable {
+        case empty
         case control(Size)
         case messages(wrappingWidth: Double, states: [MessageMeasurement])
     }
@@ -33,18 +34,24 @@ public struct MenuMeasurements: Equatable, Sendable {
     public let labels: [LabelMeasurement]
     public let center: Center
     public let style: MenuStyle
+    public let icons: [LabelMeasurement]
     public init(fontSize: Double, wrappingWidth: Double, labels: [LabelMeasurement], center: Size, style: MenuStyle = .pie) {
         self.init(fontSize: fontSize, wrappingWidth: wrappingWidth, labels: labels, content: .control(center), style: style)
     }
-    public init(fontSize: Double, wrappingWidth: Double, labels: [LabelMeasurement], content: Center, style: MenuStyle) {
+    public init(fontSize: Double, wrappingWidth: Double, labels: [LabelMeasurement], content: Center, style: MenuStyle,
+                icons: [LabelMeasurement] = []) {
         self.fontSize = fontSize; self.wrappingWidth = wrappingWidth
         self.labels = labels; self.center = content; self.style = style
+        self.icons = icons
     }
 
     func centerSize(for menu: Menu) throws -> Size {
         switch center {
+        case .empty:
+            guard style == .iconLabels else { throw LayoutFailure.invalidMeasurements }
+            return Size(width: 0, height: 0)
         case .control(let size):
-            guard style != .selectedMessage, size.isValid else { throw LayoutFailure.invalidMeasurements }
+            guard style != .selectedMessage, style != .iconLabels, size.isValid else { throw LayoutFailure.invalidMeasurements }
             return size
         case .messages(let width, let states):
             let expected = Set([nil] + menu.items.map { Optional($0.id) })
@@ -123,6 +130,7 @@ public struct MenuLayout: Equatable, Sendable {
     public let sectors: [Sector]
     public let labels: [LabelLayout]
     public let directionGuide: DirectionGuide?
+    public let iconRing: IconRing?
 
     public static func make(menu: Menu, measurements: MenuMeasurements,
                             settings: LayoutSettings = .standard) throws -> Self {
@@ -143,7 +151,10 @@ public struct MenuLayout: Equatable, Sendable {
         }
         let sectors = Geometry.sectors(count: sizes.count)
         let gap = settings.contentPadding
-        let centerRadius = max(settings.minimumInnerRadius - 4,
+        guard measurements.style == .iconLabels || measurements.icons.isEmpty else { throw LayoutFailure.invalidMeasurements }
+        let iconRing = measurements.style == .iconLabels
+            ? try IconRing.make(menu: menu, measurements: measurements.icons, fontSize: measurements.fontSize, gap: gap) : nil
+        let centerRadius = measurements.style == .iconLabels ? 0 : max(settings.minimumInnerRadius - 4,
                                hypot(centerSize.width, centerSize.height) / 2 + gap)
         let markerRadius = 5 * measurements.fontSize / 17
         let guideRadius = max(74 * measurements.fontSize / 17, centerRadius + gap + markerRadius)
@@ -151,6 +162,7 @@ public struct MenuLayout: Equatable, Sendable {
         switch measurements.style {
         case .pie: inner = centerRadius + 4
         case .fullLabels, .cards: inner = guideRadius + markerRadius
+        case .iconLabels: inner = iconRing!.radius + iconRing!.badgeRadius
         case .selectedMessage: inner = min(centerSize.width, centerSize.height) / 2
         }
         var radius = settings.minimumLabelRadius
@@ -209,7 +221,8 @@ public struct MenuLayout: Equatable, Sendable {
                     innerRadius: inner, outerRadius: outer, labelRadius: radius, diameter: diameter,
                     centerRadius: centerRadius, sectors: sectors, labels: labels,
                     directionGuide: measurements.style.usesDirectionGuide
-                        ? DirectionGuide.make(radius: guideRadius, markerRadius: markerRadius, sectors: sectors, labels: labels) : nil)
+                        ? DirectionGuide.make(radius: guideRadius, markerRadius: markerRadius, sectors: sectors, labels: labels) : nil,
+                    iconRing: iconRing)
     }
 
     public func placement(in screen: ScreenContext) throws -> Placement {
