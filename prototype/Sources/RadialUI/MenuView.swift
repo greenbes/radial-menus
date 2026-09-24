@@ -19,7 +19,7 @@ import RadialCore
 
     private func menu(_ layout: MenuLayout) -> some View {
         controls(layout)
-        .frame(width: layout.diameter, height: layout.diameter)
+        .frame(width: layout.size.width, height: layout.size.height)
         .background {
             if let ring = layout.iconRing {
                 MenuIconRing(ring: ring, items: model.items, diameter: layout.diameter,
@@ -49,7 +49,7 @@ import RadialCore
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(model.title)
         .accessibilityChildren {
-            controls(layout).frame(width: layout.diameter, height: layout.diameter)
+            controls(layout).frame(width: layout.size.width, height: layout.size.height)
         }
     }
 
@@ -70,8 +70,8 @@ import RadialCore
                     itemButton(item, index: index, layout: layout)
                 } else {
                     itemButton(item, index: index, layout: layout)
-                        .position(x: layout.diameter / 2 + bounds.x + bounds.width / 2,
-                                  y: layout.diameter / 2 + bounds.y + bounds.height / 2)
+                        .position(x: layout.size.width / 2 + bounds.x + bounds.width / 2,
+                                  y: layout.size.height / 2 + bounds.y + bounds.height / 2)
                 }
             }
             if layout.style == .selectedMessage {
@@ -81,7 +81,7 @@ import RadialCore
                     .background(Color(nsColor: .windowBackgroundColor), in: RoundedRectangle(cornerRadius: 18))
                     .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.primary.opacity(0.15), lineWidth: 1)
                         .allowsHitTesting(false))
-            } else if layout.style != .iconLabels {
+            } else if !layout.style.hasEmptyCenter {
                 Button(action: back) {
                     MenuCenterLabel(canGoBack: model.canGoBack, fontSize: layout.fontSize)
                     .frame(width: layout.centerRadius * 2, height: layout.centerRadius * 2)
@@ -97,9 +97,11 @@ import RadialCore
     private func itemButton(_ item: Item, index: Int, layout: MenuLayout) -> some View {
         let selected = model.selectedID == item.id
         let isCard = layout.style == .cards
-        let selectedOutline: Color = layout.style == .iconLabels ? .white : .accentColor
-        let outlineWidth: Double = selected ? (layout.style == .iconLabels ? 3 : isCard ? 2 : 1) : 1
+        let selectedOutline: Color = layout.style.hasEmptyCenter ? .white : .accentColor
+        let outlineWidth: Double = selected ? (layout.style.hasEmptyCenter ? 3 : isCard ? 2 : 1) : 1
         let bounds = layout.labels[index].bounds
+        let cornerRadius = layout.style == .floatingLabels ? layout.labels[index].cornerRadius : isCard ? 17.0 : 10.0
+        let labelShape = RoundedRectangle(cornerRadius: cornerRadius, style: .circular)
         let shape = Wedge(sector: layout.sectors[index], fullCircle: model.items.count == 1,
                           outer: layout.outerRadius, inner: layout.innerRadius)
         let button = Button {
@@ -113,25 +115,24 @@ import RadialCore
                             .foregroundStyle(selected ? .white : .primary)
                             .frame(width: layout.wrappingWidth)
                             .fixedSize(horizontal: false, vertical: true)
-                            .position(x: layout.diameter / 2 + bounds.x + bounds.width / 2,
-                                      y: layout.diameter / 2 + bounds.y + bounds.height / 2)
+                            .position(x: layout.size.width / 2 + bounds.x + bounds.width / 2,
+                                      y: layout.size.height / 2 + bounds.y + bounds.height / 2)
                     }
                     .contentShape(shape)
             } else {
                 MenuItemLabel(item: item, selected: selected, fontSize: layout.fontSize, style: layout.style)
-                    .frame(width: layout.wrappingWidth)
+                    .frame(width: layout.style == .floatingLabels ? bounds.width : layout.wrappingWidth)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(width: bounds.width, height: bounds.height)
                     .foregroundStyle(selected && !isCard ? .white : .primary)
                     .background {
-                        let shape = RoundedRectangle(cornerRadius: isCard ? 17 : 10)
-                        shape.fill(Color(nsColor: .windowBackgroundColor))
-                        if selected { shape.fill(Color.accentColor.opacity(isCard ? 0.12 : 1)) }
+                        labelShape.fill(Color(nsColor: .windowBackgroundColor))
+                        if selected { labelShape.fill(Color.accentColor.opacity(isCard ? 0.12 : 1)) }
                     }
-                    .overlay(RoundedRectangle(cornerRadius: isCard ? 17 : 10)
+                    .overlay(labelShape
                         .strokeBorder(selected ? selectedOutline : Color.primary.opacity(0.25),
                                       lineWidth: outlineWidth))
-                    .contentShape(Rectangle())
+                    .contentShape(RoundedRectangle(cornerRadius: layout.style == .floatingLabels ? cornerRadius : 0, style: .circular))
             }
         }
         .buttonStyle(.plain)

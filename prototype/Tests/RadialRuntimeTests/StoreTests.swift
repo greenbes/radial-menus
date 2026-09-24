@@ -12,7 +12,7 @@ import RadialCore
     var inspectDismissal: (() -> Void)?
     var inspectRelease: (() -> Void)?
     func prepare(scope: InputScope, menu: Menu, canGoBack: Bool, style: MenuStyle, operation: OperationID) {
-        let center: MenuMeasurements.Center = style == .iconLabels ? .empty : style != .selectedMessage ? .control(Size(width: 36, height: 32)) :
+        let center: MenuMeasurements.Center = style.hasEmptyCenter ? .empty : style != .selectedMessage ? .control(Size(width: 36, height: 32)) :
             .messages(wrappingWidth: 300, states: MenuMessage.all(in: menu).map {
                 MessageMeasurement(itemID: $0.itemID, size: Size(width: 300, height: 180))
             })

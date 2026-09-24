@@ -127,6 +127,74 @@ def check_icon_ring(fixture):
     return issues
 
 
+def check_floating_labels(fixture):
+    if any(fixture.get(key) is not True for key in
+           ("stableSelectionLayout", "nativeFullTitleTextVerified", "nativeLabelFramesVerified")):
+        raise ValueError("Missing native floating label text or stable frame evidence")
+    if fixture["directionGuide"] or fixture["iconStates"] or fixture["centerBounds"] != [0, 0, 0, 0]:
+        raise ValueError("Floating labels contain a ring, line, or central control")
+    labels, geometry = fixture["labels"], fixture["geometry"]
+    issues = []
+    for index, label in enumerate(labels):
+        x, y, w, h = label["rectangle"]
+        corner = numbers([label["cornerRadius"]], 1)[0]
+        if not 0 < corner <= min(w, h) / 2:
+            raise ValueError("Invalid rounded corner")
+        # Project the origin onto the inset box, then onto its rounded boundary.
+        qx, qy = min(max(0, x + corner), x + w - corner), min(max(0, y + corner), y + h - corner)
+        distance = math.hypot(qx, qy)
+        angle = index * 2 * math.pi / len(labels)
+        if distance <= corner:
+            issues.append({"kind": "labelTouchesCenter", "item": label["id"]})
+        else:
+            nearest = qx * (1 - corner / distance), qy * (1 - corner / distance)
+            expected = math.sin(angle) * geometry["labelRadius"], -math.cos(angle) * geometry["labelRadius"]
+            if math.dist(nearest, expected) > EPSILON:
+                issues.append({"kind": "labelIsNotTangent", "item": label["id"]})
+        if [w, h] != [math.ceil(v) for v in label["measured"]]:
+            issues.append({"kind": "labelDoesNotFitIntrinsicSize", "item": label["id"]})
+        lines, title = label["lines"], label["title"]
+        if " ".join(lines).split() != title.split():
+            issues.append({"kind": "wrappedTextChangedWords", "item": label["id"]})
+        # Swift unit cases cover grapheme clusters; native checks also count
+        # rendered lines with Foundation. ASCII provides a separate length oracle.
+        if title.isascii():
+            if any(len(line) > 20 and len(line.split()) != 1 for line in lines):
+                issues.append({"kind": "lineExceedsCharacterLimit", "item": label["id"]})
+            expected_lines = []
+            for paragraph in title.split("\n"):
+                current = ""
+                for word in paragraph.split():
+                    candidate = (current + " " + word).strip()
+                    if current and len(candidate) > 20:
+                        expected_lines.append(current)
+                        current = word
+                    else:
+                        current = candidate
+                expected_lines.append(current)
+            if lines != expected_lines:
+                issues.append({"kind": "incorrectWordWrapping", "item": label["id"]})
+    ids = [label["id"] for label in labels]
+    states = fixture["floatingStates"]
+    if len(states) != len(ids) + 1 or {state["selectedID"] for state in states} != {None, *ids}:
+        raise ValueError("Missing floating label selection observations")
+    neutral = next(state for state in states if state["selectedID"] is None)
+    for state in states:
+        if state["centerAlpha"] != 0 or any(numbers(state["gapAlpha"], len(ids))):
+            issues.append({"kind": "centerOrRingIsVisible"})
+        if [label["id"] for label in state["labels"]] != ids:
+            raise ValueError("Missing native label pixels")
+        for base, label in zip(neutral["labels"], state["labels"]):
+            fill, outline = numbers(label["fill"], 4), numbers(label["outline"], 4)
+            changed = any(abs(a - b) > 0.02 for a, b in zip(base["fill"], fill))
+            selected = label["id"] == state["selectedID"]
+            if changed != selected or fill[3] < 0.99:
+                issues.append({"kind": "wrongLabelHighlighted", "item": label["id"]})
+            if selected and any(value < 0.98 for value in outline):
+                issues.append({"kind": "missingThickSelectionOutline", "item": label["id"]})
+    return issues
+
+
 def check_fixture(fixture):
     issues = []
     geometry = fixture["geometry"]
@@ -139,7 +207,7 @@ def check_fixture(fixture):
     if geometry["labelRadius"] > geometry["diameter"] / 2:
         raise ValueError("The guide circle exceeds the panel")
     center = numbers(fixture["centerMeasured"], 2)
-    if fixture.get("style") == "iconLabels":
+    if fixture.get("style") in ("iconLabels", "floatingLabels"):
         if center != [0, 0] or values[6] != 0:
             raise ValueError("Icon labels must have an empty center")
     elif min(center) <= 0 or values[6] <= 0:
@@ -156,7 +224,10 @@ def check_fixture(fixture):
         raise ValueError("Invalid panel or screen size")
     if not contained(frame, screen):
         issues.append({"kind": "panelOutsideScreen"})
-    if frame[2:] != [geometry["diameter"], geometry["diameter"]]:
+    window_size = numbers(geometry.get("windowSize", [geometry["diameter"]] * 2), 2)
+    if min(window_size) <= 0 or max(window_size) != geometry["diameter"]:
+        raise ValueError("Invalid window dimensions")
+    if frame[2:] != window_size:
         issues.append({"kind": "unexpectedPanelSize"})
     if fixture.get("style", "pie") == "selectedMessage":
         if any(fixture.get(key) is not True for key in
@@ -191,14 +262,15 @@ def check_fixture(fixture):
         x, y, reserved_width, reserved_height = rectangle
         expected_x = math.sin(angle) * geometry["labelRadius"] - reserved_width / 2
         expected_y = -math.cos(angle) * geometry["labelRadius"] - reserved_height / 2
-        if min(reserved_width, reserved_height) <= 0 or abs(x - expected_x) > EPSILON or abs(y - expected_y) > EPSILON:
+        if min(reserved_width, reserved_height) <= 0 or (fixture.get("style") != "floatingLabels" and
+                (abs(x - expected_x) > EPSILON or abs(y - expected_y) > EPSILON)):
             raise ValueError("Label position differs from recorded rendering parameters")
         rectangles.append(rectangle)
         kinds = []
         if width > reserved_width + EPSILON or height > reserved_height + EPSILON:
             kinds.append("contentExceedsLabelBox")
         d = geometry["diameter"]
-        if not contained(rectangle, [-d / 2, -d / 2, d, d]):
+        if not contained(rectangle, [-window_size[0] / 2, -window_size[1] / 2, *window_size]):
             kinds.append("labelOutsidePanel")
         width, height = reserved_width, reserved_height
         corners = list(itertools.product((x, x + width), (y, y + height)))
@@ -209,9 +281,9 @@ def check_fixture(fixture):
             cx, cy, cw, ch = fixture["centerBounds"]
             if min(x + width, cx + cw) - max(x, cx) > -EPSILON and min(y + height, cy + ch) - max(y, cy) > -EPSILON:
                 kinds.append("labelTouchesCenter")
-        elif math.hypot(closest_x, closest_y) <= geometry["innerRadius"] + EPSILON:
+        elif fixture.get("style") != "floatingLabels" and math.hypot(closest_x, closest_y) <= geometry["innerRadius"] + EPSILON:
             kinds.append("labelTouchesCenter")
-        if count > 1 and fixture.get("style") != "cards":
+        if count > 1 and fixture.get("style") not in ("cards", "floatingLabels"):
             differences = [math.remainder(math.atan2(cx, -cy) - angle, 2 * math.pi) for cx, cy in corners]
             if any(abs(difference) > math.pi / count + EPSILON for difference in differences):
                 kinds.append("labelOutsideOwnSector")
@@ -228,18 +300,22 @@ def check_fixture(fixture):
         raise ValueError("Missing native card title and description evidence")
     if fixture.get("style") == "iconLabels":
         issues.extend(check_icon_ring(fixture))
+    if fixture.get("style") == "floatingLabels":
+        issues.extend(check_floating_labels(fixture))
     return issues
 
 
 def verify(report):
     expected = {f"{count}-{profile}" for count in range(1, 13) for profile in PROFILES} | {"nested", "nested-child", "large-type-4-long", "large-type-2-unicode"}
     style = report.get("style", "pie")
-    if style not in ("pie", "fullLabels", "iconLabels", "cards", "selectedMessage"):
+    if style not in ("pie", "fullLabels", "iconLabels", "floatingLabels", "cards", "selectedMessage"):
         raise ValueError("Unknown menu style")
     if style != "pie":
         expected |= {"rich", "large-type-rich"}
-    if style in ("fullLabels", "iconLabels", "cards"):
+    if style in ("fullLabels", "iconLabels", "floatingLabels", "cards"):
         expected |= {"6-full-title", "4-unicode-title"}
+    if style == "floatingLabels":
+        expected.add("6-variable-width")
     if style == "cards":
         expected |= {f"{count}-details" for count in range(1, 13)} | {"2-max-detail"}
     fixtures = report["fixtures"]
@@ -250,8 +326,11 @@ def verify(report):
         count = 6 if name in ("rich", "large-type-rich") else 2 if name == "nested" else 12 if name == "nested-child" else int(name.removeprefix("large-type-").split("-", 1)[0])
         if fixture.get("style", "pie") != style:
             raise ValueError("Fixture uses the wrong menu style")
-        width = {"pie": 96, "fullLabels": 226, "iconLabels": 226, "cards": 210, "selectedMessage": 150}[style]
-        if fixture["geometry"]["labelWidth"] != width * (2 if name.startswith("large-type-") else 1):
+        width = ({"pie": 96, "fullLabels": 226, "iconLabels": 226, "cards": 210, "selectedMessage": 150}.get(style, 0)
+                 * (2 if name.startswith("large-type-") else 1))
+        if style == "floatingLabels":
+            width = max(math.ceil(label["measured"][0]) for label in fixture["labels"])
+        if fixture["geometry"]["labelWidth"] != width:
             raise ValueError("Fixture changed the requested wrapping width")
         if fixture["geometry"]["fontSize"] != (34 if name.startswith("large-type-") else 17):
             raise ValueError("Fixture changed the requested text size")
@@ -283,6 +362,9 @@ def verify(report):
         raise ValueError("Missing native icon and empty center click evidence")
     if style == "cards" and extra.get("nativeCardDescriptionClick") is not True:
         raise ValueError("Missing native description activation evidence")
+    if style == "floatingLabels" and any(extra.get(key) is not True for key in
+            ("nativeFloatingHitRegions", "nativeIconAccessibilityActions", "oversizedWordFailure")):
+        raise ValueError("Missing floating label native checks")
     results = [{"name": fixture["name"], "issues": check_fixture(fixture)} for fixture in fixtures]
     failed = sum(bool(result["issues"]) for result in results)
     return {"passed": failed == 0, "fixtureCount": len(results), "failedFixtures": failed, "fixtures": results}

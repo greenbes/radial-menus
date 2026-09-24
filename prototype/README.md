@@ -11,19 +11,26 @@ These choices only report values; the described actions do not execute.
 This is a separate Swift package; it does not import the original app.
 
 Use the **Menu style** dropdown in diagnostics to choose **Full labels**, **Full
-labels with icons**, **Cards**, **Selected message**, or **Pie wedges**. Full
-labels implements design 1: complete titles surround a compact ring, with a line
+labels with icons**, **Floating labels**, **Cards**, **Selected message**, or
+**Pie wedges**. Full labels implements design 1: complete titles surround a
+compact ring, with a line
 connecting each title to its controller direction. Full labels with icons places
 action symbols on the compact ring, leaves the center empty, and omits
 connecting lines. Selection fills the icon badge and its title button with the
 same accent color and adds a thicker white outline. There is no selection
-checkmark in this style; submenu arrows remain visible. Cards implements
-design 2: each radial card shows its full
-title and description, with a tinted outline and checkmark on selection.
+checkmark in this style; submenu arrows remain visible. Floating labels puts the
+icons inside individually sized buttons, with no ring or center control. Titles
+wrap at word boundaries after at most 20 characters per line; longer words stay
+intact on their own lines. Buttons grow vertically, and their closest rounded
+edges touch a common invisible circle. Selection uses an accent fill and thicker
+white outline. Launch it with
+`./prototype/scripts/run.sh --floating-labels`. Cards implements design 2: each
+radial card shows its full title and description, with a tinted outline and
+checkmark on selection.
 Clicking anywhere on the card, including the description, chooses that item.
 Selected message displays short labels around a ring and the selected item's
 full text in the center. Pie wedges display the short labels inside sectors. All
-five styles use the same content, item order, navigation, and results. Style
+six styles use the same content, item order, navigation, and results. Style
 changes apply on the next opening and remain in memory until quitting. A submenu
 retains the style of its current interaction. See [menu style behavior and
 validation](MENU_STYLES.md) for details.
@@ -83,7 +90,7 @@ does not create a distributable or notarized release.
 | Click an item | Activate that specific item |
 | Back / Cancel control | Go back, or cancel at the root |
 
-Full labels with icons has no center Back / Cancel control.
+Full labels with icons and Floating labels have no center Back / Cancel control.
 
 On the tested **GuliKit Controller XW**, the **bottom face button labeled B**
 confirms, and the **right face button labeled A** goes back or cancels. macOS
@@ -98,8 +105,10 @@ Moving the mouse by at least two logical screen points takes selection from
 another input when the pointer is over an item. Smaller movements accumulate
 from the last accepted position. Leaving a selectable target clears only a
 selection made by the pointer. In Pie wedges, the targets are sectors; in the
-other styles, they are the label or card buttons. Rings, icons, connecting
-lines, and central message text are not selectable. A stationary mouse or stick
+other styles, they are the label or card buttons. Rings, separate icon badges,
+connecting lines, and central message text are not selectable. Icons inside
+Floating labels
+are part of the item button and can be clicked. A stationary mouse or stick
 does not overwrite a keyboard, D-pad, or other deliberate selection.
 
 Opening or entering a submenu establishes the current pointer position without
@@ -107,8 +116,8 @@ selecting an item. Moving the menu beneath a stationary pointer preserves the
 selection. Clicking activates the specific clicked item, even if another item
 was selected. Controller Back and keyboard Delete return to the parent menu. The
 center Back control also does this in styles that show it. Escape cancels the
-whole interaction. Full labels with icons exposes a named Back or Cancel action
-on each accessible item without displaying a center button.
+whole interaction. Full labels with icons and Floating labels expose a named
+Back or Cancel action on each accessible item without a center button.
 
 After opening a menu or entering a submenu, release held buttons and center
 both sticks before selecting or moving again. Holding Confirm across navigation
@@ -174,9 +183,12 @@ radii.
 
 `MenuLayout.make` validates complete measurements by item identity, reserves
 the maximum width and height needed by either weight, and calculates a common
-label radius. Each label rectangle stays within its sector and outside the
-center control. The outer radius encloses every rectangle with padding. The
-same immutable layout controls drawing, pointer selection, and window size;
+label radius. Pie labels and both full-label styles stay within their sectors
+and outside the center control or decorative ring. Floating labels instead
+places each rounded boundary tangent to an invisible circle, separates all item
+rectangles, and reserves a rectangular window from their individual sizes. The
+outer radius encloses every rectangle with padding. The same immutable layout
+controls drawing, pointer selection, and window size;
 controller selection uses its shared angular geometry. Selected message instead
 separates each label rectangle from the central message rectangle and reserves
 the maximum message height. Its window encloses those rectangles and the guide
@@ -297,14 +309,16 @@ To reproduce layout validation across item counts and label profiles, run:
 ./prototype/scripts/layout-test.sh
 ./prototype/scripts/layout-test.sh --selected-message
 ./prototype/scripts/layout-test.sh --full-labels
+./prototype/scripts/layout-test.sh --icon-labels
 ./prototype/scripts/layout-test.sh --cards
+./prototype/scripts/layout-test.sh --floating-labels
 ```
 
-The commands check 64 pie, 66 selected-message, 68 full-label, and 81 card
-fixtures. The latter three include the richer demo at two text sizes. Full
-labels and Cards check titles at the 160-character limit; Cards also checks
-600-character descriptions and mixed description lengths. The probes capture
-native renderings,
+The commands check 64 pie, 66 selected-message, 68 full-label, 68 icon-label,
+69 floating-label, and 81 card fixtures. Every style except Pie wedges includes
+the richer demo at two text sizes. Both full-label styles, Floating labels, and
+Cards check titles at the 160-character limit; Cards also checks 600-character
+descriptions and mixed description lengths. The probes capture native renderings,
 check keyboard interaction, and validate measured label rectangles against
 each menu's calculated geometry. They also check native pointer selection
 and clicking beyond the original ring, and inject an undersized screen
@@ -320,6 +334,7 @@ instance closed:
 ./prototype/scripts/smoke-test.sh --selected-message
 ./prototype/scripts/smoke-test.sh --full-labels
 ./prototype/scripts/smoke-test.sh --cards
+./prototype/scripts/smoke-test.sh --floating-labels
 ./prototype/scripts/lifecycle-test.sh
 ```
 

@@ -1,19 +1,21 @@
 /// Presentation is chosen independently of a menu's content and destinations.
 public enum MenuStyle: String, CaseIterable, Equatable, Sendable {
-    case pie, fullLabels, iconLabels, cards, selectedMessage
+    case pie, fullLabels, iconLabels, floatingLabels, cards, selectedMessage
 
     public var title: String {
         switch self {
         case .pie: "Pie wedges"
         case .fullLabels: "Full labels"
         case .iconLabels: "Full labels with icons"
+        case .floatingLabels: "Floating labels"
         case .cards: "Cards"
         case .selectedMessage: "Selected message"
         }
     }
 
     public var usesDirectionGuide: Bool { self == .fullLabels || self == .cards }
-    public var showsFullTitles: Bool { usesDirectionGuide || self == .iconLabels }
+    public var showsFullTitles: Bool { usesDirectionGuide || self == .iconLabels || self == .floatingLabels }
+    public var hasEmptyCenter: Bool { self == .iconLabels || self == .floatingLabels }
 }
 
 /// The same value supplies native measurement and rendering, including the

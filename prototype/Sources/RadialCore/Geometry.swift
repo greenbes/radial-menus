@@ -59,10 +59,14 @@ public enum Geometry {
     }
 
     public static func place(center: Vector, diameter: Double, in screen: Rect) -> Rect? {
-        guard center.isFinite, [diameter, screen.x, screen.y, screen.width, screen.height].allSatisfy(\.isFinite),
-              diameter > 0, screen.width >= diameter, screen.height >= diameter else { return nil }
-        return Rect(x: min(max(center.x - diameter / 2, screen.x), screen.x + screen.width - diameter),
-                    y: min(max(center.y - diameter / 2, screen.y), screen.y + screen.height - diameter),
-                    width: diameter, height: diameter)
+        place(center: center, size: Size(width: diameter, height: diameter), in: screen)
+    }
+
+    public static func place(center: Vector, size: Size, in screen: Rect) -> Rect? {
+        guard center.isFinite, size.isValid, [screen.x, screen.y, screen.width, screen.height].allSatisfy(\.isFinite),
+              screen.width >= size.width, screen.height >= size.height else { return nil }
+        return Rect(x: min(max(center.x - size.width / 2, screen.x), screen.x + screen.width - size.width),
+                    y: min(max(center.y - size.height / 2, screen.y), screen.y + screen.height - size.height),
+                    width: size.width, height: size.height)
     }
 }

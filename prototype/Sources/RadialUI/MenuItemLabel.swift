@@ -15,6 +15,23 @@ public struct MenuItemLabel: View {
     public var body: some View {
         if style == .cards {
             MenuItemCard(item: item, selected: selected, fontSize: fontSize)
+        } else if style == .floatingLabels {
+            HStack(spacing: fontSize * 0.5) {
+                MenuIconGlyph(icon: item.icon, selected: selected, fontSize: fontSize)
+                    .accessibilityHidden(true)
+                Text(TitleLines.wrap(item.title).joined(separator: "\n"))
+                    .font(.system(size: fontSize, weight: selected ? .bold : .medium))
+                    .fixedSize()
+                if isSubmenu {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: fontSize * 0.8, weight: .semibold))
+                        .accessibilityHidden(true)
+                }
+            }
+            .multilineTextAlignment(.leading)
+            .padding(.horizontal, fontSize * 0.8)
+            .padding(.vertical, fontSize * 0.6)
+            .fixedSize()
         } else if style == .fullLabels || style == .iconLabels {
             HStack(spacing: fontSize * 0.5) {
                 Text(item.title)

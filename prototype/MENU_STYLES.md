@@ -8,8 +8,11 @@ highlights the title button, connection, and marker, and shows a checkmark.
 removes connecting lines, and leaves the center empty. Selection fills the icon
 badge and title button with the same accent color and adds a three-point white
 outline inside their bounds. There is no selection checkmark; submenu arrows
-remain visible. **Cards** implements design
-2: titles and descriptions are visible together in radial cards. Selection adds
+remain visible. **Floating labels** puts the icon inside each title button,
+leaves the center empty, and shows no ring or connections. Each button fits its
+wrapped text and touches an invisible circle at its controller direction.
+**Cards** implements design 2: titles and descriptions are visible together in
+radial cards. Selection adds
 a light tint, an accent outline, and a checkmark. **Selected message** shows
 short labels arranged around a ring, with a full title and description in the
 center. **Pie wedges** shows short labels inside sectors. The default demo uses
@@ -32,13 +35,17 @@ fits the screen.
 
 Controller direction and keyboard order are identical in all styles. The pointer
 targets visible sectors in Pie wedges and discrete label buttons in Full labels,
-Full labels with icons, Cards, and Selected message. Moving off a target clears
-only pointer-owned selection. Rings, markers, connections, and central message
+Full labels with icons, Floating labels, Cards, and Selected message. Moving off
+a target clears only pointer-owned selection. Rings, markers, connections, and
+central message
 text do not activate items. A card's description is part of its item button, so
 clicking it chooses that item. Back and Cancel are separate controls except in
-Full labels with icons. That style uses controller Back, keyboard Delete, or a
-named accessibility action to go back or cancel at the root. Escape cancels the
-whole interaction. Clicking its empty center or icons has no effect.
+Full labels with icons and Floating labels. These styles use controller Back,
+keyboard Delete, or a named accessibility action to go back or cancel at the
+root. Escape cancels the
+whole interaction. Clicking the empty center has no effect. Separate icon badges
+in Full labels with icons are inert; embedded icons in Floating labels activate
+their item.
 Accessibility exposes the full title and description for every style. Full
 labels displays titles; descriptions appear visually when using Cards or
 Selected message.
@@ -56,8 +63,10 @@ central rectangle. Both full-label styles and Selected message stay within their
 sectors. Cards can extend across sector boundaries, but remain disjoint and
 cannot obscure another item's connection. Their centers retain the same
 controller directions. Full-label connections end at the inward edge of each
-label and cannot cross another label. Their angular order is shared with
-controller selection. The window encloses all visible elements. A layout that
+label and cannot cross another label. Floating labels uses the closest rounded
+point of each item as its tangent to an invisible circle, with a common radius
+large enough to keep all item rectangles apart. Their angular order is shared
+with controller selection. The window encloses all visible elements. A layout that
 cannot fit at the requested text size fails explicitly before accepting input.
 There is no automatic truncation or text-size reduction.
 
@@ -72,18 +81,21 @@ Quit the running prototype first, then use an unlocked macOS desktop:
 ./prototype/scripts/layout-test.sh --full-labels
 ./prototype/scripts/layout-test.sh --icon-labels
 ./prototype/scripts/layout-test.sh --cards
+./prototype/scripts/layout-test.sh --floating-labels
 ./prototype/scripts/smoke-test.sh
 ./prototype/scripts/smoke-test.sh --selected-message
 ./prototype/scripts/smoke-test.sh --full-labels
 ./prototype/scripts/smoke-test.sh --icon-labels
 ./prototype/scripts/smoke-test.sh --cards
+./prototype/scripts/smoke-test.sh --floating-labels
 ./prototype/scripts/lifecycle-test.sh
 ```
 
-The layout checks click all five choices in the actual diagnostics window,
+The layout checks click all six choices in the actual diagnostics window,
 reopen menus with the chosen style, and exercise native Back and Cancel buttons
-(Delete and Escape for Full labels with icons). They also check a style change
-during an interaction: the current submenu retains its style and the next
+(Delete and Escape for Full labels with icons and Floating labels). They also
+check a style change during an interaction: the current submenu retains its
+style and the next
 opening adopts the preference.
 
 The selected-message matrix checks item counts 1 through 12, several label
@@ -108,6 +120,57 @@ SwiftUI's accessibility nodes expose Objective-C accessors without declaring
 the complete AppKit accessibility protocol. The native probe checks for those
 accessors before reading them. It does not use private method names or represent
 a VoiceOver session.
+
+## Floating-label behavior and validation
+
+Choose **Floating labels** in the dropdown, or run
+`./prototype/scripts/run.sh --floating-labels`. Word wrapping counts spaces
+and Swift extended grapheme
+clusters, with a maximum of 20 per line. Explicit line breaks are retained;
+horizontal whitespace becomes a single space. A word longer than 20 characters
+stays whole on its own line. No word is truncated or split.
+
+The native boundary measures the exact wrapped text, embedded icon, padding,
+and optional submenu arrow. Each item reserves the greater width and height of
+its normal and selected rendering. Items can grow vertically without imposing
+a shared button width. The rounded boundary of every item touches one invisible
+circle at its assigned controller direction. The layout increases that circle's
+radius to avoid overlaps and encloses the buttons in a rectangular window.
+The pointer follows the same rounded shapes; empty corners and the center are
+inert. Back and Cancel remain keyboard, controller, and accessibility actions.
+
+Pure tests cover word boundaries, the 20-character limit, long words, newlines,
+emoji, combining accents, exact rounded tangency, separation, measurement
+identity, and rectangular screen placement. Native checks exercise complete
+rendered text, intrinsic sizes, stable selection frames, embedded-icon clicks,
+inert rounded corners, accessibility actions, and dropdown choices. Recorded
+pixels check the empty center and invisible ring, selection fill, and thick
+white outline through every selection. The independent Python verifier checks
+geometry and pixels, and rejects deliberately incorrect observations.
+
+The matrix includes a variable-width fixture and word-separated CJK titles at
+the 160-character limit. A separate 160-character unbroken CJK word is checked
+against an injected 1,200-by-1,000 screen: it stays intact and fails before
+presentation because its measured width cannot fit. This is an explicit layout
+failure, not an exception to the wrapping policy.
+
+The new style passed 114 Swift tests (105 core, 8 runtime, and 1 native operation
+order test), 29 Python verifier tests, 69 native layout fixtures with 507 display
+states, and 35 native interaction checks. The six-item demo measured 775 by 481
+points at 17-point text and 1,441 by 869 points at 34-point text on a screen with
+2,560 by 1,410 usable points. These measurements do not establish fit on every
+screen. All five existing styles also passed their native layout regressions:
+347 fixtures and 2,208 keyboard steps.
+
+Evidence and renderings are retained under `build/verification/floating-labels/`.
+Visual inspection covered the demo at both text sizes, mixed label lengths,
+and the dropdown in Aqua at backing scale 1. Native checks used scripted input;
+no controller was detected during this run. Physical controller testing and a
+VoiceOver session were not repeated.
+
+![Floating labels](build/verification/floating-labels/layout/rich.png)
+
+![Variable label widths](build/verification/floating-labels/layout/6-variable-width.png)
 
 ## Icon-label validation
 

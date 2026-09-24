@@ -13,6 +13,7 @@ import RadialMac
         content.layoutSubtreeIfNeeded()
         func expectedText(_ item: Item) -> String {
             if layout.style == .cards && !item.detail.isEmpty { return item.title + ", " + item.detail }
+            if layout.style == .floatingLabels { return TitleLines.wrap(item.title).joined(separator: "\n") }
             return item.title
         }
         let titles = Set(store.view.items.map(expectedText))
@@ -21,6 +22,17 @@ import RadialMac
         }
         guard buttons.count == store.view.items.count else {
             throw ProbeFailure("Missing native item text. Expected: \(titles); observed: \(NativeAccessibility.elements(in: content).compactMap(\.label))")
+        }
+        if layout.style == .floatingLabels {
+            for button in buttons {
+                for line in (button.label ?? "").components(separatedBy: "\n") {
+                    var count = 0
+                    line.enumerateSubstrings(in: line.startIndex..<line.endIndex, options: .byComposedCharacterSequences) { _, _, _, _ in count += 1 }
+                    guard count <= 20 || line.split(whereSeparator: \.isWhitespace).count == 1 else {
+                        throw ProbeFailure("Rendered line exceeds 20 characters: \(line)")
+                    }
+                }
+            }
         }
         for (item, label) in zip(store.view.items, layout.labels) {
             let r = label.bounds
@@ -36,7 +48,7 @@ import RadialMac
                 throw ProbeFailure("Native full-title frame differs from pointer target: \(item.title); expected \(expected); observed \(buttons.map { "\($0.label ?? "?"): \(String(describing: $0.frame))" })")
             }
         }
-        if layout.style == .iconLabels {
+        if layout.style.hasEmptyCenter {
             let controls = NativeAccessibility.elements(in: content).filter {
                 $0.role == .button && ["Back to parent menu", "Cancel menu"].contains($0.label ?? "")
             }

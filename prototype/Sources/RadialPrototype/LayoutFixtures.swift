@@ -42,13 +42,22 @@ struct LayoutFixture {
         if style.showsFullTitles {
             for (name, count, title) in [
                 ("6-full-title", 6, String(String(repeating: "Open recent documents in the research workspace. ", count: 4).prefix(160))),
-                ("4-unicode-title", 4, String(repeating: "界", count: 160))
+                ("4-unicode-title", 4, style == .floatingLabels
+                    ? String(String(repeating: "界界界界界界界界界 ", count: 16).prefix(159)) + "界"
+                    : String(repeating: "界", count: 160))
             ] {
                 let menu = try Menu(id: "root", title: "Full title limits", items: (0..<count).map {
                     Item(id: "item-\($0)", label: "Short \($0)", title: title, value: "value-\($0)")
                 })
                 fixtures.append(Self(name: name, menu: menu))
             }
+        }
+        if style == .floatingLabels {
+            let titles = ["Red", "More Choices…", "Open recent documents", "123456789 1234567890",
+                          "Supercalifragilisticexpialidocious", "Restore the research workspace and its saved windows"]
+            fixtures.append(Self(name: "6-variable-width", menu: try Menu(id: "root", title: "Variable widths",
+                items: titles.enumerated().map { Item(id: "item-\($0.offset)", label: "Item \($0.offset)",
+                    title: $0.element, icon: .workspace, value: "value-\($0.offset)") })))
         }
         if style == .cards {
             let descriptions = ["", "Restore project notes and the draft proposal in their original windows.",

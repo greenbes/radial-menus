@@ -220,7 +220,7 @@ submenu navigation. A preference change applies to the next interaction; it
 does not replace the geometry beneath an active pointer or stick selection.
 Preference persistence belongs to the application shell.
 
-Support five presentations of the same menu:
+Support six presentations of the same menu:
 
 - **Pie wedges:** short labels inside selectable sectors.
 - **Full labels:** complete titles in separate buttons outside a compact ring.
@@ -234,6 +234,15 @@ Support five presentations of the same menu:
   Controller Back and keyboard Delete go back one menu or cancel at the root;
   Escape cancels the interaction. Expose a named Back or Cancel accessibility
   action on each item. Icons are decorative; the outer labels are the targets.
+- **Floating labels:** icons inside individually sized title buttons, without
+  a visible ring or central control. Wrap titles at word boundaries with at most
+  20 characters per line, counting spaces and extended grapheme clusters. Keep
+  longer words intact on their own lines. Let each button grow vertically and
+  fit its longest rendered line horizontally. Place its closest rounded edge
+  tangent to a common invisible circle at its controller direction. Selection
+  fills the button and thickens its outline, without adding a checkmark.
+  Use the same navigation and accessibility actions as Full labels with icons.
+  Clicking the embedded icon activates its item.
 - **Cards:** complete titles and descriptions in separate radial cards. Use a
   light selection tint, an outline, and a checkmark. Connect each card to its
   direction marker, and keep Back or Cancel in the center. The whole card,
@@ -242,9 +251,10 @@ Support five presentations of the same menu:
   and description in the center. Before selection, show the menu title and
   instructions. Back or Cancel remains a separate control in the center.
 
-Decorative rings, icons, markers, connecting lines, and central message text
-have no action. All styles return the same item identities and outcomes. Full
-labels shows every title simultaneously; Cards also shows every description.
+Decorative rings, separate icon badges, markers, connecting lines, and central
+message text have no action. All styles return the same item identities and
+outcomes. Full labels shows every title simultaneously; Cards also shows every
+description.
 Descriptions remain available to accessibility in all styles, and appear
 visually for the current selection in Selected message.
 
@@ -667,6 +677,24 @@ explicitly; do not measure or reserve an invisible Cancel control. Keep semantic
 icon identities in the menu definition and platform artwork in the view layer.
 Store icon positions and badge dimensions in the immutable layout. Selection
 changes only their appearance.
+
+Floating labels use deterministic word wrapping before native measurement.
+Preserve explicit line breaks and whole words; measure the actual icon, wrapped
+text, submenu arrow, and padding at both weights. Reserve each item's maximum
+width and height independently. Store the corner radius with its bounds and use
+the same circular corners for rendering and pointer hit testing.
+
+To place a rounded rectangle, take its inward boundary point whose normal
+faces the menu center, and position that point on the circle at the item's
+controller angle. Choose a common radius that separates every pair of item
+rectangles with padding. This keeps every item outside the circle and tangent
+to it; placing item centers on a circle would not satisfy that constraint for
+unequal widths and heights. Buttons may cross sector boundaries. Controller
+selection follows the tangent directions; pointer selection follows the actual
+rounded shapes. The empty center and gaps have no pointer action. Reserve a
+rectangular window enclosing the complete items, and clamp both dimensions to
+the screen. Keep long words intact even when their native width prevents the
+menu from fitting; report the layout failure without truncating the word.
 
 Cards can extend across sector boundaries. Their centers still follow the
 controller directions, but reserve space from their measured rectangles and

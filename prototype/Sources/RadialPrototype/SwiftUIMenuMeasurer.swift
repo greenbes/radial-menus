@@ -16,6 +16,7 @@ import RadialUI
     func measure(menu: RadialCore.Menu, canGoBack: Bool, style: RadialCore.MenuStyle) throws -> MenuMeasurements {
         let labelWidth: Double
         switch style {
+        case .floatingLabels: labelWidth = 10000 // Intrinsic size; wrapping is by words, not pixels.
         case .pie: labelWidth = wrappingWidth
         case .fullLabels, .iconLabels: labelWidth = 226 * fontSize / 17
         case .cards: labelWidth = 210 * fontSize / 17
@@ -24,9 +25,14 @@ import RadialUI
         let labels = menu.items.map { item in
             @MainActor func size(selected: Bool) -> RadialCore.Size {
                 measureView(MenuItemLabel(item: item, selected: selected, fontSize: fontSize, style: style)
-                    .fixedSize(horizontal: false, vertical: true), width: labelWidth)
+                    .fixedSize(horizontal: style == .floatingLabels, vertical: true), width: labelWidth)
             }
             return LabelMeasurement(itemID: item.id, normal: size(selected: false), selected: size(selected: true))
+        }
+        if style == .floatingLabels {
+            let maximumWidth = labels.map { max($0.normal.width, $0.selected.width) }.max()!
+            return MenuMeasurements(fontSize: fontSize, wrappingWidth: maximumWidth, labels: labels,
+                                    content: .empty, style: style)
         }
         if style == .iconLabels {
             let icons = menu.items.map { item in

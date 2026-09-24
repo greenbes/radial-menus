@@ -20,7 +20,7 @@ import RadialUI
         var preparation: [String: Any] = [:]
         do {
             try await checkNavigationControls(style: style, directory: directory)
-            if style == .iconLabels { try await checkAccessibleIconLabels() }
+            if style.hasEmptyCenter { try await checkAccessibleIconLabels(style: style) }
             if style == .cards { try await checkCardDescriptionClick() }
             for fixture in try LayoutFixture.all(style: style) {
                 let panel = PanelAdapter(measurer: SwiftUIMenuMeasurer(fontSize: fixture.fontSize)), clock = TaskScheduler()
@@ -87,9 +87,11 @@ import RadialUI
         try await probe.wait("expanded pointer fixture") { store.model.phase.isActive }
         guard let layout = store.view.layout, layout.labelRadius > 150 else { throw ProbeFailure("Fixture did not expand") }
         let scope = try probe.scope()
+        let first = layout.labels[0].bounds
+        let target = Vector(x: first.x + first.width / 2, y: first.y + first.height / 2)
         // Start away from the target so the accepted movement cannot be a baseline.
         try await probe.mouse(at: probe.screenPoint(x: 0, y: layout.labelRadius))
-        try await probe.mouse(at: probe.screenPoint(x: 0, y: -layout.labelRadius))
+        try await probe.mouse(at: probe.screenPoint(x: target.x, y: target.y))
         guard store.view.selectedID == "item-0", store.model.phase.session?.selection?.source == .pointer else {
             throw ProbeFailure("Expanded ring did not select under native pointer")
         }
@@ -124,7 +126,19 @@ import RadialUI
                 }
             }
         }
-        try await probe.click(x: 0, y: -layout.labelRadius)
+        if style == .floatingLabels {
+            for point in [Vector.zero, Vector(x: first.x + 0.25, y: first.y + 0.25)] {
+                store.send(.select(scope, "item-0", .keyboard))
+                try await probe.click(x: point.x, y: point.y)
+                try await probe.mouse(at: probe.screenPoint(x: point.x + 1, y: point.y))
+                guard store.model.phase.isActive, store.outputs.isEmpty else {
+                    throw ProbeFailure("Empty center or rounded corner activated an item")
+                }
+            }
+        }
+        // In Floating labels this point is inside the embedded icon.
+        let clickX = style == .floatingLabels ? first.x + layout.fontSize * 1.5 : target.x
+        try await probe.click(x: clickX, y: target.y)
         try await probe.wait("expanded native click") { store.model.phase == .idle }
         guard store.outputs == [.completed(scope.session, .selected(Choice(menuPath: ["root"], itemID: "item-0", value: "value-0")))] else {
             throw ProbeFailure("Expanded native click returned the wrong result")
@@ -132,15 +146,34 @@ import RadialUI
         store.send(.stop)
         try await probe.wait("expanded pointer cleanup") { store.model.lifecycle == .stopped(.completed) }
 
+        try checkUnfittable(menu: fixture.menu, style: style, bounds: Rect(x: 0, y: 0, width: 100, height: 100))
+        if style == .floatingLabels {
+            let word = String(repeating: "界", count: 160)
+            let oversized = try RadialCore.Menu(id: "root", title: "Long word", items: [
+                Item(id: "word", label: "Word", title: word, value: "word")])
+            guard TitleLines.wrap(word) == [word] else { throw ProbeFailure("Long word was split") }
+            try checkUnfittable(menu: oversized, style: style, bounds: Rect(x: 0, y: 0, width: 1200, height: 1000))
+        }
+        return ["nativeBackAndCancel": true, "styleSwitching": true, "nativeStylePicker": true, "expandedPointerAndClick": true, "expandedLabelRadius": layout.labelRadius,
+                "smallScreenFailure": true, "smallScreenObservationInjected": true,
+                "messageTextIsNotAButton": style == .selectedMessage,
+                "nativeCardDescriptionClick": style == .cards,
+                "directionGuideIsNotAButton": style.usesDirectionGuide,
+                "iconsAndCenterAreNotButtons": style == .iconLabels,
+                "nativeIconAccessibilityActions": style.hasEmptyCenter,
+                "nativeFloatingHitRegions": style == .floatingLabels, "oversizedWordFailure": style == .floatingLabels]
+    }
+
+    private static func checkUnfittable(menu: RadialCore.Menu, style: RadialCore.MenuStyle, bounds: Rect) throws {
         let smallPanel = PanelAdapter(measurer: SwiftUIMenuMeasurer()), smallClock = TaskScheduler()
-        let smallStore = Store(menu: fixture.menu, menuStyle: style, window: smallPanel, controller: LayoutProbeController(),
+        let smallStore = Store(menu: menu, menuStyle: style, window: smallPanel, controller: LayoutProbeController(),
                                scheduler: smallClock, movementClock: smallClock)
         smallPanel.content = NSHostingView(rootView: MenuContainer(store: smallStore))
         // Controlled observation injection: no physical monitor is reconfigured.
         smallPanel.receive = { [weak smallStore] event in
             if case .prepared(let scope, let operation, let measurements, _) = event {
                 smallStore?.send(.prepared(scope, operation, measurements, ScreenContext(revision: 1, screenID: "small-fixture",
-                    bounds: Rect(x: 0, y: 0, width: 100, height: 100), anchor: .zero)))
+                    bounds: bounds, anchor: .zero)))
             } else { smallStore?.send(event) }
         }
         var requestedPresentation = false
@@ -158,18 +191,11 @@ import RadialUI
         guard smallStore.model.lifecycle == .stopped(.completed), !smallPanel.hasNativeResources else {
             throw ProbeFailure("Unfittable menu retained resources")
         }
-        return ["nativeBackAndCancel": true, "styleSwitching": true, "nativeStylePicker": true, "expandedPointerAndClick": true, "expandedLabelRadius": layout.labelRadius,
-                "smallScreenFailure": true, "smallScreenObservationInjected": true,
-                "messageTextIsNotAButton": style == .selectedMessage,
-                "nativeCardDescriptionClick": style == .cards,
-                "directionGuideIsNotAButton": style.usesDirectionGuide,
-                "iconsAndCenterAreNotButtons": style == .iconLabels,
-                "nativeIconAccessibilityActions": style == .iconLabels]
     }
 
-    private static func checkAccessibleIconLabels() async throws {
+    private static func checkAccessibleIconLabels(style: RadialCore.MenuStyle) async throws {
         let panel = PanelAdapter(measurer: SwiftUIMenuMeasurer()), clock = TaskScheduler()
-        let store = Store(menu: SampleMenu.definition, menuStyle: .iconLabels, window: panel,
+        let store = Store(menu: SampleMenu.definition, menuStyle: style, window: panel,
                           controller: LayoutProbeController(), scheduler: clock, movementClock: clock)
         panel.content = NSHostingView(rootView: MenuContainer(store: store))
         let probe = NativeSmoke(store: store, panel: panel)
@@ -240,7 +266,7 @@ import RadialUI
         guard store.view.layout?.style == style else { throw ProbeFailure("Style changed during navigation") }
         for label in ["Back to parent menu", "Cancel menu"] {
             try await Task.sleep(for: .milliseconds(30))
-            if style == .iconLabels {
+            if style.hasEmptyCenter {
                 _ = try NativeItemButtonProbe.check(store: store, panel: panel, navigationFrame: nil)
                 probe.key(code: label == "Back to parent menu" ? 51 : 53,
                           characters: label == "Back to parent menu" ? "\u{7F}" : "\u{1B}")
@@ -273,7 +299,7 @@ import RadialUI
         for (index, item) in items.enumerated() {
             let measurements = [false, true].map { selected in
                 let host = NSHostingController(rootView: MenuItemLabel(item: item, selected: selected, fontSize: layout.fontSize, style: layout.style)
-                    .fixedSize(horizontal: false, vertical: true))
+                    .fixedSize(horizontal: layout.style == .floatingLabels, vertical: true))
                 return host.sizeThatFits(in: NSSize(width: layout.wrappingWidth, height: 10000))
             }
             let width = measurements.map(\.width).max()!, height = measurements.map(\.height).max()!
@@ -281,11 +307,14 @@ import RadialUI
             labels.append(["id": item.id, "label": item.label, "title": item.title, "detail": item.detail, "measured": [width, height],
                            "rectangle": [rectangle.x, rectangle.y, rectangle.width, rectangle.height],
                            "normal": [measurements[0].width, measurements[0].height],
-                           "selected": [measurements[1].width, measurements[1].height]])
+                           "selected": [measurements[1].width, measurements[1].height],
+                           "cornerRadius": layout.labels[index].cornerRadius,
+                           "lines": TitleLines.wrap(item.title)])
         }
         var messages: [[String: Any]] = []
         var navigationFrame: NSRect?
         var iconStates: [[String: Any]] = []
+        var floatingStates: [[String: Any]] = []
         if layout.style.showsFullTitles {
             try await Task.sleep(for: .milliseconds(30))
             navigationFrame = try NativeItemButtonProbe.check(store: store, panel: panel, navigationFrame: nil)
@@ -321,6 +350,9 @@ import RadialUI
                 }
             }
         }
+        if layout.style == .floatingLabels {
+            floatingStates.append(try NativeFloatingLabelProbe.capture(store: store, panel: panel))
+        }
         if layout.style == .iconLabels {
             iconStates.append(try NativeIconRingProbe.capture(store: store, panel: panel))
         }
@@ -343,6 +375,9 @@ import RadialUI
             if layout.style.showsFullTitles {
                 try await Task.sleep(for: .milliseconds(30))
                 navigationFrame = try NativeItemButtonProbe.check(store: store, panel: panel, navigationFrame: navigationFrame)
+                if layout.style == .floatingLabels {
+                    floatingStates.append(try NativeFloatingLabelProbe.capture(store: store, panel: panel))
+                }
                 if layout.style == .iconLabels {
                     iconStates.append(try NativeIconRingProbe.capture(store: store, panel: panel))
                 }
@@ -360,19 +395,19 @@ import RadialUI
              }]
         } ?? [:]
         return ["name": name, "style": layout.style.rawValue, "directionGuide": guide,
-                "iconStates": iconStates,
+                "iconStates": iconStates, "floatingStates": floatingStates,
                 "messages": messages, "stableSelectionLayout": true,
                 "nativeMessageTextVerified": layout.style == .selectedMessage,
-                "stableNavigationControl": layout.style != .pie && layout.style != .iconLabels,
+                "stableNavigationControl": layout.style != .pie && !layout.style.hasEmptyCenter,
                 "nativeFullTitleTextVerified": layout.style.showsFullTitles,
                 "nativeCardTextVerified": layout.style == .cards,
                 "nativeLabelFramesVerified": layout.style.showsFullTitles,
                 "centerBounds": [layout.centerBounds.x, layout.centerBounds.y, layout.centerBounds.width, layout.centerBounds.height], "count": items.count, "labels": labels,
                 "geometry": ["innerRadius": layout.innerRadius, "outerRadius": layout.outerRadius,
-                             "diameter": layout.diameter, "labelRadius": layout.labelRadius,
+                             "diameter": layout.diameter, "windowSize": [layout.size.width, layout.size.height], "labelRadius": layout.labelRadius,
                              "labelWidth": layout.wrappingWidth, "fontSize": layout.fontSize,
                              "centerRadius": layout.centerRadius],
-                "centerMeasured": layout.style == .iconLabels ? [0, 0] : layout.style != .selectedMessage ? [center.width, center.height] : [layout.centerBounds.width, layout.centerBounds.height],
+                "centerMeasured": layout.style.hasEmptyCenter ? [0, 0] : layout.style != .selectedMessage ? [center.width, center.height] : [layout.centerBounds.width, layout.centerBounds.height],
                 "keyboardSteps": steps,
                 "backingScale": panel.content?.window?.backingScaleFactor ?? 0,
                 "frame": [placement.frame.x, placement.frame.y, placement.frame.width, placement.frame.height],

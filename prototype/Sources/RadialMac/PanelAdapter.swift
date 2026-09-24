@@ -77,8 +77,8 @@ public struct OperationOrder: Sendable {
     public func present(scope: InputScope, layout: MenuLayout, placement: Placement, operation: OperationID) {
         guard request?.scope == scope, order.accept(operation) else { return }
         request = (scope, operation)
-        guard placement.isValid, placement.frame.width == layout.diameter,
-              placement.frame.height == layout.diameter,
+        guard placement.isValid, placement.frame.width == layout.size.width,
+              placement.frame.height == layout.size.height,
               let screen = NSScreen.screens.first(where: { screenID($0) == placement.screenID }),
               valueRect(screen.visibleFrame) == placement.bounds else {
             receive?(.operationFailed(operation, "Screen changed during menu preparation")); return

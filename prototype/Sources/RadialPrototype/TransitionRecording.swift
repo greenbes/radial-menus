@@ -23,6 +23,7 @@ enum TransitionRecording {
             record["owner"] = session.owner?.value
             record["selected"] = session.selection?.itemID
             record["menuDiameter"] = session.layout?.diameter
+            if let size = session.layout?.size { record["menuSize"] = [size.width, size.height] }
             record["menuOuterRadius"] = session.layout?.outerRadius
             record["selectionSource"] = session.selection.map { String(describing: $0.source) }
         }
