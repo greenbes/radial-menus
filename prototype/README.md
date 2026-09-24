@@ -113,7 +113,7 @@ does not create a distributable or notarized release.
 | --- | --- |
 | Controller Menu | Open the menu, or cancel the current interaction |
 | Left stick | Select the item in that direction |
-| Right stick | Move the complete menu within its assigned screen |
+| Right stick | Move the menu across the connected displays |
 | D-pad left / right | Select the previous / next item |
 | Confirm button | Confirm the current selection |
 | Back button | Go back one menu, or cancel at the root |
@@ -166,11 +166,16 @@ or Confirm again. An unrelated controller disconnecting does not cancel the
 owner's menu. A choice already committed before disconnection is preserved.
 
 Right-stick deflection controls speed: small tilts move slowly, and pushing
-toward the edge increases speed more rapidly. Releasing it stops movement. The menu
-stays inside its assigned screen's usable area and does not cross onto another
-screen. Moving the menu preserves selection. Navigation stops movement until
-the right stick has returned to neutral. If the assigned screen disappears,
-the adapter chooses an available screen and reports its new bounds to the core.
+toward the edge increases speed more rapidly. Releasing it stops movement.
+The menu's position moves continuously across shared display edges. On the
+tested Mac, the visible menu jumps between displays; the user accepted this
+behavior. Simultaneous visibility on both displays has not been established.
+The complete window stays within the combined usable display areas, stopping at
+outer edges and gaps. With offset displays, cross where there is enough shared
+height or width for the menu. Crossing preserves the menu, selection, and held
+stick input. Navigation stops movement until the right stick returns to neutral.
+If the display arrangement changes, movement stops and the menu moves to the
+nearest position that fits the remaining displays.
 
 The diagnostics window shows the device name and button labels reported by
 macOS. On the connected GuliKit Controller XW, macOS reported A Button,
@@ -215,8 +220,8 @@ center control where present. Full labels with icons measures its native symbols
 in both selection states and supplies an explicitly empty center. For Selected
 message it measures every full message and the neutral instructions, including
 the Back or Cancel button. The window adapter supplies those immutable sizes
-with the screen's usable bounds and the desired center point. It does not choose
-radii.
+with every display's usable rectangle and the desired center point. It does not
+choose radii.
 
 `MenuLayout.make` validates complete measurements by item identity, reserves
 the maximum width and height needed by either weight, and calculates a common
@@ -302,6 +307,20 @@ monotonic clock. Device event timestamps remain separate and are used to
 validate input history. Changes in velocity integrate the elapsed interval
 with the previous velocity before adopting the new one.
 
+`Desktop` contains immutable display IDs and usable rectangles in common
+desktop coordinates. The pure movement calculation uses their union, including
+overlapping displays and negative coordinates. It intersects coverage across
+the whole window, then sweeps horizontally and vertically through connected
+visible spans. This permits crossing shared edges, slides along outer edges,
+and prevents even a large movement step from jumping a gap. The desktop's
+bounding rectangle is used for reporting only; it cannot establish visibility
+when displays are offset or separated.
+
+The native adapter validates the complete display snapshot before moving the
+panel. Crossing onto another display does not replace the snapshot or reset
+input. A changed arrangement produces a new layout revision and input baseline.
+Submenus retain the current desktop center when their measured size fits there.
+
 The runtime subscribes to approximately 60 movement ticks per second while
 movement is active. The core integrates elapsed time rather than counting
 ticks. Native timer accuracy is not assumed. A long pause contributes at most
@@ -361,6 +380,21 @@ selection checks. Run `./prototype/scripts/smoke-test.sh --recentered-submenus`
 for scripted controller, pointer, movement, and lifecycle checks with that style.
 Both require the normal prototype to be closed. These scripted checks do not
 replace testing with the physical controller or VoiceOver.
+
+Run `./prototype/scripts/desktop-test.sh` with horizontally adjacent displays
+to check continuous movement across their shared edge. The probe moves a
+four-level menu onto each display and back, pauses between native movement
+steps, and checks selection, focus, neutral release, Back, and confirmation.
+It writes the observed frames, display identities, and results to `report.json`
+in the printed temporary directory. It requires enough shared usable height
+and width to fit that menu completely on either display.
+
+The optional `--desktop-preview` flag pauses at the boundary for up to three
+minutes. Wait for `preview-ready.txt` in the reported directory, inspect both
+displays, then create `continue.txt` in that directory to resume. Switching
+applications dismisses the menu and fails this check. The saved content bitmap
+and window coordinates do not establish whether macOS displays the contents on
+both monitors simultaneously; that requires direct visual observation.
 
 The commands check 64 pie, 66 selected-message, 68 full-label, 68 icon-label,
 69 floating-label, and 81 card fixtures. Every style except Pie wedges includes
@@ -461,9 +495,10 @@ python3 prototype/scripts/verify-recording.py \
 ```
 
 The verifier requires input from the named controller, an observed frame
-change within screen bounds, a neutral release that stops movement before
-confirmation, and a selected result following dismissal. A manual report or
-the smoke test's scripted controller values cannot satisfy this check.
+change within the union of recorded display rectangles, a neutral release that
+stops movement before confirmation, and a selected result following dismissal.
+A manual report or the smoke test's scripted controller values cannot satisfy
+this check.
 
 For Bluetooth reconnection, open the menu, move it with the right stick, and
 power off the controller using its hardware controls. Avoid switching apps,

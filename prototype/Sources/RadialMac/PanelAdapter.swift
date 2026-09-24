@@ -35,7 +35,6 @@ public struct OperationOrder: Sendable {
     private var workspaceObserver: NSObjectProtocol?
     private var screenObserver: NSObjectProtocol?
     private var activationObserver: NSObjectProtocol?
-    private var assignedScreenID: String?
     private var layoutRevision: UInt64 = 0
     public private(set) var currentPlacement: Placement?
 
@@ -56,7 +55,6 @@ public struct OperationOrder: Sendable {
         let openingSession = request?.scope.session != scope.session
         if openingSession {
             previousApplication = NSWorkspace.shared.frontmostApplication
-            assignedScreenID = nil
         }
         restoration = nil
         request = (scope, operation)
@@ -79,8 +77,7 @@ public struct OperationOrder: Sendable {
         request = (scope, operation)
         guard placement.isValid, placement.frame.width == layout.size.width,
               placement.frame.height == layout.size.height,
-              let screen = NSScreen.screens.first(where: { screenID($0) == placement.screenID }),
-              valueRect(screen.visibleFrame) == placement.bounds else {
+              desktopObservation() == placement.desktop else {
             receive?(.operationFailed(operation, "Screen changed during menu preparation")); return
         }
         menuLayout = layout
@@ -107,7 +104,6 @@ public struct OperationOrder: Sendable {
         }
         panel.setFrame(nativeRect(placement.frame), display: true)
         content.frame = NSRect(origin: .zero, size: panel.frame.size)
-        assignedScreenID = placement.screenID
         let observed = placement.replacingFrame(valueRect(panel.frame))
         currentPlacement = observed
         receive?(.placementObserved(scope, observed))
@@ -206,7 +202,6 @@ public struct OperationOrder: Sendable {
         panel = nil
         currentPlacement = nil
         menuLayout = nil
-        assignedScreenID = nil
         removeObservers()
         return true
     }
@@ -214,14 +209,13 @@ public struct OperationOrder: Sendable {
     public func move(scope: InputScope, placement: Placement, operation: OperationID) {
         guard request?.scope == scope, acknowledged == request?.operation,
               let current = currentPlacement, current.layout == placement.layout,
-              current.screenID == placement.screenID, current.bounds == placement.bounds,
+              current.desktop == placement.desktop,
               let panel, order.accept(operation) else { return }
         guard panel.isVisible, panel.isKeyWindow, placement.isValid,
               placement.frame.width == current.frame.width, placement.frame.height == current.frame.height else {
             receive?(.operationFailed(operation, "Window is not available for movement")); return
         }
-        guard let screen = NSScreen.screens.first(where: { screenID($0) == assignedScreenID }),
-              valueRect(screen.visibleFrame) == placement.bounds else {
+        guard desktopObservation() == placement.desktop else {
             screenChanged(); return
         }
         panel.setFrame(nativeRect(placement.frame), display: true)
@@ -289,7 +283,6 @@ public struct OperationOrder: Sendable {
         if let menuLayout, let context = screenContext(center: nil),
            let position = try? menuLayout.placement(in: context) {
             panel.setFrame(nativeRect(position.frame), display: true)
-            assignedScreenID = position.screenID
             let observed = position.replacingFrame(valueRect(panel.frame))
             currentPlacement = observed
             receive?(.placementObserved(request.scope, observed))
@@ -300,13 +293,23 @@ public struct OperationOrder: Sendable {
 
     private func screenContext(center: NSPoint?) -> ScreenContext? {
         let anchor = center ?? panel.map { NSPoint(x: $0.frame.midX, y: $0.frame.midY) } ?? NSEvent.mouseLocation
-        let assigned = NSScreen.screens.first { screenID($0) == assignedScreenID }
-        guard let screen = assigned ?? NSScreen.screens.first(where: { $0.frame.contains(anchor) }) ?? NSScreen.main,
+        guard let desktop = desktopObservation(),
+              let screen = NSScreen.screens.first(where: { $0.frame.contains(anchor) }) ?? NSScreen.main,
               let id = screenID(screen), layoutRevision < UInt64.max else { return nil }
         let bounds = screen.visibleFrame
         layoutRevision += 1
         return ScreenContext(revision: layoutRevision, screenID: id, bounds: valueRect(bounds),
-                             anchor: Vector(x: anchor.x, y: anchor.y))
+                             anchor: Vector(x: anchor.x, y: anchor.y), desktop: desktop)
+    }
+
+    private func desktopObservation() -> Desktop? {
+        let screens = NSScreen.screens
+        let displays = screens.compactMap { screen -> DisplayArea? in
+            guard let id = screenID(screen) else { return nil }
+            return DisplayArea(id: id, bounds: valueRect(screen.visibleFrame))
+        }
+        let desktop = Desktop(displays: displays)
+        return displays.count == screens.count && desktop.isValid ? desktop : nil
     }
 
     private func screenID(_ screen: NSScreen) -> String? {

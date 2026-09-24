@@ -123,11 +123,15 @@ import RadialMac
         store.send(.connected(ControllerInfo(id: connection, name: "Scripted movement fixture",
                                              supported: true, supportsMovement: true), frame(0)))
         store.send(.baseline(connection, scope, frame(1)))
-        let left = initial.frame.x - initial.bounds.x
-        let right = initial.bounds.x + initial.bounds.width - initial.frame.width - initial.frame.x
+        guard let leftEdge = initial.desktop.move(initial.frame, by: Vector(x: -initial.bounds.width, y: 0)),
+              let rightEdge = initial.desktop.move(initial.frame, by: Vector(x: initial.bounds.width, y: 0)) else {
+            throw ProbeFailure("No valid desktop movement interval")
+        }
+        let left = initial.frame.x - leftEdge.x
+        let right = rightEdge.x - initial.frame.x
         let direction = (left >= 25 && left < right) || right < 25 ? -1.0 : 1.0
         let distance = direction < 0 ? left : right
-        try check(distance >= 25, "Assigned screen has room for a visible movement test")
+        try check(distance >= 25, "Desktop has room for a visible movement test")
         store.send(.controllerFrame(connection, scope, frame(2, right: Vector(x: direction, y: 0)), true))
         guard let movement = store.model.movement.activity?.id else {
             throw ProbeFailure("Scripted right-stick input did not start movement")
@@ -137,15 +141,14 @@ import RadialMac
         }
         try check(panel.frame.map { Double($0.minY) } == initial.frame.y,
                   "Right-stick input moves the native panel horizontally using real ticks")
-        let targetX = direction < 0 ? initial.bounds.x : initial.bounds.x + initial.bounds.width - initial.frame.width
-        try await wait("screen edge", timeout: distance / store.model.movementSettings.speed + 3) {
+        let targetX = direction < 0 ? leftEdge.x : rightEdge.x
+        try await wait("desktop edge", timeout: distance / store.model.movementSettings.speed + 3) {
             abs((self.panel.frame.map { Double($0.minX) } ?? initial.frame.x) - targetX) < 0.01
         }
         guard let nativeFrame = panel.frame else { throw ProbeFailure("No native frame at screen edge") }
-        let bounds = initial.bounds
-        try check(nativeFrame.minX >= bounds.x && nativeFrame.minY >= bounds.y &&
-                  nativeFrame.maxX <= bounds.x + bounds.width && nativeFrame.maxY <= bounds.y + bounds.height,
-                  "The complete native panel stops at the assigned screen edge")
+        try check(initial.desktop.contains(Rect(x: nativeFrame.minX, y: nativeFrame.minY,
+                      width: nativeFrame.width, height: nativeFrame.height)),
+                  "The complete native panel stops at the desktop edge")
         let oldOperation = try operation()
         store.send(.controllerFrame(connection, scope, frame(3), true))
         let stopped = panel.frame

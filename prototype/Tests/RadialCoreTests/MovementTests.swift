@@ -51,6 +51,35 @@ private struct MovementRun {
 }
 
 final class MovementTests: XCTestCase {
+    func testCrossingDisplayBoundaryPreservesSelectionScopeAndHeldStick() {
+        var run = MovementRun()
+        let desktop = Desktop(displays: [
+            DisplayArea(id: "left", bounds: Rect(x: -1000, y: 0, width: 1000, height: 1000)),
+            DisplayArea(id: "right", bounds: Rect(x: 0, y: 0, width: 1000, height: 1000))
+        ])
+        run.send(.placementObserved(run.scope, Placement(layout: 2, desktop: desktop,
+            frame: Rect(x: -400, y: 300, width: 360, height: 360))))
+        run.sequence += 1
+        run.send(.baseline(run.owner, run.scope, run.sample(time: 0)))
+        run.send(.select(run.scope, "blue", .keyboard))
+        let scope = run.scope
+        run.input(Vector(x: 1, y: 0), at: 1)
+        let clock = run.movementID
+        run.send(.movementTick(clock, 1.1))
+        XCTAssertEqual(run.model.movement.placement!.frame.x, -160, accuracy: 1e-8)
+        XCTAssertEqual(run.model.movement.placement!.screenID, "right")
+        XCTAssertEqual(run.scope, scope)
+        XCTAssertEqual(run.model.phase.session?.selection?.itemID, "blue")
+        XCTAssertEqual(run.movementID, clock)
+        run.send(.movementTick(clock, 1.2))
+        XCTAssertEqual(run.model.movement.placement!.frame.x, 80, accuracy: 1e-8)
+        run.input(.zero, at: 1.2)
+        XCTAssertNil(run.model.movement.activity)
+        let stopped = run.model
+        run.send(.movementTick(clock, 1.3))
+        XCTAssertEqual(run.model, stopped)
+    }
+
     func testStandardSpeedRisesProgressivelyWithDeflection() {
         // Stick deflection includes the central 10% dead zone. These speeds
         // specify the response independently of its implementation.

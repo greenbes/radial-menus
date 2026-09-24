@@ -3,6 +3,47 @@
 These results apply to the fixed example menu and the recorded environment;
 they do not establish support for every device or desktop setup.
 
+## Continuous movement across displays: 2026-09-24
+
+The desktop crossing probe passed four checks with 56 observed native movement
+steps across the two connected Dell displays. A four-level recentered menu
+straddled their shared edge in desktop coordinates, moved completely onto each
+display, and returned. Selection, input scope, and key-window status were
+preserved. Neutral release stopped movement; Back preserved the desktop center;
+confirmation produced exactly one choice. The probe yielded to AppKit between
+steps and released its native resources on completion.
+
+The displays were horizontally adjacent, with desktop frames
+`(-2560, 0, 2560, 1440)` and `(0, 0, 2560, 1440)`.
+`NSScreen.screensHaveSeparateSpaces` reported `true`. The checks used scripted
+controller values and times with a real AppKit panel. A preceding preview
+timed out, and the user reported not seeing that preview menu.
+
+In the subsequent interactive test with the GuliKit Controller XW, the user
+observed the menu jumping from one display to the other and accepted this
+behavior. The recording captured 665 native movement acknowledgments, with
+14 changes of the display containing most of the window. Movement was stopped
+at the last recorded transition. This session contained no confirmed item
+choice. Simultaneous visibility on both displays remains unverified; the
+accepted behavior is movement between displays with the observed visual jump.
+
+- **134 XCTest tests passed:** 125 core, 8 runtime, and 1 native operation-order
+  test. Desktop tests cover adjacent and stacked displays, negative coordinates,
+  offset edges, gaps, corner-only contact, placement after removal, and an
+  independent unit-cell oracle for coverage, placement, and movement.
+- **33 Python recording-verifier tests passed.** The movement verifier now
+  checks coverage by the recorded display rectangles, including a straddling
+  positive case and a gap rejection case.
+- **35 native interaction assertions passed** with the recentered submenu style,
+  covering the real movement clock, outer-edge stopping, mixed input, navigation,
+  focus restoration, and simulated controller reconnection.
+
+Reports, logs, and source hashes are retained locally under
+`build/verification/desktop-movement/`, excluded from Git. Reproduce the crossing
+probe with `./prototype/scripts/desktop-test.sh`. The physical controller trace
+is saved as `physical-crossing.jsonl`. Display removal and other display
+arrangements still require native checks.
+
 ## Measured layout milestone: 2026-09-23
 
 **All 64 native layout fixtures passed:** the original 62 presentations plus

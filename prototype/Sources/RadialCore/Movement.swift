@@ -31,23 +31,29 @@ public struct MovementSettings: Equatable, Sendable {
     }
 }
 
-/// An observed desktop frame and the usable bounds of its assigned screen.
+/// An observed window frame and the complete display arrangement used to place it.
 public struct Placement: Equatable, Sendable {
     public let layout: UInt64
-    public let screenID: String
-    public let bounds: Rect
+    public let desktop: Desktop
     public let frame: Rect
+    public var screenID: String { desktop.displayID(for: frame) ?? "" }
+    public var bounds: Rect { desktop.bounds }
 
+    public init(layout: UInt64, desktop: Desktop, frame: Rect) {
+        self.layout = layout; self.desktop = desktop; self.frame = frame
+    }
+
+    /// Convenient construction for a desktop with one display.
     public init(layout: UInt64, screenID: String, bounds: Rect, frame: Rect) {
-        self.layout = layout; self.screenID = screenID; self.bounds = bounds; self.frame = frame
+        self.init(layout: layout, desktop: Desktop(displays: [DisplayArea(id: screenID, bounds: bounds)]), frame: frame)
     }
 
     public var isValid: Bool {
-        layout > 0 && !screenID.isEmpty && frame.clamped(to: bounds) == frame
+        layout > 0 && desktop.contains(frame)
     }
 
     public func replacingFrame(_ frame: Rect) -> Self {
-        Self(layout: layout, screenID: screenID, bounds: bounds, frame: frame)
+        Self(layout: layout, desktop: desktop, frame: frame)
     }
 }
 
@@ -138,10 +144,8 @@ extension Change {
         guard let activity = movement.activity, let placement = movement.placement,
               let desired = movement.desired, time.isFinite, time > activity.time else { return }
         let elapsed = min(time - activity.time, movementSettings.maximumStep)
-        let candidate = Rect(x: desired.x + activity.velocity.x * elapsed,
-                             y: desired.y + activity.velocity.y * elapsed,
-                             width: desired.width, height: desired.height)
-        guard let frame = candidate.clamped(to: placement.bounds) else { return }
+        guard let frame = placement.desktop.move(desired,
+            by: Vector(x: activity.velocity.x * elapsed, y: activity.velocity.y * elapsed)) else { return }
         movement = MovementState(placement: placement, desired: frame,
             activity: MovementActivity(id: activity.id, velocity: activity.velocity, time: time), pending: movement.pending)
     }
@@ -159,15 +163,14 @@ extension Change {
         guard active(scope) != nil, let pending = movement.pending, pending.operation == operation,
               let previous = movement.placement, let desired = movement.desired,
               observed.layout == previous.layout else { return }
-        guard observed.isValid, observed.screenID == previous.screenID, observed.bounds == previous.bounds,
+        guard observed.isValid, observed.desktop == previous.desktop,
               observed.frame.width == previous.frame.width, observed.frame.height == previous.frame.height else {
             movementFailed(operation, "Invalid native movement acknowledgment"); return
         }
         // Preserve displacement accumulated while this one native request was outstanding.
-        let accumulated = Rect(x: observed.frame.x + (desired.x - pending.target.x),
-                               y: observed.frame.y + (desired.y - pending.target.y),
-                               width: desired.width, height: desired.height)
-        movement = MovementState(placement: observed, desired: accumulated.clamped(to: observed.bounds),
+        let accumulated = observed.desktop.move(observed.frame,
+            by: Vector(x: desired.x - pending.target.x, y: desired.y - pending.target.y))
+        movement = MovementState(placement: observed, desired: accumulated,
                                  activity: movement.activity)
         requestMovement(scope)
     }

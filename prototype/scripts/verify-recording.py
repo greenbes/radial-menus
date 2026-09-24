@@ -6,6 +6,34 @@ import math
 from pathlib import Path
 
 
+def covered_by_displays(frame, displays):
+    """Subtract display rectangles; any remaining piece is invisible space."""
+    if not displays or len(frame) != 4 or not all(math.isfinite(v) for v in frame):
+        return False
+    x, y, width, height = frame
+    if width <= 0 or height <= 0:
+        return False
+    remaining = [(x, y, x + width, y + height)]
+    for display in displays:
+        bounds = display.get("bounds", [])
+        if len(bounds) != 4 or not all(math.isfinite(v) for v in bounds):
+            return False
+        bx, by, bw, bh = bounds
+        if bw <= 0 or bh <= 0:
+            return False
+        pieces = []
+        for left, bottom, right, top in remaining:
+            il, ib = max(left, bx), max(bottom, by)
+            ir, it = min(right, bx + bw), min(top, by + bh)
+            if il >= ir or ib >= it:
+                pieces.append((left, bottom, right, top))
+            else:
+                pieces.extend(p for p in [(left, bottom, il, top), (ir, bottom, right, top),
+                    (il, bottom, ir, ib), (il, it, ir, top)] if p[0] < p[2] and p[1] < p[3])
+        remaining = pieces
+    return not remaining
+
+
 def verify(records, controller_name):
     controllers = {}
     sessions = {}
@@ -23,15 +51,8 @@ def verify(records, controller_name):
                 "lastFrame": None, "boundsValid": True, "confirmation": False,
             })
             frame = record.get("frame")
-            bounds = record.get("bounds")
-            if frame and bounds:
-                x, y, width, height = frame
-                bx, by, bw, bh = bounds
-                session["boundsValid"] &= (
-                    all(math.isfinite(value) for value in frame + bounds)
-                    and width > 0 and height > 0 and bx <= x and by <= y
-                    and x + width <= bx + bw and y + height <= by + bh
-                )
+            if frame:
+                session["boundsValid"] &= covered_by_displays(frame, record.get("displays", []))
                 if (event == "moved" and session["physicalMovement"]
                         and session["lastFrame"] is not None and frame != session["lastFrame"]):
                     session["moves"] += 1

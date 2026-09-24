@@ -11,7 +11,8 @@ spec.loader.exec_module(verifier)
 
 def fixture():
     common = {"kind": "transition", "session": 1, "owner": 7, "phase": "Active",
-              "moving": False, "outputs": [], "bounds": [0, 0, 1000, 1000]}
+              "moving": False, "outputs": [], "bounds": [0, 0, 1000, 1000],
+              "displays": [{"id": "display", "bounds": [0, 0, 1000, 1000]}]}
     return [
         {"kind": "transition", "event": "connected", "connection": 7, "controller": "Physical fixture"},
         {**common, "event": "controllerFrame", "connection": 7, "continuous": True,
@@ -27,6 +28,22 @@ def fixture():
 
 
 class RecordingTests(unittest.TestCase):
+    def test_spanning_adjacent_displays_is_valid_but_spanning_a_gap_is_not(self):
+        displays = [{"id": "left", "bounds": [0, 0, 300, 1000]},
+                    {"id": "right", "bounds": [300, 0, 700, 1000]}]
+        records = fixture()
+        for record in records:
+            if "frame" in record:
+                record["displays"] = copy.deepcopy(displays)
+        self.assertTrue(verifier.verify(records, "Physical fixture")["passed"])
+        records[2]["displays"][1]["bounds"] = [310, 0, 690, 1000]
+        self.assertFalse(verifier.verify(records, "Physical fixture")["passed"])
+
+    def test_missing_display_geometry_cannot_prove_visibility(self):
+        records = fixture()
+        records[2].pop("displays")
+        self.assertFalse(verifier.verify(records, "Physical fixture")["passed"])
+
     def test_complete_movement_release_confirmation_and_dismissal_passes(self):
         self.assertTrue(verifier.verify(fixture(), "Physical fixture")["passed"])
 

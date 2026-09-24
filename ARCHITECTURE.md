@@ -68,7 +68,7 @@ the same session. A leaf item has no submenu and returns a value when selected.
 | Directional pad left/right | Select the previous/next item. |
 | Confirm button | Enter a submenu or choose the selected leaf item. |
 | Back button | Return to the parent menu, or cancel at the root. |
-| Right stick | Move the menu on its current screen. |
+| Right stick | Move the menu across the connected displays. |
 | Keyboard left/right | Select the previous/next item. |
 | Return | Confirm the selected item. |
 | Escape | Cancel the whole session. |
@@ -642,11 +642,11 @@ must not silently change the defined hit regions.
 
 ### Placement and screen changes
 
-Opening chooses the screen containing the pointer, or the main screen if the
-pointer location does not identify an available screen. Start at the pointer
-position and clamp the complete menu bounds to that screen's usable rectangle.
-Labels, focus indicators, and other visible decoration are included in those
-bounds.
+Opening uses the pointer as the desired desktop center. The native adapter
+reports the IDs and usable rectangles of all connected displays in a common
+coordinate system. Place the complete menu at the nearest position covered by
+their union. Labels, focus indicators, and other visible decoration are included
+in those bounds. A menu may straddle a shared display edge.
 
 Presentation supplies any required text measurements as immutable values. The
 core's placement calculation consumes those measurements and screen bounds;
@@ -711,12 +711,27 @@ silently shrink text to fit a screen. An unsupported size must
 produce an explicit layout failure. Native rendering checks supplement pure
 geometry tests; neither character counts nor estimated text widths prove fit.
 
-The right stick moves within the selected screen. Automatic movement between
-screens is outside the initial behavior. If the screen disappears, reposition
-on an available screen while preserving the menu and selection. If no screen
-can contain the menu, cancel with a presentation-unavailable reason rather than
-leave required controls offscreen. Do not silently shrink text below its
-accessible size to make the geometry fit.
+The right stick moves continuously across the desktop. Crossing a shared
+display edge preserves the session, menu path, selection, input ownership, and
+movement subscription. The display containing most of the window is descriptive
+information; it does not own the interaction or create a navigation event.
+
+The complete window must remain within the union of usable display rectangles.
+Their enclosing rectangle is insufficient: it can include invisible gaps and
+corners when displays are separated or offset. Calculate connected horizontal
+coverage across the full window height and vertical coverage across its full
+width. Sweep horizontally, then vertically within those spans, clamping only at
+their outer ends. This slides along outer edges and prevents a movement step
+from jumping an invisible gap. The order is explicit and deterministic at
+corners. Crossing between offset displays requires a passage large enough for
+the complete menu.
+
+The native adapter validates the entire display snapshot before applying a
+movement request. A change to the arrangement creates a new layout revision,
+stops movement, and establishes fresh input baselines. Reposition at the nearest
+fully covered location while preserving the menu and selection. If the menu
+cannot fit the remaining desktop, cancel with a presentation-unavailable reason.
+Do not silently shrink text to make the geometry fit.
 
 ### Continuous movement
 

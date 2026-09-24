@@ -80,6 +80,14 @@ import RadialUI
     private var shutdownProbe: ShutdownProbe?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if let path = argument("--desktop-test") {
+            Task { @MainActor in
+                let passed = await NativeDesktopProbe.run(directory: URL(fileURLWithPath: path),
+                    preview: CommandLine.arguments.contains("--desktop-preview"))
+                exit(passed ? 0 : 1)
+            }
+            return
+        }
         if let path = argument("--context-test") {
             Task { @MainActor in
                 let passed = await NativeContextProbe.run(directory: URL(fileURLWithPath: path))

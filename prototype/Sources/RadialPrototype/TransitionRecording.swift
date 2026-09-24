@@ -30,6 +30,7 @@ enum TransitionRecording {
         if let placement = model.movement.placement {
             record["frame"] = rect(placement.frame)
             record["bounds"] = rect(placement.bounds)
+            record["displays"] = placement.desktop.displays.map { ["id": $0.id, "bounds": rect($0.bounds)] as [String: Any] }
             record["screen"] = placement.screenID
             record["layout"] = placement.layout
         }

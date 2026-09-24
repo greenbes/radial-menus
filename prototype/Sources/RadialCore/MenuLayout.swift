@@ -73,8 +73,10 @@ public struct ScreenContext: Equatable, Sendable {
     public let screenID: String
     public let bounds: Rect
     public let anchor: Vector
-    public init(revision: UInt64, screenID: String, bounds: Rect, anchor: Vector) {
+    public let desktop: Desktop
+    public init(revision: UInt64, screenID: String, bounds: Rect, anchor: Vector, desktop: Desktop? = nil) {
         self.revision = revision; self.screenID = screenID; self.bounds = bounds; self.anchor = anchor
+        self.desktop = desktop ?? Desktop(displays: [DisplayArea(id: screenID, bounds: bounds)])
     }
 }
 
@@ -260,10 +262,13 @@ public struct MenuLayout: Equatable, Sendable {
     }
 
     public func placement(in screen: ScreenContext) throws -> Placement {
-        guard screen.revision > 0, !screen.screenID.isEmpty,
-              let frame = Geometry.place(center: screen.anchor, size: size, in: screen.bounds),
-              frame.clamped(to: screen.bounds) == frame else { throw LayoutFailure.doesNotFit }
-        return Placement(layout: screen.revision, screenID: screen.screenID, bounds: screen.bounds, frame: frame)
+        guard screen.revision > 0, screen.anchor.isFinite,
+              screen.desktop.displays.contains(DisplayArea(id: screen.screenID, bounds: screen.bounds)),
+              let frame = screen.desktop.place(Rect(x: screen.anchor.x - size.width / 2,
+                  y: screen.anchor.y - size.height / 2, width: size.width, height: size.height)) else {
+            throw LayoutFailure.doesNotFit
+        }
+        return Placement(layout: screen.revision, desktop: screen.desktop, frame: frame)
     }
 
     public func hit(_ point: Vector) -> Int? {
