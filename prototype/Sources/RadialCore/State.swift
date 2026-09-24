@@ -158,7 +158,7 @@ public enum Event: Equatable, Sendable {
     case resourcesReleased(OperationID), shutdownDeadline(OperationID)
 }
 public enum Effect: Equatable, Sendable {
-    case prepare(InputScope, Menu, Bool, MenuStyle, OperationID)
+    case prepare(InputScope, MenuPresentation, OperationID)
     case present(InputScope, MenuLayout, Placement, OperationID), inspectPresentation(InputScope, OperationID)
     case dismiss(InputScope, OperationID), recover(OperationID)
     case baseline(InputScope), endInput(InputScope), resetInput(ConnectionID)
@@ -182,6 +182,7 @@ public struct RenderModel: Equatable, Sendable {
     public let selectedID: String?
     public let acceptsInput: Bool
     public let canGoBack: Bool
+    public let context: [ContextEntry]
     public var message: MenuMessage { MenuMessage.make(title: title, items: items, selectedID: selectedID) }
 }
 
@@ -191,7 +192,7 @@ public func render(_ model: Model) -> RenderModel {
     return RenderModel(scope: session?.scope, title: session?.menu.title ?? "Radial Menu",
                        items: items, layout: session?.layout,
                        selectedID: session?.selection?.itemID, acceptsInput: model.phase.isActive,
-                       canGoBack: (session?.path.count ?? 0) > 1)
+                       canGoBack: (session?.path.count ?? 0) > 1, context: session?.presentation.context ?? [])
 }
 
 public func subscriptions(_ model: Model) -> Set<Subscription> {

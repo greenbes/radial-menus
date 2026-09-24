@@ -8,7 +8,7 @@ final class MenuStyleTests: XCTestCase {
         let opened = update(model, .open(nil))
         model = opened.model
         let scope = try XCTUnwrap(model.phase.session?.scope)
-        XCTAssertEqual(opened.effects, [.prepare(scope, model.menu, false, .selectedMessage, model.phase.operation!)])
+        XCTAssertEqual(opened.effects, [.prepare(scope, model.phase.session!.presentation, model.phase.operation!)])
         model = update(model, .setMenuStyle(.pie)).model
         XCTAssertEqual(model.phase.session?.style, .selectedMessage)
         model = prepared(model)

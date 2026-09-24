@@ -14,9 +14,14 @@ import RadialUI
     }
 
     func measure(menu: RadialCore.Menu, canGoBack: Bool, style: RadialCore.MenuStyle) throws -> MenuMeasurements {
+        try measure(presentation: MenuPresentation(menu: menu, canGoBack: canGoBack, style: style))
+    }
+
+    func measure(presentation: MenuPresentation) throws -> MenuMeasurements {
+        let menu = presentation.menu, style = presentation.style, canGoBack = presentation.canGoBack
         let labelWidth: Double
         switch style {
-        case .floatingLabels: labelWidth = 10000 // Intrinsic size; wrapping is by words, not pixels.
+        case .floatingLabels, .recenteredFloatingLabels: labelWidth = 10000 // Intrinsic size; wrapping is by words, not pixels.
         case .pie: labelWidth = wrappingWidth
         case .fullLabels, .iconLabels: labelWidth = 226 * fontSize / 17
         case .cards: labelWidth = 210 * fontSize / 17
@@ -25,14 +30,18 @@ import RadialUI
         let labels = menu.items.map { item in
             @MainActor func size(selected: Bool) -> RadialCore.Size {
                 measureView(MenuItemLabel(item: item, selected: selected, fontSize: fontSize, style: style)
-                    .fixedSize(horizontal: style == .floatingLabels, vertical: true), width: labelWidth)
+                    .fixedSize(horizontal: style.usesFloatingLabels, vertical: true), width: labelWidth)
             }
             return LabelMeasurement(itemID: item.id, normal: size(selected: false), selected: size(selected: true))
         }
-        if style == .floatingLabels {
+        if style.usesFloatingLabels {
             let maximumWidth = labels.map { max($0.normal.width, $0.selected.width) }.max()!
+            let context = presentation.context.map { entry in
+                ContextMeasurement(target: entry.target,
+                    size: measureView(MenuContextLabel(entry: entry, fontSize: entry.fontSize(relativeTo: fontSize)), width: 10000))
+            }
             return MenuMeasurements(fontSize: fontSize, wrappingWidth: maximumWidth, labels: labels,
-                                    content: .empty, style: style)
+                                    content: .empty, style: style, context: context)
         }
         if style == .iconLabels {
             let icons = menu.items.map { item in

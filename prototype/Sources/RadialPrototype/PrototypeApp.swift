@@ -80,6 +80,13 @@ import RadialUI
     private var shutdownProbe: ShutdownProbe?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if let path = argument("--context-test") {
+            Task { @MainActor in
+                let passed = await NativeContextProbe.run(directory: URL(fileURLWithPath: path))
+                exit(passed ? 0 : 1)
+            }
+            return
+        }
         if let path = argument("--layout-test") {
             Task { @MainActor in
                 let passed = await NativeLayoutProbe.run(directory: URL(fileURLWithPath: path),
@@ -103,7 +110,8 @@ import RadialUI
         }
         let window: any WindowDriver = shutdownProbe ?? panel
         let usesColors = argument("--smoke-test") != nil || shutdownProbe != nil || CommandLine.arguments.contains("--color-demo")
-        store = Store(menu: usesColors ? SampleMenu.definition : DemoMenu.definition,
+        let demo = CommandLine.arguments.contains("--submenu-demo") ? SubmenuDemo.definition : DemoMenu.definition
+        store = Store(menu: usesColors ? SampleMenu.definition : demo,
                       menuStyle: requestedStyle ?? (usesColors ? .pie : .selectedMessage), window: window, controller: controllers,
                       scheduler: scheduler, movementClock: scheduler)
         panel.content = NSHostingView(rootView: MenuContainer(store: store))
@@ -141,6 +149,7 @@ import RadialUI
     }
 
     private var requestedStyle: RadialCore.MenuStyle? {
+        if CommandLine.arguments.contains("--recentered-submenus") { return .recenteredFloatingLabels }
         if CommandLine.arguments.contains("--floating-labels") { return .floatingLabels }
         if CommandLine.arguments.contains("--icon-labels") { return .iconLabels }
         if CommandLine.arguments.contains("--cards") { return .cards }
@@ -243,7 +252,8 @@ import RadialUI
 
 @MainActor struct MenuContainer: View {
     let store: Store
-    var body: some View { MenuView(model: store.view) { store.send($0) } }
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    var body: some View { MenuView(model: store.view, reduceMotion: reduceMotion) { store.send($0) } }
 }
 
 @MainActor func makeDiagnosticsWindow(store: Store, log: EventLog) -> NSWindow {
@@ -270,6 +280,10 @@ import RadialUI
             .pickerStyle(.menu)
             .disabled(!store.model.running)
             Text("Style changes apply the next time you open the menu.").font(.caption).foregroundStyle(.secondary)
+            if store.model.menuStyle == .recenteredFloatingLabels {
+                Text("Submenus recenter. Earlier menus form separate outer arcs; older levels sit farther out with smaller labels. These labels show history. Use Back to return one level.")
+                    .font(.caption)
+            }
             HStack {
                 Button("Open menu") { store.send(.open(nil)) }
                     .disabled(!store.model.canOpen)

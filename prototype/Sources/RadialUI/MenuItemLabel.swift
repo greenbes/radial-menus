@@ -15,7 +15,7 @@ public struct MenuItemLabel: View {
     public var body: some View {
         if style == .cards {
             MenuItemCard(item: item, selected: selected, fontSize: fontSize)
-        } else if style == .floatingLabels {
+        } else if style.usesFloatingLabels {
             HStack(spacing: fontSize * 0.5) {
                 MenuIconGlyph(icon: item.icon, selected: selected, fontSize: fontSize)
                     .accessibilityHidden(true)

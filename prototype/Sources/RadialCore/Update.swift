@@ -143,7 +143,7 @@ struct Change {
         resetMovement()
         pointer = PointerState()
         phase = .preparing(session, operation)
-        effects.append(.prepare(scope, session.menu, false, session.style, operation))
+        effects.append(.prepare(scope, session.presentation, operation))
     }
 
     mutating func select(_ scope: InputScope, _ item: String?, _ source: SelectionSource) {
@@ -185,7 +185,7 @@ struct Change {
         let scope = InputScope(session: session.scope.session, revision: session.scope.revision + 1)
         let child = Session(scope: scope, path: path, selection: nil, owner: session.owner, style: session.style)
         phase = .preparing(child, operation)
-        effects += [.endInput(session.scope), .prepare(scope, child.menu, path.count > 1, child.style, operation)]
+        effects += [.endInput(session.scope), .prepare(scope, child.presentation, operation)]
     }
 
     mutating func cancel(_ scope: InputScope, _ reason: CancellationReason) {

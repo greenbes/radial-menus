@@ -11,6 +11,9 @@ outline inside their bounds. There is no selection checkmark; submenu arrows
 remain visible. **Floating labels** puts the icon inside each title button,
 leaves the center empty, and shows no ring or connections. Each button fits its
 wrapped text and touches an invisible circle at its controller direction.
+**Floating labels — recenter submenus** adds smaller labels for earlier menus
+and their other choices around the active menu. It is the first submenu
+experiment; the ordinary Floating labels style remains available.
 **Cards** implements design 2: titles and descriptions are visible together in
 radial cards. Selection adds
 a light tint, an accent outline, and a checkmark. **Selected message** shows
@@ -70,6 +73,62 @@ with controller selection. The window encloses all visible elements. A layout th
 cannot fit at the requested text size fails explicitly before accepting input.
 There is no automatic truncation or text-size reduction.
 
+## Recentered submenus
+
+The submenu experiment derives immutable history entries from the current menu
+path. Each earlier level contributes its menu title and the choices other than
+the branch leading to the active menu. Menu and item identities remain distinct
+even when their IDs match. History is display-only; navigation uses the active
+choices and Back, which returns one level.
+
+Every level away from the active menu reduces history labels by 20%, using the
+same scale for a menu title and its other choices. Parent labels use 80% of the
+active text size, grandparents use 64%, and the next level uses 51.2%. Scaling
+continues at greater depths without a minimum size that would make older levels
+look identical. Text, icons, padding, minimum height, and corner radius follow
+this scale. Returning toward the root restores larger labels. Native font
+metrics and pixel rounding determine the final measured rectangle, so its
+dimensions need not decrease by exactly 20%.
+
+Native measurement receives a `MenuPresentation` containing the active menu,
+style, and history entries. It measures every complete history label using the
+same SwiftUI view that renders it. The pure layout places each earlier level on
+its own arc to the left of the active menu. All arcs share the active menu's
+center. Older levels have larger radii, shorter arc lengths, and smaller labels.
+Within each arc, the menu title precedes its other choices from top to bottom.
+The arcs are implied by the arrangement; no circle or connecting line is drawn.
+
+The layout uses measured label diagonals and spacing to determine the necessary
+arc length. Each older arc is 80% as long as the next newer arc. Its radius puts
+all of its label rectangles beyond the preceding level's outermost corner.
+This reserves a separate radial band for each level, preventing overlap and
+interleaving. The window encloses the active menu and all history labels. If the
+complete layout exceeds the available screen, preparation fails explicitly.
+Labels are never dropped or truncated to make the history fit.
+
+Active labels keep the original floating-label geometry and controller axes.
+History labels have muted text and backgrounds without outlines. They ignore
+pointer input and expose static text to accessibility, with their distance from
+the active menu in the accessibility hint. They do not expose buttons or direct
+navigation actions. Menu revisions, input baselines, operation deadlines,
+movement, and cleanup follow the existing session protocol. The presentation
+acknowledgment waits for the 300 ms entrance animation, or immediate rendering
+when Reduce Motion is enabled. Animation progress belongs to the view; selection
+and navigation remain in the reducer.
+
+To test this experiment, use `./prototype/scripts/context-test.sh` and
+`./prototype/scripts/smoke-test.sh --recentered-submenus`. The context script
+writes PNGs and a JSON report in its printed temporary directory. It exercises
+keyboard Back and Cancel, active choices across several branches, all dropdown
+choices, measured native frames, selection outlines, and the absence of a
+central ring or control. It clicks every history label to verify that none
+navigates or completes a choice, and checks that only active choices expose
+accessibility buttons. It verifies the concentric arcs' radii, lengths, level
+grouping, and radial separation. It compares recurring native labels across
+levels for decreasing width and height, checks that returning restores their
+previous sizes, and records presentation durations. Physical controller
+operation and VoiceOver remain separate checks.
+
 ## Reproduce the checks
 
 Quit the running prototype first, then use an unlocked macOS desktop:
@@ -88,10 +147,12 @@ Quit the running prototype first, then use an unlocked macOS desktop:
 ./prototype/scripts/smoke-test.sh --icon-labels
 ./prototype/scripts/smoke-test.sh --cards
 ./prototype/scripts/smoke-test.sh --floating-labels
+./prototype/scripts/context-test.sh
+./prototype/scripts/smoke-test.sh --recentered-submenus
 ./prototype/scripts/lifecycle-test.sh
 ```
 
-The layout checks click all six choices in the actual diagnostics window,
+The layout checks click all seven choices in the actual diagnostics window,
 reopen menus with the chosen style, and exercise native Back and Cancel buttons
 (Delete and Escape for Full labels with icons and Floating labels). They also
 check a style change during an interaction: the current submenu retains its

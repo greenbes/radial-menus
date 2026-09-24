@@ -13,7 +13,7 @@ import RadialMac
         content.layoutSubtreeIfNeeded()
         func expectedText(_ item: Item) -> String {
             if layout.style == .cards && !item.detail.isEmpty { return item.title + ", " + item.detail }
-            if layout.style == .floatingLabels { return TitleLines.wrap(item.title).joined(separator: "\n") }
+            if layout.style.usesFloatingLabels { return TitleLines.wrap(item.title).joined(separator: "\n") }
             return item.title
         }
         let titles = Set(store.view.items.map(expectedText))
@@ -23,7 +23,7 @@ import RadialMac
         guard buttons.count == store.view.items.count else {
             throw ProbeFailure("Missing native item text. Expected: \(titles); observed: \(NativeAccessibility.elements(in: content).compactMap(\.label))")
         }
-        if layout.style == .floatingLabels {
+        if layout.style.usesFloatingLabels {
             for button in buttons {
                 for line in (button.label ?? "").components(separatedBy: "\n") {
                     var count = 0

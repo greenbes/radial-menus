@@ -35,14 +35,16 @@ public struct MenuMeasurements: Equatable, Sendable {
     public let center: Center
     public let style: MenuStyle
     public let icons: [LabelMeasurement]
+    public let context: [ContextMeasurement]
     public init(fontSize: Double, wrappingWidth: Double, labels: [LabelMeasurement], center: Size, style: MenuStyle = .pie) {
         self.init(fontSize: fontSize, wrappingWidth: wrappingWidth, labels: labels, content: .control(center), style: style)
     }
     public init(fontSize: Double, wrappingWidth: Double, labels: [LabelMeasurement], content: Center, style: MenuStyle,
-                icons: [LabelMeasurement] = []) {
+                icons: [LabelMeasurement] = [], context: [ContextMeasurement] = []) {
         self.fontSize = fontSize; self.wrappingWidth = wrappingWidth
         self.labels = labels; self.center = content; self.style = style
         self.icons = icons
+        self.context = context
     }
 
     func centerSize(for menu: Menu) throws -> Size {
@@ -138,9 +140,12 @@ public struct MenuLayout: Equatable, Sendable {
     public let labels: [LabelLayout]
     public let directionGuide: DirectionGuide?
     public let iconRing: IconRing?
+    public let contextArcs: [ContextArcLayout]
+    public var context: [ContextLabelLayout] { contextArcs.flatMap(\.labels) }
 
     public static func make(menu: Menu, measurements: MenuMeasurements,
-                            settings: LayoutSettings = .standard) throws -> Self {
+                            settings: LayoutSettings = .standard, context: [ContextEntry] = [],
+                            availableSize: Size? = nil) throws -> Self {
         let measured = measurements.labels
         let centerSize = try measurements.centerSize(for: menu)
         guard measurements.fontSize.isFinite, measurements.fontSize > 0,
@@ -159,16 +164,26 @@ public struct MenuLayout: Equatable, Sendable {
         let sectors = Geometry.sectors(count: sizes.count)
         let gap = settings.contentPadding
         guard measurements.style == .iconLabels || measurements.icons.isEmpty else { throw LayoutFailure.invalidMeasurements }
-        if measurements.style == .floatingLabels {
+        guard measurements.style == .recenteredFloatingLabels || (context.isEmpty && measurements.context.isEmpty) else {
+            throw LayoutFailure.invalidMeasurements
+        }
+        if measurements.style.usesFloatingLabels {
             let placed = TangentPlacement.make(items: menu.items, sizes: sizes, fontSize: measurements.fontSize, settings: settings)
             guard placed.size.isValid, placed.radius.isFinite, placed.outerRadius.isFinite else {
                 throw LayoutFailure.invalidMeasurements
             }
-            return Self(style: .floatingLabels, centerBounds: Rect(x: 0, y: 0, width: 0, height: 0),
+            let surrounding = try ContextPlacement.make(entries: context, measurements: measurements.context,
+                active: placed.labels, activeSize: placed.size, available: availableSize ?? placed.size,
+                padding: settings.windowPadding, fontSize: measurements.fontSize)
+            let outer = surrounding.labels.reduce(placed.outerRadius) { radius, label in
+                let r = label.bounds
+                return max(radius, ceil(hypot(max(abs(r.x), abs(r.x + r.width)), max(abs(r.y), abs(r.y + r.height))) + gap))
+            }
+            return Self(style: measurements.style, centerBounds: Rect(x: 0, y: 0, width: 0, height: 0),
                         fontSize: measurements.fontSize, wrappingWidth: measurements.wrappingWidth,
-                        innerRadius: placed.radius, outerRadius: placed.outerRadius, labelRadius: placed.radius,
-                        diameter: max(placed.size.width, placed.size.height), size: placed.size, centerRadius: 0,
-                        sectors: sectors, labels: placed.labels, directionGuide: nil, iconRing: nil)
+                        innerRadius: placed.radius, outerRadius: outer, labelRadius: placed.radius,
+                        diameter: max(surrounding.size.width, surrounding.size.height), size: surrounding.size, centerRadius: 0,
+                        sectors: sectors, labels: placed.labels, directionGuide: nil, iconRing: nil, contextArcs: surrounding.arcs)
         }
         let iconRing = measurements.style == .iconLabels
             ? try IconRing.make(menu: menu, measurements: measurements.icons, fontSize: measurements.fontSize, gap: gap) : nil
@@ -178,7 +193,7 @@ public struct MenuLayout: Equatable, Sendable {
         let guideRadius = max(74 * measurements.fontSize / 17, centerRadius + gap + markerRadius)
         let inner: Double
         switch measurements.style {
-        case .floatingLabels: throw LayoutFailure.invalidMeasurements // Handled above.
+        case .floatingLabels, .recenteredFloatingLabels: throw LayoutFailure.invalidMeasurements // Handled above.
         case .pie: inner = centerRadius + 4
         case .fullLabels, .cards: inner = guideRadius + markerRadius
         case .iconLabels: inner = iconRing!.radius + iconRing!.badgeRadius
@@ -241,7 +256,7 @@ public struct MenuLayout: Equatable, Sendable {
                     centerRadius: centerRadius, sectors: sectors, labels: labels,
                     directionGuide: measurements.style.usesDirectionGuide
                         ? DirectionGuide.make(radius: guideRadius, markerRadius: markerRadius, sectors: sectors, labels: labels) : nil,
-                    iconRing: iconRing)
+                    iconRing: iconRing, contextArcs: [])
     }
 
     public func placement(in screen: ScreenContext) throws -> Placement {
@@ -255,7 +270,7 @@ public struct MenuLayout: Equatable, Sendable {
         if style != .pie {
             guard point.isFinite else { return nil }
             return labels.firstIndex { label in
-                if style == .floatingLabels { return TangentPlacement.contains(point, label: label) }
+                if style.usesFloatingLabels { return TangentPlacement.contains(point, label: label) }
                 let r = label.bounds
                 return point.x >= r.x && point.x <= r.x + r.width && point.y >= r.y && point.y <= r.y + r.height
             }

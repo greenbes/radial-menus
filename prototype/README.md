@@ -11,7 +11,8 @@ These choices only report values; the described actions do not execute.
 This is a separate Swift package; it does not import the original app.
 
 Use the **Menu style** dropdown in diagnostics to choose **Full labels**, **Full
-labels with icons**, **Floating labels**, **Cards**, **Selected message**, or
+labels with icons**, **Floating labels**, **Floating labels — recenter submenus**,
+**Cards**, **Selected message**, or
 **Pie wedges**. Full labels implements design 1: complete titles surround a
 compact ring, with a line
 connecting each title to its controller direction. Full labels with icons places
@@ -30,7 +31,7 @@ checkmark on selection.
 Clicking anywhere on the card, including the description, chooses that item.
 Selected message displays short labels around a ring and the selected item's
 full text in the center. Pie wedges display the short labels inside sectors. All
-six styles use the same content, item order, navigation, and results. Style
+styles use the same content, item order, navigation, and results. Style
 changes apply on the next opening and remain in memory until quitting. A submenu
 retains the style of its current interaction. See [menu style behavior and
 validation](MENU_STYLES.md) for details.
@@ -63,6 +64,40 @@ To start with design 1 selected, use `./prototype/scripts/run.sh --full-labels`.
 For the icon alternative, use `./prototype/scripts/run.sh --icon-labels`. For
 design 2, use `./prototype/scripts/run.sh --cards`.
 
+To explore the first submenu concept with four levels and several branches:
+
+```sh
+./prototype/scripts/run.sh --submenu-demo --recentered-submenus
+```
+
+Choose **Browse saved commands and shortcuts** at the top, then **Arrange my
+windows for this task** at the top, then **Arrange research sources and notes**
+on the right. Use the left analog stick to select a direction and bottom **B**
+to enter that submenu. Each submenu recenters its full-size choices. Earlier
+levels form separate concentric arcs to the left, outside the active menu.
+Older levels sit farther from the center and occupy shorter arcs. Their labels
+shrink by 20% for each level back: 80% for the parent, 64% for the grandparent,
+51.2% for the next ancestor, and progressively smaller thereafter. Text, icons,
+padding, and corner radii scale together. Returning to an earlier menu enlarges
+those labels again.
+
+Each arc groups an earlier menu's title and its other choices. These muted
+labels display history: they have no selection outline, return arrow, or click
+action. Use Back to return one level before choosing another branch.
+
+The controller selects only the active full-size choices. Back returns one
+level. Release Confirm and center both sticks between levels before choosing
+again. On the GuliKit, the bottom button labeled **B** confirms and the right
+button labeled **A** goes back. The ordinary Floating labels option remains
+available for comparison. `--submenu-demo` also works with the other styles.
+
+This experiment uses distance and scale to distinguish menu levels. It is not
+an exact hyperbolic projection. Measured label rectangles occupy separate radial
+bands, keeping the history levels apart and active controller directions fixed.
+If the complete layout cannot fit the screen, preparation fails explicitly.
+Menus enter with a brief scale/fade animation; input waits for its completion.
+The system's Reduce Motion setting removes this animation.
+
 The run script builds an app bundle, signs it locally with an ad hoc signature,
 and opens its diagnostics window. The menu bar icon provides Open menu, Show
 diagnostics, Recover window, and Quit. Closing diagnostics leaves the app
@@ -90,7 +125,8 @@ does not create a distributable or notarized release.
 | Click an item | Activate that specific item |
 | Back / Cancel control | Go back, or cancel at the root |
 
-Full labels with icons and Floating labels have no center Back / Cancel control.
+Full labels with icons and both Floating labels variants have no center Back /
+Cancel control.
 
 On the tested **GuliKit Controller XW**, the **bottom face button labeled B**
 confirms, and the **right face button labeled A** goes back or cancels. macOS
@@ -313,6 +349,13 @@ To reproduce layout validation across item counts and label profiles, run:
 ./prototype/scripts/layout-test.sh --cards
 ./prototype/scripts/layout-test.sh --floating-labels
 ```
+
+Run `./prototype/scripts/context-test.sh` for the recentering experiment's
+native navigation, typography, context bounds, light/dark appearance, and
+selection checks. Run `./prototype/scripts/smoke-test.sh --recentered-submenus`
+for scripted controller, pointer, movement, and lifecycle checks with that style.
+Both require the normal prototype to be closed. These scripted checks do not
+replace testing with the physical controller or VoiceOver.
 
 The commands check 64 pie, 66 selected-message, 68 full-label, 68 icon-label,
 69 floating-label, and 81 card fixtures. Every style except Pie wedges includes

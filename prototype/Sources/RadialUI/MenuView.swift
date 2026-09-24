@@ -4,17 +4,19 @@ import RadialCore
 /// This view consumes values and sends events. It owns no application state.
 @MainActor public struct MenuView: View {
     private let model: RenderModel
+    private let reduceMotion: Bool
     private let send: (Event) -> Void
     @FocusState private var keyboardFocus: Bool
     @AccessibilityFocusState private var accessibleItem: String?
 
-    public init(model: RenderModel, send: @escaping (Event) -> Void) {
+    public init(model: RenderModel, reduceMotion: Bool, send: @escaping (Event) -> Void) {
         self.model = model
+        self.reduceMotion = reduceMotion
         self.send = send
     }
 
     public var body: some View {
-        if let layout = model.layout { menu(layout) }
+        if let layout = model.layout { menu(layout).id(model.scope) }
     }
 
     private func menu(_ layout: MenuLayout) -> some View {
@@ -38,9 +40,7 @@ import RadialCore
         .onKeyPress(.return) { emit { .confirm($0) }; return .handled }
         .onKeyPress(.escape) { emit { .cancel($0, .user) }; return .handled }
         .onKeyPress(keys: [.delete, KeyEquivalent("\u{7F}")]) { _ in back(); return .handled }
-        .onAppear { contentChanged() }
-        .onChange(of: model.layout) { _, _ in contentChanged() }
-        .onChange(of: model.scope) { _, _ in contentChanged() }
+        .modifier(MenuEntrance(enabled: layout.style == .recenteredFloatingLabels, reduceMotion: reduceMotion, ready: contentChanged))
         .onChange(of: model.acceptsInput) { _, active in if active { keyboardFocus = true } }
         .onChange(of: accessibleItem) { _, item in
             if let item { emit { .select($0, item, .accessibility) } }
@@ -55,6 +55,13 @@ import RadialCore
 
     private func controls(_ layout: MenuLayout) -> some View {
         ZStack {
+            ForEach(layout.contextArcs, id: \.distance) { arc in
+                ForEach(arc.labels, id: \.target) { label in
+                    if let entry = model.context.first(where: { $0.target == label.target }) {
+                        contextLabel(entry, label: label, layout: layout)
+                    }
+                }
+            }
             if let guide = layout.directionGuide {
                 MenuDirectionGuide(guide: guide, diameter: layout.diameter, selectedID: model.selectedID)
                     .allowsHitTesting(false).accessibilityHidden(true)
@@ -100,7 +107,7 @@ import RadialCore
         let selectedOutline: Color = layout.style.hasEmptyCenter ? .white : .accentColor
         let outlineWidth: Double = selected ? (layout.style.hasEmptyCenter ? 3 : isCard ? 2 : 1) : 1
         let bounds = layout.labels[index].bounds
-        let cornerRadius = layout.style == .floatingLabels ? layout.labels[index].cornerRadius : isCard ? 17.0 : 10.0
+        let cornerRadius = layout.style.usesFloatingLabels ? layout.labels[index].cornerRadius : isCard ? 17.0 : 10.0
         let labelShape = RoundedRectangle(cornerRadius: cornerRadius, style: .circular)
         let shape = Wedge(sector: layout.sectors[index], fullCircle: model.items.count == 1,
                           outer: layout.outerRadius, inner: layout.innerRadius)
@@ -121,7 +128,7 @@ import RadialCore
                     .contentShape(shape)
             } else {
                 MenuItemLabel(item: item, selected: selected, fontSize: layout.fontSize, style: layout.style)
-                    .frame(width: layout.style == .floatingLabels ? bounds.width : layout.wrappingWidth)
+                    .frame(width: layout.style.usesFloatingLabels ? bounds.width : layout.wrappingWidth)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(width: bounds.width, height: bounds.height)
                     .foregroundStyle(selected && !isCard ? .white : .primary)
@@ -132,7 +139,7 @@ import RadialCore
                     .overlay(labelShape
                         .strokeBorder(selected ? selectedOutline : Color.primary.opacity(0.25),
                                       lineWidth: outlineWidth))
-                    .contentShape(RoundedRectangle(cornerRadius: layout.style == .floatingLabels ? cornerRadius : 0, style: .circular))
+                    .contentShape(RoundedRectangle(cornerRadius: layout.style.usesFloatingLabels ? cornerRadius : 0, style: .circular))
             }
         }
         .buttonStyle(.plain)
@@ -154,6 +161,21 @@ import RadialCore
     }
 
     private func back() { emit { model.canGoBack ? .back($0) : .cancel($0, .user) } }
+
+    private func contextLabel(_ entry: ContextEntry, label: ContextLabelLayout, layout: MenuLayout) -> some View {
+        let shape = RoundedRectangle(cornerRadius: label.cornerRadius, style: .circular)
+        return MenuContextLabel(entry: entry, fontSize: entry.fontSize(relativeTo: layout.fontSize))
+        .frame(width: label.bounds.width, height: label.bounds.height)
+        .foregroundStyle(Color.primary.opacity(entry.isAncestor ? 0.75 : 0.6))
+        .background(shape.fill(Color(nsColor: .windowBackgroundColor).opacity(0.9)))
+        .allowsHitTesting(false)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(TitleLines.wrap(entry.title).joined(separator: "\n"))
+        .accessibilityAddTraits(.isStaticText)
+        .accessibilityHint("Previous menu, \(entry.distance) \(entry.distance == 1 ? "level" : "levels") back")
+        .position(x: layout.size.width / 2 + label.bounds.x + label.bounds.width / 2,
+                  y: layout.size.height / 2 + label.bounds.y + label.bounds.height / 2)
+    }
 
     private func emit(_ event: (InputScope) -> Event) {
         guard model.acceptsInput, let scope = model.scope else { return }

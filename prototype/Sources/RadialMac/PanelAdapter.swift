@@ -50,7 +50,7 @@ public struct OperationOrder: Sendable {
             activationObserver != nil || pointer.hasNativeResources
     }
 
-    public func prepare(scope: InputScope, menu: Menu, canGoBack: Bool, style: MenuStyle, operation: OperationID) {
+    public func prepare(scope: InputScope, presentation: MenuPresentation, operation: OperationID) {
         guard order.accept(operation) else { return }
         pointer.stop()
         let openingSession = request?.scope.session != scope.session
@@ -64,7 +64,7 @@ public struct OperationOrder: Sendable {
         acknowledged = nil
         menuLayout = nil
         do {
-            let measurements = try measurer.measure(menu: menu, canGoBack: canGoBack, style: style)
+            let measurements = try measurer.measure(presentation: presentation)
             guard let screen = screenContext(center: openingSession ? NSEvent.mouseLocation : nil) else {
                 throw LayoutFailure.doesNotFit
             }

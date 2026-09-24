@@ -22,8 +22,8 @@ import RadialRuntime
         panel.receive = { [weak self] in self?.observe($0) }
     }
 
-    func prepare(scope: InputScope, menu: Menu, canGoBack: Bool, style: MenuStyle, operation: OperationID) {
-        panel.prepare(scope: scope, menu: menu, canGoBack: canGoBack, style: style, operation: operation)
+    func prepare(scope: InputScope, presentation: MenuPresentation, operation: OperationID) {
+        panel.prepare(scope: scope, presentation: presentation, operation: operation)
     }
     func present(scope: InputScope, layout: MenuLayout, placement: Placement, operation: OperationID) {
         panel.present(scope: scope, layout: layout, placement: placement, operation: operation)
