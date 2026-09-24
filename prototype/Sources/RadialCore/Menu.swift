@@ -4,13 +4,17 @@ public struct Item: Equatable, Sendable {
     public enum Destination: Equatable, Sendable { case value(String), menu(Menu) }
     public let id: String
     public let label: String
+    public let title: String
+    public let detail: String
     public let destination: Destination
 
-    public init(id: String, label: String, value: String) {
+    public init(id: String, label: String, title: String? = nil, detail: String = "", value: String) {
+        self.title = title ?? label; self.detail = detail
         self.id = id; self.label = label; self.destination = .value(value)
     }
 
-    public init(id: String, label: String, menu: Menu) {
+    public init(id: String, label: String, title: String? = nil, detail: String = "", menu: Menu) {
+        self.title = title ?? label; self.detail = detail
         self.id = id; self.label = label; self.destination = .menu(menu)
     }
 }
@@ -39,7 +43,9 @@ public struct Menu: Equatable, Sendable {
             total += 1
             guard total <= 256, !item.id.isEmpty, items.insert(item.id).inserted,
                   !item.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                  item.label.count <= 24 else { throw ValidationError.invalidItem(item.id) }
+                  item.label.count <= 24,
+                  !item.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  item.title.count <= 160, item.detail.count <= 600 else { throw ValidationError.invalidItem(item.id) }
             if case .menu(let child) = item.destination {
                 try validate(child, depth: depth + 1, menus: &menus, items: &items, total: &total)
             }

@@ -193,7 +193,8 @@ A `MenuDefinition` is an immutable tree. Each menu has an identity and an
 ordered collection of items. Each item contains:
 
 - A stable identity within the definition.
-- A visible label and an accessible description when the label is insufficient.
+- A short radial label, a full title, and optional descriptive text. These are
+  explicit content, not automatically truncated or summarized alternatives.
 - Optional presentation metadata, such as a bundled symbol name.
 - Either a child menu or an opaque value to return when selected.
 
@@ -212,6 +213,18 @@ not silently replace invalid input with a different menu. Limits are supplied
 as named application policy values and exercised at their boundaries in tests.
 
 ### Application model
+
+Menu style is an application preference, separate from menu content and input
+behavior. Capture the preference when an interaction opens and retain it through
+submenu navigation. A preference change applies to the next interaction; it
+does not replace the geometry beneath an active pointer or stick selection.
+Preference persistence belongs to the application shell.
+
+Support pie wedges and a layout with separate radial labels and a central
+message. In the latter, selection determines which full title and description
+appear in the center. Before selection, show the menu title and instructions.
+Back or Cancel remains an explicit control; clicking explanatory text has no
+action. Both styles return the same item identities and outcomes.
 
 The immutable application model contains:
 
@@ -579,14 +592,17 @@ belongs to the next sector. Normalize angles consistently. A single-item menu
 is explicitly a complete ring; equal start and end angles must not turn it into
 an empty interval.
 
-The inner boundary belongs to the center and is not selectable. The outer
+For pie wedges, the inner boundary belongs to the center and is not selectable.
+The outer
 boundary belongs to the ring. Points outside the outer radius are not
 selectable. Validate finite radii with `0 <= innerRadius < outerRadius`.
 
 Rendering and hit testing use the same layout value, including sector order,
-angles, radii, and label positions. Controller direction uses the same angular
-selection function as pointer selection. There is no second implementation of
-sector membership for another input method.
+angles, radii, and label positions. Controller direction always uses angular
+selection. Pointer selection follows the visible targets: sectors for pie
+wedges, label button bounds for the separate-label style. The decorative ring
+and central message are not item targets. There is one implementation of each
+geometric rule, shared by the view and input interpretation.
 
 The core returns descriptions of sectors, not SwiftUI paths. The rendering
 adapter turns those descriptions into shapes. Decorative gaps or animation
@@ -604,6 +620,21 @@ Presentation supplies any required text measurements as immutable values. The
 core's placement calculation consumes those measurements and screen bounds;
 it does not query font or screen APIs. Missing measurements are preparation
 work, not permission to guess that text fits.
+
+Measure the exact rendered components, including normal and selected label
+weights, submenu indicators, padding, and navigation controls. The central
+message style requires measurements for every item and the neutral state.
+Reserve the largest required message height at a common wrapping width before
+display. Selection changes content without changing placement or label bounds.
+Reject missing, duplicate, nonfinite, or inconsistent measurements explicitly.
+
+Layout rules depend on style. Pie labels must fit within their angular sectors
+and outside the circular center control. Separate labels must clear the central
+rectangle and one another, while retaining their angular order. Calculate the
+window from all visible bounds, including the guide circle. Neither style may
+clip content or silently shrink text to fit a screen. An unsupported size must
+produce an explicit layout failure. Native rendering checks supplement pure
+geometry tests; neither character counts nor estimated text widths prove fit.
 
 The right stick moves within the selected screen. Automatic movement between
 screens is outside the initial behavior. If the screen disappears, reposition

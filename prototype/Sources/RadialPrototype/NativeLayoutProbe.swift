@@ -15,16 +15,26 @@ import RadialUI
 }
 
 @MainActor enum NativeLayoutProbe {
-    static func run(directory: URL) async -> Bool {
+    static func run(directory: URL, style: RadialCore.MenuStyle = .pie) async -> Bool {
         var reports: [[String: Any]] = []
+        var preparation: [String: Any] = [:]
         do {
-            for fixture in try LayoutFixture.all() {
+            try await checkNavigationControls(style: style, directory: directory)
+            for fixture in try LayoutFixture.all(style: style) {
                 let panel = PanelAdapter(measurer: SwiftUIMenuMeasurer(fontSize: fixture.fontSize)), clock = TaskScheduler()
-                let store = Store(menu: fixture.menu, window: panel, controller: LayoutProbeController(),
+                let store = Store(menu: fixture.menu, menuStyle: style, window: panel, controller: LayoutProbeController(),
                                   scheduler: clock, movementClock: clock)
                 panel.content = NSHostingView(rootView: MenuContainer(store: store))
                 let probe = NativeSmoke(store: store, panel: panel)
+                store.onTransition = { event, _ in
+                    if case .prepared(_, _, let measurements, let screen) = event {
+                        let layout = try? MenuLayout.make(menu: fixture.menu, measurements: measurements)
+                        preparation = ["fixture": fixture.name, "measurements": String(describing: measurements),
+                                       "layout": String(describing: layout), "screen": String(describing: screen)]
+                    }
+                }
                 store.send(.open(nil))
+                if !store.outputs.isEmpty { throw ProbeFailure("Opening failed: \(store.outputs)") }
                 try await probe.wait("layout fixture \(fixture.name)") { store.model.phase.isActive }
                 reports.append(try await capture(fixture.name, store: store, panel: panel, directory: directory))
                 if fixture.name == "nested" {
@@ -43,9 +53,9 @@ import RadialUI
                 store.send(.stop)
                 try await probe.wait("layout fixture cleanup") { store.model.lifecycle == .stopped(.completed) }
             }
-            let extra = try await additionalChecks(directory: directory)
+            let extra = try await additionalChecks(directory: directory, style: style)
             let report: [String: Any] = [
-                "additionalChecks": extra,
+                "additionalChecks": extra, "style": style.rawValue,
                 "fixtures": reports, "os": ProcessInfo.processInfo.operatingSystemVersionString,
                 "appearance": NSApp.effectiveAppearance.name.rawValue,
                 "measurement": "Native SwiftUI measurements checked against the core layout used by the live view",
@@ -55,17 +65,19 @@ import RadialUI
                 .write(to: directory.appendingPathComponent("report.json"), options: .atomic)
             return true
         } catch {
+            try? JSONSerialization.data(withJSONObject: preparation, options: [.prettyPrinted, .sortedKeys])
+                .write(to: directory.appendingPathComponent("failed-preparation.json"))
             try? Data(String(describing: error).utf8).write(to: directory.appendingPathComponent("error.txt"))
             return false
         }
     }
 
-    private static func additionalChecks(directory: URL) async throws -> [String: Any] {
+    private static func additionalChecks(directory: URL, style: RadialCore.MenuStyle) async throws -> [String: Any] {
         guard let fixture = try LayoutFixture.all().first(where: { $0.name == "12-wide" }) else {
             throw ProbeFailure("Missing expanded fixture")
         }
         let panel = PanelAdapter(measurer: SwiftUIMenuMeasurer(fontSize: fixture.fontSize)), clock = TaskScheduler()
-        let store = Store(menu: fixture.menu, window: panel, controller: LayoutProbeController(),
+        let store = Store(menu: fixture.menu, menuStyle: style, window: panel, controller: LayoutProbeController(),
                           scheduler: clock, movementClock: clock)
         panel.content = NSHostingView(rootView: MenuContainer(store: store))
         let probe = NativeSmoke(store: store, panel: panel)
@@ -79,6 +91,18 @@ import RadialUI
         guard store.view.selectedID == "item-0", store.model.phase.session?.selection?.source == .pointer else {
             throw ProbeFailure("Expanded ring did not select under native pointer")
         }
+        if style == .selectedMessage {
+            try await probe.mouse(at: probe.screenPoint(x: 0, y: 0))
+            guard store.view.selectedID == nil else { throw ProbeFailure("Pointer on message did not clear pointer selection") }
+            store.send(.select(scope, "item-0", .keyboard))
+            let beforeClick = store.model.phase
+            try await probe.click(x: 0, y: -layout.centerBounds.height / 2 + layout.fontSize * 2)
+            // A following mouse event acts as an ordered barrier for the click events.
+            try await probe.mouse(at: probe.screenPoint(x: 1, y: 0))
+            guard store.model.phase == beforeClick, store.outputs.isEmpty else {
+                throw ProbeFailure("Clicking message text activated or cancelled the menu")
+            }
+        }
         try await probe.click(x: 0, y: -layout.labelRadius)
         try await probe.wait("expanded native click") { store.model.phase == .idle }
         guard store.outputs == [.completed(scope.session, .selected(Choice(menuPath: ["root"], itemID: "item-0", value: "value-0")))] else {
@@ -88,7 +112,7 @@ import RadialUI
         try await probe.wait("expanded pointer cleanup") { store.model.lifecycle == .stopped(.completed) }
 
         let smallPanel = PanelAdapter(measurer: SwiftUIMenuMeasurer()), smallClock = TaskScheduler()
-        let smallStore = Store(menu: fixture.menu, window: smallPanel, controller: LayoutProbeController(),
+        let smallStore = Store(menu: fixture.menu, menuStyle: style, window: smallPanel, controller: LayoutProbeController(),
                                scheduler: smallClock, movementClock: smallClock)
         smallPanel.content = NSHostingView(rootView: MenuContainer(store: smallStore))
         // Controlled observation injection: no physical monitor is reconfigured.
@@ -113,8 +137,44 @@ import RadialUI
         guard smallStore.model.lifecycle == .stopped(.completed), !smallPanel.hasNativeResources else {
             throw ProbeFailure("Unfittable menu retained resources")
         }
-        return ["expandedPointerAndClick": true, "expandedLabelRadius": layout.labelRadius,
-                "smallScreenFailure": true, "smallScreenObservationInjected": true]
+        return ["nativeBackAndCancel": true, "styleSwitching": true, "nativeStylePicker": true, "expandedPointerAndClick": true, "expandedLabelRadius": layout.labelRadius,
+                "smallScreenFailure": true, "smallScreenObservationInjected": true,
+                "messageTextIsNotAButton": style == .selectedMessage]
+    }
+
+    private static func checkNavigationControls(style: RadialCore.MenuStyle, directory: URL) async throws {
+        let panel = PanelAdapter(measurer: SwiftUIMenuMeasurer()), clock = TaskScheduler()
+        let store = Store(menu: SampleMenu.definition, menuStyle: style, window: panel, controller: LayoutProbeController(),
+                          scheduler: clock, movementClock: clock)
+        panel.content = NSHostingView(rootView: MenuContainer(store: store))
+        let probe = NativeSmoke(store: store, panel: panel)
+        try await NativeStylePickerProbe.run(store: store, probe: probe, directory: directory)
+        store.send(.open(nil))
+        try await probe.wait("navigation controls root") { store.model.phase.isActive }
+        let scope = try probe.scope(), nextStyle: RadialCore.MenuStyle = style == .pie ? .selectedMessage : .pie
+        store.send(.setMenuStyle(nextStyle))
+        store.send(.activate(scope, "more", .keyboard))
+        try await probe.wait("navigation controls child") { store.model.phase.isActive && store.view.canGoBack }
+        guard store.view.layout?.style == style else { throw ProbeFailure("Style changed during navigation") }
+        for label in ["Back to parent menu", "Cancel menu"] {
+            try await Task.sleep(for: .milliseconds(30))
+            let button = try NativeAccessibility.button(label, in: panel.content)
+            guard let frame = button.frame else { throw ProbeFailure("Missing native control frame") }
+            guard let menuFrame = panel.frame, frame.width > 0, frame.height > 0 else { throw ProbeFailure("Missing navigation control frame") }
+            try await probe.click(x: frame.midX - menuFrame.midX, y: menuFrame.midY - frame.midY)
+            if label == "Back to parent menu" {
+                try await probe.wait("native Back button") { store.model.phase.isActive && !store.view.canGoBack }
+                guard store.view.layout?.style == style else { throw ProbeFailure("Back changed style") }
+            } else {
+                try await probe.wait("native Cancel button") { store.model.phase == .idle }
+            }
+        }
+        guard store.outputs == [.completed(scope.session, .cancelled(.user))] else { throw ProbeFailure("Navigation controls returned the wrong outcome") }
+        store.send(.open(nil))
+        try await probe.wait("changed style") { store.model.phase.isActive }
+        guard store.view.layout?.style == nextStyle else { throw ProbeFailure("Style preference did not apply on reopening") }
+        store.send(.stop)
+        try await probe.wait("style probe cleanup") { store.model.lifecycle == .stopped(.completed) }
     }
 
     private static func capture(_ name: String, store: Store, panel: PanelAdapter, directory: URL) async throws -> [String: Any] {
@@ -123,7 +183,7 @@ import RadialUI
         var labels: [[String: Any]] = []
         for (index, item) in items.enumerated() {
             let measurements = [false, true].map { selected in
-                let host = NSHostingController(rootView: MenuItemLabel(item: item, selected: selected, fontSize: layout.fontSize)
+                let host = NSHostingController(rootView: MenuItemLabel(item: item, selected: selected, fontSize: layout.fontSize, style: layout.style)
                     .fixedSize(horizontal: false, vertical: true))
                 return host.sizeThatFits(in: NSSize(width: layout.wrappingWidth, height: 10000))
             }
@@ -134,28 +194,71 @@ import RadialUI
                            "normal": [measurements[0].width, measurements[0].height],
                            "selected": [measurements[1].width, measurements[1].height]])
         }
+        var messages: [[String: Any]] = []
+        var navigationFrame: NSRect?
+        if layout.style == .selectedMessage {
+            for id in [nil] + items.map({ Optional($0.id) }) {
+                guard let scope = store.view.scope else { throw ProbeFailure("Missing message scope") }
+                store.send(.select(scope, id, .keyboard))
+                try await Task.sleep(for: .milliseconds(30))
+                panel.content?.layoutSubtreeIfNeeded()
+                let button = try NativeAccessibility.button(store.view.canGoBack ? "Back to parent menu" : "Cancel menu", in: panel.content)
+                guard let frame = button.frame else { throw ProbeFailure("Missing native control frame") }
+                if let navigationFrame, frame != navigationFrame {
+                    throw ProbeFailure("Selection moved the navigation button")
+                }
+                navigationFrame = frame
+                let message = store.view.message
+                let texts = (panel.content.map { NativeAccessibility.elements(in: $0) } ?? []).filter { $0.role == .staticText }
+                    .compactMap(\.text)
+                guard texts.contains(message.title), message.detail.isEmpty || texts.contains(message.detail) else {
+                    throw ProbeFailure("Native message text differs from selection: \(texts)")
+                }
+                guard message.itemID == id else { throw ProbeFailure("Displayed message has the wrong identity") }
+                let host = NSHostingController(rootView: MenuMessageCard(message: message,
+                    canGoBack: store.view.canGoBack, fontSize: layout.fontSize))
+                let size = host.sizeThatFits(in: NSSize(width: layout.centerBounds.width, height: 10000))
+                messages.append(["id": id as Any? ?? NSNull(), "measured": [size.width, size.height],
+                                 "title": message.title, "detail": message.detail])
+                if name == "rich" || name == "large-type-rich" {
+                    try await Task.sleep(for: .milliseconds(30))
+                    panel.content?.layoutSubtreeIfNeeded()
+                    try panel.saveRendering(to: directory.appendingPathComponent(name + "-" + (id ?? "neutral") + ".png"))
+                }
+            }
+        }
         if let scope = store.view.scope, let first = items.first { store.send(.select(scope, first.id, .keyboard)) }
         try await Task.sleep(for: .milliseconds(30))
         panel.content?.layoutSubtreeIfNeeded()
         try panel.saveRendering(to: directory.appendingPathComponent(name + ".png"))
         let probe = NativeSmoke(store: store, panel: panel)
+        let originalFrame = panel.frame
         var steps = 0
         store.onTransition = { event, _ in if case .step = event { steps += 1 } }
         for index in 1...items.count {
             probe.key(code: 124, characters: "\u{F703}")
-            try await probe.wait("fixture keyboard selection") { store.view.selectedID == items[index % items.count].id }
+            let expected = items[index % items.count]
+            try await probe.wait("fixture keyboard selection") { store.view.selectedID == expected.id }
+            guard store.view.message.title == expected.title, store.view.message.detail == expected.detail,
+                  store.view.layout == layout, panel.frame == originalFrame else {
+                throw ProbeFailure("Selection changed layout or displayed the wrong message")
+            }
         }
         guard steps == items.count else { throw ProbeFailure("Keyboard did not traverse the complete fixture") }
         store.onTransition = nil
         guard let placement = panel.currentPlacement else { throw ProbeFailure("Missing native placement") }
         let center = NSHostingController(rootView: MenuCenterLabel(canGoBack: store.view.canGoBack,
             fontSize: layout.fontSize).fixedSize()).sizeThatFits(in: NSSize(width: 10000, height: 10000))
-        return ["name": name, "count": items.count, "labels": labels,
+        return ["name": name, "style": layout.style.rawValue,
+                "messages": messages, "stableSelectionLayout": true,
+                "nativeMessageTextVerified": layout.style == .selectedMessage,
+                "stableNavigationControl": layout.style == .selectedMessage,
+                "centerBounds": [layout.centerBounds.x, layout.centerBounds.y, layout.centerBounds.width, layout.centerBounds.height], "count": items.count, "labels": labels,
                 "geometry": ["innerRadius": layout.innerRadius, "outerRadius": layout.outerRadius,
                              "diameter": layout.diameter, "labelRadius": layout.labelRadius,
                              "labelWidth": layout.wrappingWidth, "fontSize": layout.fontSize,
                              "centerRadius": layout.centerRadius],
-                "centerMeasured": [center.width, center.height],
+                "centerMeasured": layout.style == .pie ? [center.width, center.height] : [layout.centerBounds.width, layout.centerBounds.height],
                 "keyboardSteps": steps,
                 "backingScale": panel.content?.window?.backingScaleFactor ?? 0,
                 "frame": [placement.frame.x, placement.frame.y, placement.frame.width, placement.frame.height],

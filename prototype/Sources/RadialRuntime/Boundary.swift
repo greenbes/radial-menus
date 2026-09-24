@@ -4,7 +4,7 @@ public typealias EventReceiver = @MainActor (Event) -> Void
 
 @MainActor public protocol WindowDriver: AnyObject {
     var receive: EventReceiver? { get set }
-    func prepare(scope: InputScope, menu: Menu, canGoBack: Bool, operation: OperationID)
+    func prepare(scope: InputScope, menu: Menu, canGoBack: Bool, style: MenuStyle, operation: OperationID)
     func present(scope: InputScope, layout: MenuLayout, placement: Placement, operation: OperationID)
     func inspectPresentation(scope: InputScope, operation: OperationID)
     func dismiss(scope: InputScope, operation: OperationID)
@@ -14,7 +14,7 @@ public typealias EventReceiver = @MainActor (Event) -> Void
 }
 
 @MainActor public protocol MenuMeasurer {
-    func measure(menu: Menu, canGoBack: Bool) throws -> MenuMeasurements
+    func measure(menu: Menu, canGoBack: Bool, style: MenuStyle) throws -> MenuMeasurements
 }
 
 @MainActor public protocol MovementScheduler: AnyObject {

@@ -13,13 +13,23 @@ import RadialUI
         self.fontSize = fontSize; self.wrappingWidth = wrappingWidth ?? 96 * fontSize / 17
     }
 
-    func measure(menu: RadialCore.Menu, canGoBack: Bool) throws -> MenuMeasurements {
+    func measure(menu: RadialCore.Menu, canGoBack: Bool, style: RadialCore.MenuStyle) throws -> MenuMeasurements {
+        let labelWidth = style == .pie ? wrappingWidth : 150 * fontSize / 17
         let labels = menu.items.map { item in
             @MainActor func size(selected: Bool) -> RadialCore.Size {
-                measureView(MenuItemLabel(item: item, selected: selected, fontSize: fontSize)
-                    .fixedSize(horizontal: false, vertical: true), width: wrappingWidth)
+                measureView(MenuItemLabel(item: item, selected: selected, fontSize: fontSize, style: style)
+                    .fixedSize(horizontal: false, vertical: true), width: labelWidth)
             }
             return LabelMeasurement(itemID: item.id, normal: size(selected: false), selected: size(selected: true))
+        }
+        if style == .selectedMessage {
+            let width = 300 * fontSize / 17
+            let messages = MenuMessage.all(in: menu).map { message in
+                MessageMeasurement(itemID: message.itemID,
+                    size: measureView(MenuMessageCard(message: message, canGoBack: canGoBack, fontSize: fontSize), width: width))
+            }
+            return MenuMeasurements(fontSize: fontSize, wrappingWidth: labelWidth, labels: labels,
+                                    content: .messages(wrappingWidth: width, states: messages))
         }
         let center = measureView(MenuCenterLabel(canGoBack: canGoBack, fontSize: fontSize).fixedSize(), width: 10000)
         return MenuMeasurements(fontSize: fontSize, wrappingWidth: wrappingWidth, labels: labels, center: center)

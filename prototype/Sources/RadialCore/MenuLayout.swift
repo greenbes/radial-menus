@@ -16,14 +16,47 @@ public struct LabelMeasurement: Equatable, Sendable {
     }
 }
 
+public struct MessageMeasurement: Equatable, Sendable {
+    /// nil identifies the neutral message shown before selection.
+    public let itemID: String?
+    public let size: Size
+    public init(itemID: String?, size: Size) { self.itemID = itemID; self.size = size }
+}
+
 public struct MenuMeasurements: Equatable, Sendable {
+    public enum Center: Equatable, Sendable {
+        case control(Size)
+        case messages(wrappingWidth: Double, states: [MessageMeasurement])
+    }
     public let fontSize: Double
     public let wrappingWidth: Double
     public let labels: [LabelMeasurement]
-    public let center: Size
+    public let center: Center
+    public var style: MenuStyle {
+        switch center { case .control: .pie; case .messages: .selectedMessage }
+    }
     public init(fontSize: Double, wrappingWidth: Double, labels: [LabelMeasurement], center: Size) {
+        self.init(fontSize: fontSize, wrappingWidth: wrappingWidth, labels: labels, content: .control(center))
+    }
+    public init(fontSize: Double, wrappingWidth: Double, labels: [LabelMeasurement], content: Center) {
         self.fontSize = fontSize; self.wrappingWidth = wrappingWidth
-        self.labels = labels; self.center = center
+        self.labels = labels; self.center = content
+    }
+
+    func centerSize(for menu: Menu) throws -> Size {
+        switch center {
+        case .control(let size):
+            guard size.isValid else { throw LayoutFailure.invalidMeasurements }
+            return size
+        case .messages(let width, let states):
+            let expected = Set([nil] + menu.items.map { Optional($0.id) })
+            guard width.isFinite, width > 0, states.count == expected.count,
+                  Set(states.map(\.itemID)) == expected,
+                  states.allSatisfy({ $0.size.isValid && $0.size.width <= width }) else {
+                throw LayoutFailure.invalidMeasurements
+            }
+            return Size(width: width, height: states.map(\.size.height).max()!)
+        }
     }
 }
 
@@ -80,6 +113,8 @@ public struct LabelLayout: Equatable, Sendable {
 }
 
 public struct MenuLayout: Equatable, Sendable {
+    public let style: MenuStyle
+    public let centerBounds: Rect
     public let fontSize: Double
     public let wrappingWidth: Double
     public let innerRadius: Double
@@ -93,9 +128,10 @@ public struct MenuLayout: Equatable, Sendable {
     public static func make(menu: Menu, measurements: MenuMeasurements,
                             settings: LayoutSettings = .standard) throws -> Self {
         let measured = measurements.labels
+        let centerSize = try measurements.centerSize(for: menu)
         guard measurements.fontSize.isFinite, measurements.fontSize > 0,
               measurements.wrappingWidth.isFinite, measurements.wrappingWidth > 0,
-              measurements.center.isValid, measured.count == menu.items.count,
+              measured.count == menu.items.count,
               Set(measured.map(\.itemID)).count == measured.count,
               Set(measured.map(\.itemID)) == Set(menu.items.map(\.id)),
               measured.allSatisfy({ $0.normal.isValid && $0.selected.isValid }) else {
@@ -109,13 +145,22 @@ public struct MenuLayout: Equatable, Sendable {
         let sectors = Geometry.sectors(count: sizes.count)
         let gap = settings.contentPadding
         let centerRadius = max(settings.minimumInnerRadius - 4,
-                               hypot(measurements.center.width, measurements.center.height) / 2 + gap)
-        let inner = centerRadius + 4
+                               hypot(centerSize.width, centerSize.height) / 2 + gap)
+        let inner = measurements.style == .pie ? centerRadius + 4 : min(centerSize.width, centerSize.height) / 2
         var radius = settings.minimumLabelRadius
         for (sector, size) in zip(sectors, sizes) {
             let halfWidth = size.width / 2, halfHeight = size.height / 2
-            // The bounding circle of the rectangle stays outside the center.
-            radius = max(radius, inner + gap + hypot(halfWidth, halfHeight))
+            if measurements.style == .pie {
+                // Wedges must clear the circular center control.
+                radius = max(radius, inner + gap + hypot(halfWidth, halfHeight))
+            } else {
+                // Two axis-aligned rectangles are disjoint if separated on
+                // either axis. Solve each separation along this item's ray.
+                let dx = abs(sin(sector.center)), dy = abs(cos(sector.center))
+                let horizontal = dx > 0 ? (centerSize.width / 2 + halfWidth + gap) / dx : .infinity
+                let vertical = dy > 0 ? (centerSize.height / 2 + halfHeight + gap) / dy : .infinity
+                radius = max(radius, min(horizontal, vertical))
+            }
             if sizes.count > 1 {
                 // The rectangle's projection onto each sector boundary normal
                 // determines how far its center must be from the menu center.
@@ -126,7 +171,7 @@ public struct MenuLayout: Equatable, Sendable {
                 }
             }
         }
-        var outer = settings.minimumOuterRadius
+        var outer = max(settings.minimumOuterRadius, centerRadius + 4)
         let labels = zip(menu.items.indices, sizes).map { index, size -> LabelLayout in
             let center = Vector(x: sin(sectors[index].center) * radius, y: -cos(sectors[index].center) * radius)
             let rect = Rect(x: center.x - size.width / 2, y: center.y - size.height / 2,
@@ -137,11 +182,20 @@ public struct MenuLayout: Equatable, Sendable {
             return LabelLayout(itemID: menu.items[index].id, bounds: rect)
         }
         outer = ceil(outer)
-        let diameter = ceil(2 * (outer + settings.windowPadding))
+        // A pie's visible arc needs the full circular extent. Separate buttons
+        // need only their axis-aligned bounds and the decorative guide circle.
+        let extent = measurements.style == .pie ? outer : labels.reduce(max(centerSize.width, centerSize.height) / 2) {
+            max($0, abs($1.bounds.x), abs($1.bounds.y),
+                abs($1.bounds.x + $1.bounds.width), abs($1.bounds.y + $1.bounds.height))
+        }
+        let diameter = ceil(2 * (max(extent, radius) + settings.windowPadding))
         guard [radius, inner, outer, diameter].allSatisfy(\.isFinite), outer > inner else {
             throw LayoutFailure.invalidMeasurements
         }
-        return Self(fontSize: measurements.fontSize, wrappingWidth: measurements.wrappingWidth,
+        return Self(style: measurements.style,
+                    centerBounds: Rect(x: -centerSize.width / 2, y: -centerSize.height / 2,
+                                       width: centerSize.width, height: centerSize.height),
+                    fontSize: measurements.fontSize, wrappingWidth: measurements.wrappingWidth,
                     innerRadius: inner, outerRadius: outer, labelRadius: radius, diameter: diameter,
                     centerRadius: centerRadius, sectors: sectors, labels: labels)
     }
@@ -154,6 +208,13 @@ public struct MenuLayout: Equatable, Sendable {
     }
 
     public func hit(_ point: Vector) -> Int? {
-        Geometry.hit(point, inner: innerRadius, outer: outerRadius, count: sectors.count)
+        if style == .selectedMessage {
+            guard point.isFinite else { return nil }
+            return labels.firstIndex { label in
+                let r = label.bounds
+                return point.x >= r.x && point.x <= r.x + r.width && point.y >= r.y && point.y <= r.y + r.height
+            }
+        }
+        return Geometry.hit(point, inner: innerRadius, outer: outerRadius, count: sectors.count)
     }
 }

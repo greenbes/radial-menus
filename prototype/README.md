@@ -5,9 +5,23 @@ This macOS application implements the first usable part of the design in
 controller input, navigates into a submenu, and reports a selected value or a
 cancellation. It does not execute the selected value as a command.
 
-The fixed example has Red at the top, Blue on the right, Green at the bottom,
-and More colors on the left. More colors opens a submenu containing Amber and
-Violet. This is a separate Swift package; it does not import the original app.
+The default example contains six illustrative workspace actions with short
+labels, full titles, and descriptions. More commands opens the color menu.
+These choices only report values; the described actions do not execute.
+This is a separate Swift package; it does not import the original app.
+
+Use the **Menu style** dropdown in diagnostics to choose **Selected message**
+or **Pie wedges**. Selected message displays short labels around a ring and
+the selected item's full text in the center. Pie wedges display the short
+labels inside sectors. Both styles use the same content, item order,
+navigation, and results. Style changes apply on the next opening and remain in
+memory until quitting. A submenu retains the style of its current interaction.
+See [menu style behavior and validation](MENU_STYLES.md) for details.
+
+The original color example remains available with `--color-demo`: Red at the
+top, Blue on the right, Green at the bottom, and More colors on the left.
+More colors opens Amber and Violet. Automated smoke and shutdown checks use
+this fixture.
 
 The menu grows to fit measured labels, including their selected font weight
 and submenu indicators. If it cannot fit the available screen without shrinking
@@ -52,7 +66,7 @@ does not create a distributable or notarized release.
 | Escape | Cancel the whole interaction, including from a submenu |
 | Pointer movement | Select the item under the pointer |
 | Click an item | Activate that specific item |
-| Center button | Go back, or cancel at the root |
+| Back / Cancel control | Go back, or cancel at the root |
 
 On the tested **GuliKit Controller XW**, the **bottom face button labeled B**
 confirms, and the **right face button labeled A** goes back or cancels. macOS
@@ -65,8 +79,10 @@ made with the keyboard, D-pad, pointer, or an accessibility action.
 
 Moving the mouse by at least two logical screen points takes selection from
 another input when the pointer is over an item. Smaller movements accumulate
-from the last accepted position. Leaving the ring or entering its center clears
-only a selection made by the pointer. A stationary mouse or stick does not
+from the last accepted position. Leaving a selectable target clears only a
+selection made by the pointer. In Pie wedges, the targets are sectors; in
+Selected message, they are the label buttons. The guide circle and message
+text are not selectable. A stationary mouse or stick does not
 overwrite a keyboard, D-pad, or other deliberate selection.
 
 Opening or entering a submenu establishes the current pointer position without
@@ -130,7 +146,9 @@ scheduling, and movement ticks.
 
 Opening and navigation first enter a preparation phase. `SwiftUIMenuMeasurer`
 measures the shared label components at both font weights and measures the
-center control. The window adapter supplies those immutable sizes with the
+center control. For Selected message it measures every full message and the
+neutral instructions, including the Back or Cancel button. The window adapter
+supplies those immutable sizes with the
 screen's usable bounds and the desired center point. It does not choose radii.
 
 `MenuLayout.make` validates complete measurements by item identity, reserves
@@ -138,12 +156,18 @@ the maximum width and height needed by either weight, and calculates a common
 label radius. Each label rectangle stays within its sector and outside the
 center control. The outer radius encloses every rectangle with padding. The
 same immutable layout controls drawing, pointer selection, and window size;
-controller selection uses its shared angular geometry.
+controller selection uses its shared angular geometry. Selected message instead
+separates each label rectangle from the central message rectangle and reserves
+the maximum message height. Its window encloses those rectangles and the guide
+circle. Selection cannot resize the window or move the labels.
 
 Layout starts with inner radius 46, outer radius 150, and label radius 100,
 then grows as needed. Content padding is 8 points, the center-to-ring gap is
 4 points, and window padding is 30 points. Default text is 17 points with a
 96-point wrapping width; the default width scales with a requested font size.
+Selected message uses a 150-point label wrapping width and a 300-point message
+width at the default text size; both scale with requested text size. The label
+and message components include their own padding in native measurements.
 These are explicit prototype settings, not measured usability requirements.
 
 Preparation has its own operation identity and deadline. Invalid measurements
@@ -250,9 +274,12 @@ To reproduce layout validation across item counts and label profiles, run:
 
 ```sh
 ./prototype/scripts/layout-test.sh
+./prototype/scripts/layout-test.sh --selected-message
 ```
 
-This command captures 64 native renderings, checks keyboard interaction, and
+The first command checks 64 pie fixtures; the second checks 66 selected-message
+fixtures, including the richer demo at two text sizes. They capture native
+renderings, check keyboard interaction, and
 validates measured label rectangles against each menu's calculated geometry.
 It also checks native pointer selection and clicking beyond the original ring,
 and injects an undersized screen observation to verify failure before display.
@@ -264,6 +291,7 @@ instance closed:
 
 ```sh
 ./prototype/scripts/smoke-test.sh
+./prototype/scripts/smoke-test.sh --selected-message
 ./prototype/scripts/lifecycle-test.sh
 ```
 
@@ -305,8 +333,15 @@ actual-frame acknowledgments, screen changes, and subscription cleanup.
 The test script also runs the Python recording verifier's positive and
 negative fixtures.
 
-For a physical test, use Menu, hold the stick up, and press Confirm to choose
-Red. Then open again, hold left and press Confirm for More colors, release the
+For the new layout, open the default demo, select each direction, and check
+that its full message appears without shifting the labels. Use Confirm to
+choose an item, and More commands to enter the color menu. Repeat after
+choosing Pie wedges in diagnostics. Confirm is the bottom button labeled B
+on the GuliKit; Back is the right button labeled A.
+
+For the color regression test, run with `--color-demo`, use Menu, hold the
+stick up, and press Confirm to choose Red. Then open again, hold left and
+press Confirm for More colors, release the
 controls, hold down and press Confirm for Violet. Check the results in
 diagnostics. Also try Back and D-pad navigation. On the tested GuliKit,
 Confirm is the bottom button labeled B and Back is the right button labeled A.
@@ -314,7 +349,7 @@ Confirm is the bottom button labeled B and Back is the right button labeled A.
 Optional recording, after quitting any running instance:
 
 ```sh
-./prototype/scripts/run.sh --record /tmp/radial-controller-events.jsonl
+./prototype/scripts/run.sh --color-demo --record /tmp/radial-controller-events.jsonl
 ```
 
 For a movement recording, press Menu, move with the right stick, release it

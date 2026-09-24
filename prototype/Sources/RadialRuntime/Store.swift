@@ -18,10 +18,10 @@ import RadialCore
     @ObservationIgnored private var activeSubscriptions: Set<Subscription> = []
     @ObservationIgnored private let inputCapacity: Int
 
-    public init(menu: Menu, window: any WindowDriver, controller: any ControllerDriver,
+    public init(menu: Menu, menuStyle: MenuStyle = .pie, window: any WindowDriver, controller: any ControllerDriver,
                 scheduler: any DeadlineScheduler, movementClock: any MovementScheduler, inputCapacity: Int = 256) {
         precondition(inputCapacity > 0)
-        let initial = Model(menu: menu)
+        let initial = Model(menu: menu, menuStyle: menuStyle)
         self.model = initial
         self.view = render(initial)
         self.window = window; self.controller = controller; self.scheduler = scheduler
@@ -99,8 +99,8 @@ import RadialCore
 
     private func dispatch(_ effect: Effect) {
         switch effect {
-        case .prepare(let scope, let menu, let canGoBack, let operation):
-            window.prepare(scope: scope, menu: menu, canGoBack: canGoBack, operation: operation)
+        case .prepare(let scope, let menu, let canGoBack, let style, let operation):
+            window.prepare(scope: scope, menu: menu, canGoBack: canGoBack, style: style, operation: operation)
         case .present(let scope, let layout, let placement, let operation):
             window.present(scope: scope, layout: layout, placement: placement, operation: operation)
         case .inspectPresentation(let scope, let operation): window.inspectPresentation(scope: scope, operation: operation)

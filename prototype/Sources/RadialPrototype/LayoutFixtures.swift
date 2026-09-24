@@ -9,7 +9,7 @@ struct LayoutFixture {
         self.name = name; self.menu = menu; self.fontSize = fontSize
     }
 
-    static func all() throws -> [Self] {
+    static func all(style: MenuStyle = .pie) throws -> [Self] {
         let labels = [
             ("short", ["Red", "Blue", "Green", "Amber", "Violet", "Indigo", "Orange", "Pink", "Black", "White", "Gray", "Cyan"]),
             ("long", ["Open recent documents", "Switch active workspace", "Show application windows"]),
@@ -35,6 +35,10 @@ struct LayoutFixture {
             Item(id: "more", label: "Open recent documents", menu: child),
             Item(id: "done", label: "Done", value: "done")
         ])))
+        if style == .selectedMessage {
+            fixtures.append(Self(name: "rich", menu: DemoMenu.definition))
+            fixtures.append(Self(name: "large-type-rich", menu: DemoMenu.definition, fontSize: 34))
+        }
         return fixtures
     }
 }

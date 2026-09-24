@@ -8,6 +8,7 @@ public func update(_ model: Model, _ event: Event) -> Transition {
 // Local mutable construction of a new value; never shared with the caller.
 struct Change {
     let menu: Menu
+    var menuStyle: MenuStyle
     var phase: Phase
     var controllers: [ConnectionID: ControllerState]
     var lifecycle: ApplicationLifecycle
@@ -22,6 +23,7 @@ struct Change {
     var outputs: [Output] = []
 
     init(_ model: Model) {
+        menuStyle = model.menuStyle
         menu = model.menu; phase = model.phase; controllers = model.controllers; lifecycle = model.lifecycle
         nextSession = model.nextSession; nextOperation = model.nextOperation
         movement = model.movement; movementSettings = model.movementSettings
@@ -31,7 +33,7 @@ struct Change {
         Transition(model: Model(menu: menu, phase: phase, controllers: controllers, lifecycle: lifecycle,
                                 nextSession: nextSession, nextOperation: nextOperation,
                                 movement: movement, movementSettings: movementSettings,
-                                pointer: pointer, pointerSettings: pointerSettings),
+                                pointer: pointer, pointerSettings: pointerSettings, menuStyle: menuStyle),
                    effects: effects, outputs: outputs)
     }
 
@@ -58,6 +60,7 @@ struct Change {
     mutating func accept(_ event: Event) {
         switch event {
         case .start: break
+        case .setMenuStyle(let style): if running { menuStyle = style }
         case .stop: stop()
         case .open(let owner): open(owner)
         case .select(let scope, let item, let source): select(scope, item, source)
@@ -136,11 +139,11 @@ struct Change {
         guard let operation = allocateOperation() else { outputs.append(.rejected(.unavailable)); return }
         let scope = InputScope(session: SessionID(nextSession), revision: 1)
         nextSession += 1
-        let session = Session(scope: scope, path: [menu], selection: nil, owner: owner)
+        let session = Session(scope: scope, path: [menu], selection: nil, owner: owner, style: menuStyle)
         resetMovement()
         pointer = PointerState()
         phase = .preparing(session, operation)
-        effects.append(.prepare(scope, session.menu, false, operation))
+        effects.append(.prepare(scope, session.menu, false, session.style, operation))
     }
 
     mutating func select(_ scope: InputScope, _ item: String?, _ source: SelectionSource) {
@@ -180,9 +183,9 @@ struct Change {
         resetMovement(keepingPlacement: true)
         pointer = PointerState()
         let scope = InputScope(session: session.scope.session, revision: session.scope.revision + 1)
-        let child = Session(scope: scope, path: path, selection: nil, owner: session.owner)
+        let child = Session(scope: scope, path: path, selection: nil, owner: session.owner, style: session.style)
         phase = .preparing(child, operation)
-        effects += [.endInput(session.scope), .prepare(scope, child.menu, path.count > 1, operation)]
+        effects += [.endInput(session.scope), .prepare(scope, child.menu, path.count > 1, child.style, operation)]
     }
 
     mutating func cancel(_ scope: InputScope, _ reason: CancellationReason) {

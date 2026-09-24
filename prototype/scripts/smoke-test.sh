@@ -9,7 +9,7 @@ fi
 report_dir=$(mktemp -d "${TMPDIR:-/tmp}/radial-native.XXXXXX")
 printf 'Native test artifacts: %s\n' "$report_dir"
 open -W -n "$prototype_dir/build/RadialPrototype.app" --args \
-    --smoke-test "$report_dir/report.json" --record "$report_dir/events.log"
+    --smoke-test "$report_dir/report.json" --record "$report_dir/events.log" "$@"
 python3 - "$report_dir/report.json" <<'PY'
 import json
 import sys

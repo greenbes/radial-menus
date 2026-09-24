@@ -11,10 +11,14 @@ import RadialCore
     var inspect: (() -> Void)?
     var inspectDismissal: (() -> Void)?
     var inspectRelease: (() -> Void)?
-    func prepare(scope: InputScope, menu: Menu, canGoBack: Bool, operation: OperationID) {
+    func prepare(scope: InputScope, menu: Menu, canGoBack: Bool, style: MenuStyle, operation: OperationID) {
+        let center: MenuMeasurements.Center = style == .pie ? .control(Size(width: 36, height: 32)) :
+            .messages(wrappingWidth: 300, states: MenuMessage.all(in: menu).map {
+                MessageMeasurement(itemID: $0.itemID, size: Size(width: 300, height: 180))
+            })
         let measurements = MenuMeasurements(fontSize: 17, wrappingWidth: 96, labels: menu.items.map {
             LabelMeasurement(itemID: $0.id, normal: Size(width: 30, height: 20), selected: Size(width: 30, height: 20))
-        }, center: Size(width: 36, height: 32))
+        }, content: center)
         if synchronous {
             receive?(.prepared(scope, operation, measurements, ScreenContext(revision: 1, screenID: "screen",
                 bounds: Rect(x: 0, y: 0, width: 2000, height: 1000), anchor: Vector(x: 580, y: 380))))
@@ -66,6 +70,24 @@ import RadialCore
 }
 
 final class StoreTests: XCTestCase {
+    @MainActor func testStyleChoicePassesThroughPreparationAndChangesOnlyTheNextSession() async {
+        let window = FakeWindow(), controller = FakeController(), scheduler = FakeClock()
+        let store = Store(menu: SampleMenu.definition, window: window, controller: controller,
+                          scheduler: scheduler, movementClock: scheduler)
+        for style in MenuStyle.allCases {
+            store.send(.setMenuStyle(style))
+            store.send(.open(nil))
+            XCTAssertTrue(store.model.phase.isActive)
+            XCTAssertEqual(store.view.layout?.style, style)
+            guard let scope = store.view.scope else { return XCTFail("Missing active session") }
+            store.send(.setMenuStyle(style == .pie ? .selectedMessage : .pie))
+            XCTAssertEqual(store.view.layout?.style, style)
+            store.send(.activate(scope, "red", .keyboard))
+            XCTAssertEqual(store.outputs.last, .completed(scope.session, .selected(
+                Choice(menuPath: ["root"], itemID: "red", value: "red"))))
+        }
+    }
+
     func testShutdownStopsSourcesBeforeCleanupAndPublishesResultsInOrder() async {
         await MainActor.run {
             let window = FakeWindow(), controller = FakeController(), clock = FakeClock()

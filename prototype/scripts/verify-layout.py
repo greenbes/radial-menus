@@ -29,8 +29,12 @@ def check_fixture(fixture):
     geometry = fixture["geometry"]
     values = numbers([geometry[key] for key in
                       ("innerRadius", "outerRadius", "diameter", "labelRadius", "labelWidth", "fontSize", "centerRadius")], 7)
-    if min(values[:3] + values[4:]) <= 0 or not values[6] < values[0] < values[1] <= values[2] / 2:
+    if min(values[:3] + values[4:]) <= 0 or not values[0] < values[1]:
         raise ValueError("Invalid recorded rendering parameters")
+    if fixture.get("style", "pie") == "pie" and not values[6] < values[0] < values[1] <= values[2] / 2:
+        raise ValueError("Invalid pie rendering parameters")
+    if geometry["labelRadius"] > geometry["diameter"] / 2:
+        raise ValueError("The guide circle exceeds the panel")
     center = numbers(fixture["centerMeasured"], 2)
     if min(center) <= 0:
         raise ValueError("Invalid center measurement")
@@ -48,6 +52,26 @@ def check_fixture(fixture):
         issues.append({"kind": "panelOutsideScreen"})
     if frame[2:] != [geometry["diameter"], geometry["diameter"]]:
         issues.append({"kind": "unexpectedPanelSize"})
+    if fixture.get("style", "pie") == "selectedMessage":
+        if any(fixture.get(key) is not True for key in
+               ("stableSelectionLayout", "stableNavigationControl", "nativeMessageTextVerified")):
+            raise ValueError("Missing stable layout or native message text evidence")
+        cx, cy, cw, ch = numbers(fixture["centerBounds"], 4)
+        if min(cw, ch) <= 0 or [cx, cy] != [-cw / 2, -ch / 2] or [cw, ch] != center:
+            raise ValueError("Invalid central message bounds")
+        d = geometry["diameter"]
+        if not contained([cx, cy, cw, ch], [-d / 2, -d / 2, d, d]):
+            issues.append({"kind": "centerOutsidePanel"})
+        messages = fixture["messages"]
+        expected = {None} | {label["id"] for label in labels}
+        if len(messages) != len(expected) or {m["id"] for m in messages} != expected:
+            raise ValueError("Missing or duplicated message measurements")
+        for message in messages:
+            w, h = numbers(message["measured"], 2)
+            if min(w, h) <= 0:
+                raise ValueError("Invalid message measurement")
+            if w > cw + EPSILON or h > ch + EPSILON:
+                issues.append({"kind": "messageExceedsCenter", "item": message["id"]})
     rectangles = []
     for index, label in enumerate(labels):
         width, height = numbers(label["measured"], 2)
@@ -67,12 +91,19 @@ def check_fixture(fixture):
         kinds = []
         if width > reserved_width + EPSILON or height > reserved_height + EPSILON:
             kinds.append("contentExceedsLabelBox")
+        d = geometry["diameter"]
+        if not contained(rectangle, [-d / 2, -d / 2, d, d]):
+            kinds.append("labelOutsidePanel")
         width, height = reserved_width, reserved_height
         corners = list(itertools.product((x, x + width), (y, y + height)))
         if any(math.hypot(cx, cy) > geometry["outerRadius"] + EPSILON for cx, cy in corners):
             kinds.append("labelOutsideRing")
         closest_x, closest_y = min(max(0, x), x + width), min(max(0, y), y + height)
-        if math.hypot(closest_x, closest_y) <= geometry["innerRadius"] + EPSILON:
+        if fixture.get("style", "pie") == "selectedMessage":
+            cx, cy, cw, ch = fixture["centerBounds"]
+            if min(x + width, cx + cw) - max(x, cx) > -EPSILON and min(y + height, cy + ch) - max(y, cy) > -EPSILON:
+                kinds.append("labelTouchesCenter")
+        elif math.hypot(closest_x, closest_y) <= geometry["innerRadius"] + EPSILON:
             kinds.append("labelTouchesCenter")
         if count > 1:
             differences = [math.remainder(math.atan2(cx, -cy) - angle, 2 * math.pi) for cx, cy in corners]
@@ -90,13 +121,21 @@ def check_fixture(fixture):
 
 def verify(report):
     expected = {f"{count}-{profile}" for count in range(1, 13) for profile in PROFILES} | {"nested", "nested-child", "large-type-4-long", "large-type-2-unicode"}
+    style = report.get("style", "pie")
+    if style not in ("pie", "selectedMessage"):
+        raise ValueError("Unknown menu style")
+    if style == "selectedMessage":
+        expected |= {"rich", "large-type-rich"}
     fixtures = report["fixtures"]
     if {f["name"] for f in fixtures} != expected or len(fixtures) != len(expected):
         raise ValueError("Missing or duplicate layout fixtures")
     for fixture in fixtures:
         name = fixture["name"]
-        count = 2 if name == "nested" else 12 if name == "nested-child" else int(name.removeprefix("large-type-").split("-", 1)[0])
-        if fixture["geometry"]["labelWidth"] != (192 if name.startswith("large-type-") else 96):
+        count = 6 if name in ("rich", "large-type-rich") else 2 if name == "nested" else 12 if name == "nested-child" else int(name.removeprefix("large-type-").split("-", 1)[0])
+        if fixture.get("style", "pie") != style:
+            raise ValueError("Fixture uses the wrong menu style")
+        width = 96 if style == "pie" else 150
+        if fixture["geometry"]["labelWidth"] != width * (2 if name.startswith("large-type-") else 1):
             raise ValueError("Fixture changed the requested wrapping width")
         if fixture["geometry"]["fontSize"] != (34 if name.startswith("large-type-") else 17):
             raise ValueError("Fixture changed the requested text size")
@@ -109,6 +148,10 @@ def verify(report):
     if (extra.get("expandedPointerAndClick") is not True or radius <= 150 or
             extra.get("smallScreenFailure") is not True or extra.get("smallScreenObservationInjected") is not True):
         raise ValueError("Missing native expanded pointer or controlled screen failure evidence")
+    if any(extra.get(key) is not True for key in ("nativeBackAndCancel", "styleSwitching", "nativeStylePicker")):
+        raise ValueError("Missing native navigation control or style switching evidence")
+    if style == "selectedMessage" and extra.get("messageTextIsNotAButton") is not True:
+        raise ValueError("Missing message pointer evidence")
     results = [{"name": fixture["name"], "issues": check_fixture(fixture)} for fixture in fixtures]
     failed = sum(bool(result["issues"]) for result in results)
     return {"passed": failed == 0, "fixtureCount": len(results), "failedFixtures": failed, "fixtures": results}

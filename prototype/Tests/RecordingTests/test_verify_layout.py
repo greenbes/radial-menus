@@ -30,6 +30,36 @@ def kinds(value):
 
 
 class LayoutRecordingTests(unittest.TestCase):
+    def test_selected_messages_must_include_neutral_and_every_item_and_fit(self):
+        value = fixture()
+        value.update(style="selectedMessage", stableSelectionLayout=True, stableNavigationControl=True,
+                     nativeMessageTextVerified=True, centerBounds=[-18, -16, 36, 32],
+                     messages=[{"id": item_id, "measured": [36, 32]} for item_id in [None, "0", "1", "2", "3"]])
+        self.assertEqual(kinds(value), set())
+        oversized = copy.deepcopy(value)
+        oversized["messages"][2]["measured"][1] = 33
+        self.assertIn("messageExceedsCenter", kinds(oversized))
+        for mutation in ("neutral", "item", "duplicate", "nonfinite", "stability", "button", "native_text", "bounds"):
+            changed = copy.deepcopy(value)
+            if mutation == "neutral":
+                changed["messages"].pop(0)
+            elif mutation == "item":
+                changed["messages"].pop()
+            elif mutation == "duplicate":
+                changed["messages"][1] = changed["messages"][0]
+            elif mutation == "nonfinite":
+                changed["messages"][0]["measured"] = [math.nan, 20]
+            elif mutation == "stability":
+                changed["stableSelectionLayout"] = False
+            elif mutation == "button":
+                changed["stableNavigationControl"] = False
+            elif mutation == "native_text":
+                changed["nativeMessageTextVerified"] = False
+            else:
+                changed["centerBounds"][0] = 0
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                kinds(changed)
+
     def test_small_measured_labels_fit_every_supported_item_count(self):
         for count in range(1, 13):
             with self.subTest(count=count):
@@ -98,9 +128,10 @@ class LayoutRecordingTests(unittest.TestCase):
             fixtures.append(value)
         report = {"fixtures": fixtures, "keyboardConfirmationPassed": True,
                   "additionalChecks": {"expandedPointerAndClick": True, "expandedLabelRadius": 250,
+                                       "nativeBackAndCancel": True, "styleSwitching": True, "nativeStylePicker": True,
                                        "smallScreenFailure": True, "smallScreenObservationInjected": True}}
         self.assertTrue(verifier.verify(report)["passed"])
-        for mutation in ("missing", "duplicate", "confirmation", "count", "pointer", "screen", "font", "width"):
+        for mutation in ("missing", "duplicate", "confirmation", "count", "pointer", "screen", "font", "width", "style", "controls", "picker"):
             changed = copy.deepcopy(report)
             if mutation == "missing":
                 changed["fixtures"].pop()
@@ -108,8 +139,14 @@ class LayoutRecordingTests(unittest.TestCase):
                 changed["fixtures"].append(changed["fixtures"][0])
             elif mutation == "count":
                 changed["fixtures"][0] = {**fixture(2), "name": "1-short"}
-            elif mutation in ("pointer", "screen", "font", "width"):
+            elif mutation in ("pointer", "screen"):
                 changed["additionalChecks"]["expandedPointerAndClick" if mutation == "pointer" else "smallScreenFailure"] = False
+            elif mutation in ("font", "width"):
+                changed["fixtures"][0]["geometry"]["fontSize" if mutation == "font" else "labelWidth"] += 1
+            elif mutation == "style":
+                changed["fixtures"][0]["style"] = "selectedMessage"
+            elif mutation in ("controls", "picker"):
+                changed["additionalChecks"]["nativeBackAndCancel" if mutation == "controls" else "nativeStylePicker"] = False
             else:
                 changed["keyboardConfirmationPassed"] = False
             with self.subTest(mutation=mutation), self.assertRaises(ValueError):

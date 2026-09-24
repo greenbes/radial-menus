@@ -11,6 +11,7 @@ enum TransitionRecording {
             "phase": model.phase.name,
             "moving": model.movement.activity != nil,
             "running": model.running,
+            "preferredStyle": model.menuStyle.rawValue,
             "lifecycle": String(describing: model.lifecycle),
             "outputs": transition.outputs.map(output)
         ]
@@ -18,6 +19,7 @@ enum TransitionRecording {
             record["session"] = session.scope.session.value
             record["revision"] = session.scope.revision
             record["menu"] = session.menu.id
+            record["menuStyle"] = session.style.rawValue
             record["owner"] = session.owner?.value
             record["selected"] = session.selection?.itemID
             record["menuDiameter"] = session.layout?.diameter

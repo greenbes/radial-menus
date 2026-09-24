@@ -6,7 +6,7 @@ final class PreparationTests: XCTestCase {
         let opened = update(Model(menu: SampleMenu.definition), .open(nil))
         let model = opened.model, scope = try XCTUnwrap(model.phase.session?.scope)
         let operation = try XCTUnwrap(model.phase.operation)
-        XCTAssertEqual(opened.effects, [.prepare(scope, model.menu, false, operation)])
+        XCTAssertEqual(opened.effects, [.prepare(scope, model.menu, false, .pie, operation)])
         XCTAssertEqual(subscriptions(model).filter { if case .deadline = $0 { true } else { false } }, [.deadline(operation)])
         XCTAssertNil(render(model).layout)
         for event in [Event.presented(operation), .contentReady(scope), .activate(scope, "red", .pointer)] {
@@ -89,7 +89,7 @@ final class PreparationTests: XCTestCase {
         XCTAssertEqual(scope.session, parent.session)
         XCTAssertGreaterThan(scope.revision, parent.revision)
         XCTAssertNil(render(child.model).layout)
-        guard case .prepare(scope, let menu, true, _) = child.effects.last else { return XCTFail() }
+        guard case .prepare(scope, let menu, true, .pie, _) = child.effects.last else { return XCTFail() }
         XCTAssertEqual(menu.id, "colors")
         XCTAssertEqual(update(child.model, TestPresentation.prepared(opening)).model, child.model)
     }

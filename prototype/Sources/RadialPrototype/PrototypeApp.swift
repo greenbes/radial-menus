@@ -82,7 +82,8 @@ import RadialUI
     func applicationDidFinishLaunching(_ notification: Notification) {
         if let path = argument("--layout-test") {
             Task { @MainActor in
-                let passed = await NativeLayoutProbe.run(directory: URL(fileURLWithPath: path))
+                let passed = await NativeLayoutProbe.run(directory: URL(fileURLWithPath: path),
+                    style: CommandLine.arguments.contains("--selected-message") ? .selectedMessage : .pie)
                 exit(passed ? 0 : 1)
             }
             return
@@ -101,7 +102,9 @@ import RadialUI
             shutdownProbe = ShutdownProbe(stage: stage, panel: panel)
         }
         let window: any WindowDriver = shutdownProbe ?? panel
-        store = Store(menu: SampleMenu.definition, window: window, controller: controllers,
+        let usesColors = argument("--smoke-test") != nil || shutdownProbe != nil || CommandLine.arguments.contains("--color-demo")
+        store = Store(menu: usesColors ? SampleMenu.definition : DemoMenu.definition,
+                      menuStyle: usesColors && !CommandLine.arguments.contains("--selected-message") ? .pie : .selectedMessage, window: window, controller: controllers,
                       scheduler: scheduler, movementClock: scheduler)
         panel.content = NSHostingView(rootView: MenuContainer(store: store))
         panel.onNativeObservation = { [weak log] in log?.append("Window: " + $0) }
@@ -180,12 +183,7 @@ import RadialUI
 
     @objc private func showDiagnostics() {
         if diagnostics == nil {
-            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 660, height: 650),
-                                  styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
-            window.title = "Radial Menu Prototype"
-            window.isReleasedWhenClosed = false
-            window.contentView = NSHostingView(rootView: DiagnosticsView(store: store, log: log))
-            window.center()
+            let window = makeDiagnosticsWindow(store: store, log: log)
             diagnostics = window
         }
         NSApp.activate(ignoringOtherApps: true)
@@ -239,6 +237,16 @@ import RadialUI
     var body: some View { MenuView(model: store.view) { store.send($0) } }
 }
 
+@MainActor func makeDiagnosticsWindow(store: Store, log: EventLog) -> NSWindow {
+    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 660, height: 760),
+                          styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
+    window.title = "Radial Menu Prototype"
+    window.isReleasedWhenClosed = false
+    window.contentView = NSHostingView(rootView: DiagnosticsView(store: store, log: log).background(Color(nsColor: .windowBackgroundColor)))
+    window.center()
+    return window
+}
+
 @MainActor private struct DiagnosticsView: View {
     let store: Store
     let log: EventLog
@@ -246,7 +254,13 @@ import RadialUI
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Radial Menu Prototype").font(.title2.bold())
-            Text("Choose a color using a controller, keyboard, or the menu buttons. Choices appear here; they do not execute commands.")
+            Text("Explore a menu using a controller, keyboard, or the menu buttons. Choices appear here; they do not execute commands.")
+            Picker("Menu style", selection: Binding(get: { store.model.menuStyle }, set: { store.send(.setMenuStyle($0)) })) {
+                ForEach(RadialCore.MenuStyle.allCases, id: \.self) { style in Text(style.title).tag(style) }
+            }
+            .pickerStyle(.menu)
+            .disabled(!store.model.running)
+            Text("Style changes apply the next time you open the menu.").font(.caption).foregroundStyle(.secondary)
             HStack {
                 Button("Open menu") { store.send(.open(nil)) }
                     .disabled(!store.model.canOpen)
@@ -286,7 +300,7 @@ import RadialUI
                     }.frame(maxWidth: .infinity, alignment: .leading)
                 }.frame(minHeight: 100)
             }
-        }.padding(24).frame(minWidth: 570, minHeight: 610)
+        }.padding(24).frame(minWidth: 570, minHeight: 700)
     }
 
     private func description(_ output: Output) -> String {

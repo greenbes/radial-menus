@@ -55,16 +55,17 @@ public enum Output: Equatable, Sendable {
 public struct Session: Equatable, Sendable {
     public let scope: InputScope
     public let path: [Menu]
+    public let style: MenuStyle
     public let selection: Selection?
     public let owner: ConnectionID?
     public let layout: MenuLayout?
     public var menu: Menu { path[path.count - 1] }
-    init(scope: InputScope, path: [Menu], selection: Selection?, owner: ConnectionID?, layout: MenuLayout? = nil) {
-        self.scope = scope; self.path = path; self.selection = selection; self.owner = owner; self.layout = layout
+    init(scope: InputScope, path: [Menu], selection: Selection?, owner: ConnectionID?, layout: MenuLayout? = nil, style: MenuStyle = .pie) {
+        self.scope = scope; self.path = path; self.selection = selection; self.owner = owner; self.layout = layout; self.style = style
     }
-    func selecting(_ value: Selection?) -> Self { Self(scope: scope, path: path, selection: value, owner: owner, layout: layout) }
-    func owned(by owner: ConnectionID) -> Self { Self(scope: scope, path: path, selection: selection, owner: owner, layout: layout) }
-    func prepared(_ layout: MenuLayout) -> Self { Self(scope: scope, path: path, selection: selection, owner: owner, layout: layout) }
+    func selecting(_ value: Selection?) -> Self { Self(scope: scope, path: path, selection: value, owner: owner, layout: layout, style: style) }
+    func owned(by owner: ConnectionID) -> Self { Self(scope: scope, path: path, selection: selection, owner: owner, layout: layout, style: style) }
+    func prepared(_ layout: MenuLayout) -> Self { Self(scope: scope, path: path, selection: selection, owner: owner, layout: layout, style: style) }
 }
 
 public enum Phase: Equatable, Sendable {
@@ -107,6 +108,7 @@ public enum Phase: Equatable, Sendable {
 
 public struct Model: Equatable, Sendable {
     public let menu: Menu
+    public let menuStyle: MenuStyle
     public let phase: Phase
     public let controllers: [ConnectionID: ControllerState]
     public let lifecycle: ApplicationLifecycle
@@ -118,17 +120,18 @@ public struct Model: Equatable, Sendable {
     let nextSession: UInt64
     let nextOperation: UInt64
 
-    public init(menu: Menu, movementSettings: MovementSettings = .standard,
+    public init(menu: Menu, menuStyle: MenuStyle = .pie, movementSettings: MovementSettings = .standard,
                 pointerSettings: PointerSettings = .standard) {
         self.init(menu: menu, phase: .idle, controllers: [:], lifecycle: .running, nextSession: 1, nextOperation: 1,
-                  movementSettings: movementSettings, pointerSettings: pointerSettings)
+                  movementSettings: movementSettings, pointerSettings: pointerSettings, menuStyle: menuStyle)
     }
     public var canOpen: Bool { if case .idle = phase { running } else { false } }
     public var canRecover: Bool { if case .unavailable(_, nil) = phase { running } else { false } }
     init(menu: Menu, phase: Phase, controllers: [ConnectionID: ControllerState], lifecycle: ApplicationLifecycle,
          nextSession: UInt64, nextOperation: UInt64, movement: MovementState = MovementState(),
          movementSettings: MovementSettings = .standard, pointer: PointerState = PointerState(),
-         pointerSettings: PointerSettings = .standard) {
+         pointerSettings: PointerSettings = .standard, menuStyle: MenuStyle = .pie) {
+        self.menuStyle = menuStyle
         self.menu = menu; self.phase = phase; self.controllers = controllers; self.lifecycle = lifecycle
         self.nextSession = nextSession; self.nextOperation = nextOperation
         self.movement = movement; self.movementSettings = movementSettings
@@ -138,6 +141,7 @@ public struct Model: Equatable, Sendable {
 
 public enum Event: Equatable, Sendable {
     case start, stop, open(ConnectionID?), recover
+    case setMenuStyle(MenuStyle)
     case select(InputScope, String?, SelectionSource), step(InputScope, Int)
     case activate(InputScope, String, SelectionSource), confirm(InputScope), back(InputScope)
     case cancel(InputScope, CancellationReason), focusLost(InputScope), layoutUnavailable(InputScope)
@@ -154,7 +158,7 @@ public enum Event: Equatable, Sendable {
     case resourcesReleased(OperationID), shutdownDeadline(OperationID)
 }
 public enum Effect: Equatable, Sendable {
-    case prepare(InputScope, Menu, Bool, OperationID)
+    case prepare(InputScope, Menu, Bool, MenuStyle, OperationID)
     case present(InputScope, MenuLayout, Placement, OperationID), inspectPresentation(InputScope, OperationID)
     case dismiss(InputScope, OperationID), recover(OperationID)
     case baseline(InputScope), endInput(InputScope), resetInput(ConnectionID)
@@ -178,6 +182,7 @@ public struct RenderModel: Equatable, Sendable {
     public let selectedID: String?
     public let acceptsInput: Bool
     public let canGoBack: Bool
+    public var message: MenuMessage { MenuMessage.make(title: title, items: items, selectedID: selectedID) }
 }
 
 public func render(_ model: Model) -> RenderModel {
