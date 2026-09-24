@@ -108,3 +108,5 @@ radial-menu/radial-menu/BuildInfo.generated.swift
 
 # Debug logs
 /tmp/radial-menu-debug.log
+
+.envrc
