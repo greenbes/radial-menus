@@ -157,7 +157,7 @@ def check_fixture(fixture):
                 kinds.append("labelTouchesCenter")
         elif math.hypot(closest_x, closest_y) <= geometry["innerRadius"] + EPSILON:
             kinds.append("labelTouchesCenter")
-        if count > 1:
+        if count > 1 and fixture.get("style") != "cards":
             differences = [math.remainder(math.atan2(cx, -cy) - angle, 2 * math.pi) for cx, cy in corners]
             if any(abs(difference) > math.pi / count + EPSILON for difference in differences):
                 kinds.append("labelOutsideOwnSector")
@@ -168,20 +168,24 @@ def check_fixture(fixture):
         bx, by, bw, bh = rectangles[b]
         if min(ax + aw, bx + bw) - max(ax, bx) > EPSILON and min(ay + ah, by + bh) - max(ay, by) > EPSILON:
             issues.append({"kind": "labelEnvelopesOverlap", "items": [labels[a]["id"], labels[b]["id"]]})
-    if fixture.get("style") == "fullLabels":
+    if fixture.get("style") in ("fullLabels", "cards"):
         issues.extend(check_direction_guide(fixture))
+    if fixture.get("style") == "cards" and fixture.get("nativeCardTextVerified") is not True:
+        raise ValueError("Missing native card title and description evidence")
     return issues
 
 
 def verify(report):
     expected = {f"{count}-{profile}" for count in range(1, 13) for profile in PROFILES} | {"nested", "nested-child", "large-type-4-long", "large-type-2-unicode"}
     style = report.get("style", "pie")
-    if style not in ("pie", "fullLabels", "selectedMessage"):
+    if style not in ("pie", "fullLabels", "cards", "selectedMessage"):
         raise ValueError("Unknown menu style")
     if style != "pie":
         expected |= {"rich", "large-type-rich"}
-    if style == "fullLabels":
+    if style in ("fullLabels", "cards"):
         expected |= {"6-full-title", "4-unicode-title"}
+    if style == "cards":
+        expected |= {f"{count}-details" for count in range(1, 13)} | {"2-max-detail"}
     fixtures = report["fixtures"]
     if {f["name"] for f in fixtures} != expected or len(fixtures) != len(expected):
         raise ValueError("Missing or duplicate layout fixtures")
@@ -190,7 +194,7 @@ def verify(report):
         count = 6 if name in ("rich", "large-type-rich") else 2 if name == "nested" else 12 if name == "nested-child" else int(name.removeprefix("large-type-").split("-", 1)[0])
         if fixture.get("style", "pie") != style:
             raise ValueError("Fixture uses the wrong menu style")
-        width = {"pie": 96, "fullLabels": 226, "selectedMessage": 150}[style]
+        width = {"pie": 96, "fullLabels": 226, "cards": 210, "selectedMessage": 150}[style]
         if fixture["geometry"]["labelWidth"] != width * (2 if name.startswith("large-type-") else 1):
             raise ValueError("Fixture changed the requested wrapping width")
         if fixture["geometry"]["fontSize"] != (34 if name.startswith("large-type-") else 17):
@@ -201,6 +205,10 @@ def verify(report):
                 len(label.get("title", "")) != 160 or label["title"] == label["label"]
                 for label in fixture["labels"]):
             raise ValueError("Full-title fixture does not exercise the title length limit")
+        if name == "2-max-detail" and any(len(label.get("detail", "")) != 600 for label in fixture["labels"]):
+            raise ValueError("Card fixture does not exercise the description length limit")
+        if name.endswith("-details") and not any(label.get("detail") for label in fixture["labels"]):
+            raise ValueError("Card description fixture has no descriptions")
     if report["keyboardConfirmationPassed"] is not True:
         raise ValueError("Native keyboard confirmation failed")
     extra = report["additionalChecks"]
@@ -212,8 +220,10 @@ def verify(report):
         raise ValueError("Missing native navigation control or style switching evidence")
     if style == "selectedMessage" and extra.get("messageTextIsNotAButton") is not True:
         raise ValueError("Missing message pointer evidence")
-    if style == "fullLabels" and extra.get("directionGuideIsNotAButton") is not True:
+    if style in ("fullLabels", "cards") and extra.get("directionGuideIsNotAButton") is not True:
         raise ValueError("Missing direction guide pointer evidence")
+    if style == "cards" and extra.get("nativeCardDescriptionClick") is not True:
+        raise ValueError("Missing native description activation evidence")
     results = [{"name": fixture["name"], "issues": check_fixture(fixture)} for fixture in fixtures]
     failed = sum(bool(result["issues"]) for result in results)
     return {"passed": failed == 0, "fixtureCount": len(results), "failedFixtures": failed, "fixtures": results}

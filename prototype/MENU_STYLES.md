@@ -4,7 +4,9 @@ Use the **Menu style** dropdown in the diagnostics window. **Full labels**
 implements design 1: complete titles in buttons around a compact ring, with
 lines connecting the titles to markers at their controller directions.
 Selection highlights the title button, connection, and marker, and shows a
-checkmark. **Selected message** shows short labels arranged around a ring, with
+checkmark. **Cards** implements design 2: titles and descriptions are visible
+together in radial cards. Selection adds a light tint, an accent outline, and
+a checkmark. **Selected message** shows short labels arranged around a ring, with
 a full title and description in the center. **Pie wedges** shows short labels inside
 sectors. The default demo uses Selected message and six illustrative workspace
 actions. Selecting an action reports its value; it does not perform the
@@ -24,23 +26,27 @@ whether a particular menu fits the screen.
 
 Controller direction and keyboard order are identical in all styles. The
 pointer targets visible sectors in Pie wedges and discrete label buttons in
-Full labels and Selected message. Moving off a target clears only pointer-owned
-selection. Rings, markers, connections, and explanatory text do not activate
-items. Back and Cancel
-are separate controls. Accessibility exposes the full title and description
+Full labels, Cards, and Selected message. Moving off a target clears only
+pointer-owned selection. Rings, markers, connections, and central message text
+do not activate items. A card's description is part of its item button, so
+clicking it chooses that item. Back and Cancel are separate controls.
+Accessibility exposes the full title and description
 for every style. Full labels displays titles; descriptions appear visually
-when using Selected message.
+when using Cards or Selected message.
 
 Before display, the native boundary measures normal and selected labels,
 including padding and submenu indicators. For Selected message it also measures
 every complete message and the neutral instructions at a common width. The core
 requires one measurement per item and one for the neutral state, then reserves
-the largest required height. Labels, the window, and the navigation button
+the largest required height. Item bounds, the window, and the navigation button
 remain fixed while selection changes.
 
 The geometry remains deterministic. Pie labels clear a circular center;
-Full labels clears a compact ring; Selected message clears a central rectangle.
-Labels remain within their directional sectors and clear one another. Full-label
+Full labels and Cards clear a compact ring; Selected message clears a central
+rectangle.
+Full labels and Selected message stay within their sectors. Cards can extend
+across sector boundaries, but remain disjoint and cannot obscure another item's
+connection. Their centers retain the same controller directions. Full-label
 connections end at the inward edge of each label and cannot cross another label.
 Their angular order
 is shared with controller selection. The window encloses all visible elements.
@@ -56,13 +62,15 @@ Quit the running prototype first, then use an unlocked macOS desktop:
 ./prototype/scripts/layout-test.sh
 ./prototype/scripts/layout-test.sh --selected-message
 ./prototype/scripts/layout-test.sh --full-labels
+./prototype/scripts/layout-test.sh --cards
 ./prototype/scripts/smoke-test.sh
 ./prototype/scripts/smoke-test.sh --selected-message
 ./prototype/scripts/smoke-test.sh --full-labels
+./prototype/scripts/smoke-test.sh --cards
 ./prototype/scripts/lifecycle-test.sh
 ```
 
-The layout checks click all three choices in the actual diagnostics window, reopen
+The layout checks click all four choices in the actual diagnostics window, reopen
 menus with the chosen style, and exercise native Back and Cancel buttons. They
 also check a style change during an interaction: the current submenu retains
 its style and the next opening adopts the preference.
@@ -89,6 +97,57 @@ SwiftUI's accessibility nodes expose Objective-C accessors without declaring
 the complete AppKit accessibility protocol. The native probe checks for those
 accessors before reading them. It does not use private method names or represent
 a VoiceOver session.
+
+## Card validation
+
+| Check | Observed result |
+| --- | --- |
+| Swift tests | 105 passed: 96 core, 8 runtime, 1 native operation-order test |
+| Python verifier tests | 21 passed |
+| Native layout matrices | 279 fixtures across all four styles passed |
+| Card text, bounds, and central control | 593 display states checked |
+| Native keyboard traversal | 1,776 steps across all four matrices |
+| Native interaction regression | 35 checks passed per style |
+| Deliberate geometry faults | Both rejected; unmodified control passed |
+
+The card matrix contains 81 fixtures: the full-label cases plus descriptions
+at every supported item count and a fixture with 600-character descriptions.
+It checks 593 display states for complete native text, button bounds, and a
+fixed central control. The description is part of the card's accessible name,
+derived from visible text rather than supplied separately. A native click in
+the description area must activate that card even when another item is selected.
+
+Cards reserve the greater normal or selected height before display. Empty
+descriptions add no description row. The requested text size stays fixed;
+there is no ellipsis or automatic size reduction. The native width probe
+compared seven widths at 17 and 34 points. The chosen width is 210 points at
+17-point text and scales with the requested size. The rich demo occupies a
+739-point square at 17 points and a 1,391-point square at 34 points on the
+observed screen. The 600-character description fixture occupies 1,370 points.
+These measurements do not imply that every allowed menu fits every screen.
+
+The pure spacing calculation separates each pair of card rectangles. It also
+keeps each rectangle clear of the segment from the center to any other card's
+center; the visible connection is shorter than that segment. A card may extend
+across an angular boundary, so its connecting line indicates its controller
+direction. The independent verifier clips each visible line against the other
+card rectangles. Two deliberate faults remove rectangle separation and line
+separation separately; both are rejected by the geometry tests. The unmodified
+control passes. A wide card beside a small card specifically exercises an
+obscured connection that rectangle overlap checks alone would miss.
+
+Native text measurement initially exposed excessive space reserved by the
+sector rule and an unsuitable width at larger text sizes. Failed preparation
+observations, the width probe, and the final reports are retained under
+`build/verification/cards/`, along with source snapshots and hashes.
+
+![Cards](build/verification/cards/cards/rich.png)
+
+The checks use scripted input and do not establish physical controller or
+VoiceOver usability. The native reports list no connected controllers. Visual
+inspection covers the observed Aqua appearance; other appearances and scales
+remain separate checks. The shutdown-process matrix was not repeated for this
+presentation change.
 
 ## Full-label validation
 

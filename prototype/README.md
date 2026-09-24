@@ -11,11 +11,15 @@ These choices only report values; the described actions do not execute.
 This is a separate Swift package; it does not import the original app.
 
 Use the **Menu style** dropdown in diagnostics to choose **Full labels**,
-**Selected message**, or **Pie wedges**. Full labels implements design 1:
+**Cards**, **Selected message**, or **Pie wedges**. Full labels implements
+design 1:
 complete titles surround a compact ring, with a line connecting each title
-to its controller direction. Selected message displays short labels around a
+to its controller direction. Cards implements design 2: each radial card shows
+its full title and description, with a tinted outline and checkmark on selection.
+Clicking anywhere on the card, including the description, chooses that item.
+Selected message displays short labels around a
 ring and the selected item's full text in the center. Pie wedges display the
-short labels inside sectors. All three styles use the same content, item order,
+short labels inside sectors. All four styles use the same content, item order,
 navigation, and results. Style changes apply on the next opening and remain in
 memory until quitting. A submenu retains the style of its current interaction.
 See [menu style behavior and validation](MENU_STYLES.md) for details.
@@ -45,6 +49,7 @@ From the repository root:
 ```
 
 To start with design 1 selected, use `./prototype/scripts/run.sh --full-labels`.
+For design 2, use `./prototype/scripts/run.sh --cards`.
 
 The run script builds an app bundle, signs it locally with an ad hoc signature,
 and opens its diagnostics window. The menu bar icon provides Open menu, Show
@@ -280,11 +285,14 @@ To reproduce layout validation across item counts and label profiles, run:
 ./prototype/scripts/layout-test.sh
 ./prototype/scripts/layout-test.sh --selected-message
 ./prototype/scripts/layout-test.sh --full-labels
+./prototype/scripts/layout-test.sh --cards
 ```
 
-The commands check 64 pie, 66 selected-message, and 68 full-label fixtures.
-The latter two include the richer demo at two text sizes. Full labels also
-checks titles at the 160-character limit. The probes capture native renderings,
+The commands check 64 pie, 66 selected-message, 68 full-label, and 81 card
+fixtures. The latter three include the richer demo at two text sizes. Full
+labels and Cards check titles at the 160-character limit; Cards also checks
+600-character descriptions and mixed description lengths. The probes capture
+native renderings,
 check keyboard interaction, and validate measured label rectangles against
 each menu's calculated geometry. They also check native pointer selection
 and clicking beyond the original ring, and inject an undersized screen
@@ -299,6 +307,7 @@ instance closed:
 ./prototype/scripts/smoke-test.sh
 ./prototype/scripts/smoke-test.sh --selected-message
 ./prototype/scripts/smoke-test.sh --full-labels
+./prototype/scripts/smoke-test.sh --cards
 ./prototype/scripts/lifecycle-test.sh
 ```
 
@@ -346,6 +355,12 @@ together without moving. Use Confirm to choose an item, and Browse saved
 commands and shortcuts to enter the color menu. Change the dropdown and reopen
 to compare the other styles. Confirm is the bottom button labeled B on the
 GuliKit; Back is the right button labeled A.
+
+For Cards, check that all descriptions are visible before selecting anything.
+The selected card should gain a light tint, an outline, and a checkmark without
+moving. Try clicking its description while a different card is selected; the
+clicked card should supply the result. The central button still cancels or
+returns to the parent menu.
 
 For the color regression test, run with `--color-demo`, use Menu, hold the
 stick up, and press Confirm to choose Red. Then open again, hold left and

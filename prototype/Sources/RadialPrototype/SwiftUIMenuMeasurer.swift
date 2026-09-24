@@ -18,6 +18,7 @@ import RadialUI
         switch style {
         case .pie: labelWidth = wrappingWidth
         case .fullLabels: labelWidth = 226 * fontSize / 17
+        case .cards: labelWidth = 210 * fontSize / 17
         case .selectedMessage: labelWidth = 150 * fontSize / 17
         }
         let labels = menu.items.map { item in

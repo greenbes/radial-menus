@@ -141,6 +141,7 @@ import RadialUI
     }
 
     private var requestedStyle: RadialCore.MenuStyle? {
+        if CommandLine.arguments.contains("--cards") { return .cards }
         if CommandLine.arguments.contains("--full-labels") { return .fullLabels }
         if CommandLine.arguments.contains("--selected-message") { return .selectedMessage }
         return nil

@@ -13,7 +13,9 @@ public struct MenuItemLabel: View {
     }
 
     public var body: some View {
-        if style == .fullLabels {
+        if style == .cards {
+            MenuItemCard(item: item, selected: selected, fontSize: fontSize)
+        } else if style == .fullLabels {
             HStack(spacing: fontSize * 0.5) {
                 Text(item.title)
                     .font(.system(size: fontSize, weight: selected ? .bold : .medium))

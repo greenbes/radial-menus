@@ -40,6 +40,12 @@ class LayoutRecordingTests(unittest.TestCase):
                          {"id": "2", "marker": [0, 44], "labelEdge": [0, 90]},
                          {"id": "3", "marker": [-44, 0], "labelEdge": [-90, 0]}]})
         self.assertEqual(kinds(value), set())
+        card = copy.deepcopy(value)
+        card.update(style="cards", nativeCardTextVerified=True)
+        self.assertEqual(kinds(card), set())
+        card["nativeCardTextVerified"] = False
+        with self.assertRaises(ValueError):
+            kinds(card)
         changed = copy.deepcopy(value)
         changed["directionGuide"]["connections"][0]["marker"] = [44, 0]
         self.assertIn("markerHasWrongDirection", kinds(changed))

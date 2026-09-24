@@ -1,14 +1,17 @@
 /// Presentation is chosen independently of a menu's content and destinations.
 public enum MenuStyle: String, CaseIterable, Equatable, Sendable {
-    case pie, fullLabels, selectedMessage
+    case pie, fullLabels, cards, selectedMessage
 
     public var title: String {
         switch self {
         case .pie: "Pie wedges"
         case .fullLabels: "Full labels"
+        case .cards: "Cards"
         case .selectedMessage: "Selected message"
         }
     }
+
+    public var usesDirectionGuide: Bool { self == .fullLabels || self == .cards }
 }
 
 /// The same value supplies native measurement and rendering, including the

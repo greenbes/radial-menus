@@ -20,6 +20,7 @@ import RadialUI
         var preparation: [String: Any] = [:]
         do {
             try await checkNavigationControls(style: style, directory: directory)
+            if style == .cards { try await checkCardDescriptionClick() }
             for fixture in try LayoutFixture.all(style: style) {
                 let panel = PanelAdapter(measurer: SwiftUIMenuMeasurer(fontSize: fixture.fontSize)), clock = TaskScheduler()
                 let store = Store(menu: fixture.menu, menuStyle: style, window: panel, controller: LayoutProbeController(),
@@ -149,7 +150,33 @@ import RadialUI
         return ["nativeBackAndCancel": true, "styleSwitching": true, "nativeStylePicker": true, "expandedPointerAndClick": true, "expandedLabelRadius": layout.labelRadius,
                 "smallScreenFailure": true, "smallScreenObservationInjected": true,
                 "messageTextIsNotAButton": style == .selectedMessage,
-                "directionGuideIsNotAButton": style == .fullLabels]
+                "nativeCardDescriptionClick": style == .cards,
+                "directionGuideIsNotAButton": style.usesDirectionGuide]
+    }
+
+    private static func checkCardDescriptionClick() async throws {
+        let panel = PanelAdapter(measurer: SwiftUIMenuMeasurer()), clock = TaskScheduler()
+        let store = Store(menu: DemoMenu.definition, menuStyle: .cards, window: panel, controller: LayoutProbeController(),
+                          scheduler: clock, movementClock: clock)
+        panel.content = NSHostingView(rootView: MenuContainer(store: store))
+        let probe = NativeSmoke(store: store, panel: panel)
+        store.send(.open(nil))
+        try await probe.wait("card description click fixture") { store.model.phase.isActive }
+        let scope = try probe.scope()
+        try await probe.mouse(at: probe.screenPoint(x: 0, y: 0))
+        store.send(.select(scope, "research", .keyboard))
+        guard let bounds = store.view.layout?.labels.first(where: { $0.itemID == "documents" })?.bounds else {
+            throw ProbeFailure("Missing description target")
+        }
+        // The lower part of this card contains the visible description.
+        try await probe.click(x: bounds.x + bounds.width / 4, y: bounds.y + bounds.height * 0.75)
+        try await probe.wait("description activation") { store.model.phase == .idle }
+        guard store.outputs == [.completed(scope.session, .selected(
+            Choice(menuPath: ["workspace"], itemID: "documents", value: "documents")))] else {
+            throw ProbeFailure("Clicking a description did not activate its card")
+        }
+        store.send(.stop)
+        try await probe.wait("description fixture cleanup") { store.model.lifecycle == .stopped(.completed) }
     }
 
     private static func checkNavigationControls(style: RadialCore.MenuStyle, directory: URL) async throws {
@@ -199,16 +226,16 @@ import RadialUI
             }
             let width = measurements.map(\.width).max()!, height = measurements.map(\.height).max()!
             let rectangle = layout.labels[index].bounds
-            labels.append(["id": item.id, "label": item.label, "title": item.title, "measured": [width, height],
+            labels.append(["id": item.id, "label": item.label, "title": item.title, "detail": item.detail, "measured": [width, height],
                            "rectangle": [rectangle.x, rectangle.y, rectangle.width, rectangle.height],
                            "normal": [measurements[0].width, measurements[0].height],
                            "selected": [measurements[1].width, measurements[1].height]])
         }
         var messages: [[String: Any]] = []
         var navigationFrame: NSRect?
-        if layout.style == .fullLabels {
+        if layout.style.usesDirectionGuide {
             try await Task.sleep(for: .milliseconds(30))
-            navigationFrame = try NativeFullLabelProbe.check(store: store, panel: panel, navigationFrame: nil)
+            navigationFrame = try NativeItemButtonProbe.check(store: store, panel: panel, navigationFrame: nil)
         }
         if layout.style == .selectedMessage {
             for id in [nil] + items.map({ Optional($0.id) }) {
@@ -257,9 +284,9 @@ import RadialUI
                   store.view.layout == layout, panel.frame == originalFrame else {
                 throw ProbeFailure("Selection changed layout or displayed the wrong message")
             }
-            if layout.style == .fullLabels {
+            if layout.style.usesDirectionGuide {
                 try await Task.sleep(for: .milliseconds(30))
-                navigationFrame = try NativeFullLabelProbe.check(store: store, panel: panel, navigationFrame: navigationFrame)
+                navigationFrame = try NativeItemButtonProbe.check(store: store, panel: panel, navigationFrame: navigationFrame)
             }
         }
         guard steps == items.count else { throw ProbeFailure("Keyboard did not traverse the complete fixture") }
@@ -277,8 +304,9 @@ import RadialUI
                 "messages": messages, "stableSelectionLayout": true,
                 "nativeMessageTextVerified": layout.style == .selectedMessage,
                 "stableNavigationControl": layout.style != .pie,
-                "nativeFullTitleTextVerified": layout.style == .fullLabels,
-                "nativeLabelFramesVerified": layout.style == .fullLabels,
+                "nativeFullTitleTextVerified": layout.style.usesDirectionGuide,
+                "nativeCardTextVerified": layout.style == .cards,
+                "nativeLabelFramesVerified": layout.style.usesDirectionGuide,
                 "centerBounds": [layout.centerBounds.x, layout.centerBounds.y, layout.centerBounds.width, layout.centerBounds.height], "count": items.count, "labels": labels,
                 "geometry": ["innerRadius": layout.innerRadius, "outerRadius": layout.outerRadius,
                              "diameter": layout.diameter, "labelRadius": layout.labelRadius,

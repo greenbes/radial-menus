@@ -150,7 +150,7 @@ public struct MenuLayout: Equatable, Sendable {
         let inner: Double
         switch measurements.style {
         case .pie: inner = centerRadius + 4
-        case .fullLabels: inner = guideRadius + markerRadius
+        case .fullLabels, .cards: inner = guideRadius + markerRadius
         case .selectedMessage: inner = min(centerSize.width, centerSize.height) / 2
         }
         var radius = settings.minimumLabelRadius
@@ -168,7 +168,7 @@ public struct MenuLayout: Equatable, Sendable {
                 let vertical = dy > 0 ? (centerSize.height / 2 + halfHeight + gap) / dy : .infinity
                 radius = max(radius, min(horizontal, vertical))
             }
-            if sizes.count > 1 {
+            if sizes.count > 1 && measurements.style != .cards {
                 // The rectangle's projection onto each sector boundary normal
                 // determines how far its center must be from the menu center.
                 let halfAngle = Double.pi / Double(sizes.count)
@@ -177,6 +177,9 @@ public struct MenuLayout: Equatable, Sendable {
                     radius = max(radius, (projection + gap) / sin(halfAngle))
                 }
             }
+        }
+        if measurements.style == .cards {
+            radius = max(radius, CardSpacing.minimumRadius(sizes: sizes, sectors: sectors, gap: gap))
         }
         var outer = max(settings.minimumOuterRadius, centerRadius + 4)
         let labels = zip(menu.items.indices, sizes).map { index, size -> LabelLayout in
@@ -205,7 +208,7 @@ public struct MenuLayout: Equatable, Sendable {
                     fontSize: measurements.fontSize, wrappingWidth: measurements.wrappingWidth,
                     innerRadius: inner, outerRadius: outer, labelRadius: radius, diameter: diameter,
                     centerRadius: centerRadius, sectors: sectors, labels: labels,
-                    directionGuide: measurements.style == .fullLabels
+                    directionGuide: measurements.style.usesDirectionGuide
                         ? DirectionGuide.make(radius: guideRadius, markerRadius: markerRadius, sectors: sectors, labels: labels) : nil)
     }
 

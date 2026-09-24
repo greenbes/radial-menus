@@ -39,7 +39,7 @@ struct LayoutFixture {
             fixtures.append(Self(name: "rich", menu: DemoMenu.definition))
             fixtures.append(Self(name: "large-type-rich", menu: DemoMenu.definition, fontSize: 34))
         }
-        if style == .fullLabels {
+        if style.usesDirectionGuide {
             for (name, count, title) in [
                 ("6-full-title", 6, String(String(repeating: "Open recent documents in the research workspace. ", count: 4).prefix(160))),
                 ("4-unicode-title", 4, String(repeating: "界", count: 160))
@@ -49,6 +49,21 @@ struct LayoutFixture {
                 })
                 fixtures.append(Self(name: name, menu: menu))
             }
+        }
+        if style == .cards {
+            let descriptions = ["", "Restore project notes and the draft proposal in their original windows.",
+                                "First line\nA second line with a longer explanation.\nLast line.",
+                                "研究資料とメモをまとめて表示します。 Café résumé 🙂"]
+            for count in 1...12 {
+                fixtures.append(Self(name: "\(count)-details", menu: try Menu(id: "root", title: "Descriptions", items: (0..<count).map {
+                    Item(id: "item-\($0)", label: "Short", title: "Review the saved research material",
+                         detail: descriptions[($0 + 1) % descriptions.count], value: "value-\($0)")
+                })))
+            }
+            let maximum = String(String(repeating: "Read the saved documents and notes before continuing. ", count: 12).prefix(600))
+            fixtures.append(Self(name: "2-max-detail", menu: try Menu(id: "root", title: "Description limit", items: (0..<2).map {
+                Item(id: "item-\($0)", label: "Short", title: "Review the saved documents", detail: maximum, value: "value-\($0)")
+            })))
         }
         return fixtures
     }

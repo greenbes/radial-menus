@@ -80,6 +80,7 @@ import RadialCore
 
     private func itemButton(_ item: Item, index: Int, layout: MenuLayout) -> some View {
         let selected = model.selectedID == item.id
+        let isCard = layout.style == .cards
         let bounds = layout.labels[index].bounds
         let shape = Wedge(sector: layout.sectors[index], fullCircle: model.items.count == 1,
                           outer: layout.outerRadius, inner: layout.innerRadius)
@@ -103,23 +104,27 @@ import RadialCore
                     .frame(width: layout.wrappingWidth)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(width: bounds.width, height: bounds.height)
-                    .foregroundStyle(selected ? .white : .primary)
-                    .background(selected ? Color.accentColor : Color(nsColor: .windowBackgroundColor),
-                                in: RoundedRectangle(cornerRadius: 10))
-                    .overlay(RoundedRectangle(cornerRadius: 10)
-                        .stroke(selected ? Color.accentColor : Color.primary.opacity(0.25), lineWidth: 1))
+                    .foregroundStyle(selected && !isCard ? .white : .primary)
+                    .background {
+                        let shape = RoundedRectangle(cornerRadius: isCard ? 17 : 10)
+                        shape.fill(Color(nsColor: .windowBackgroundColor))
+                        if selected { shape.fill(Color.accentColor.opacity(isCard ? 0.12 : 1)) }
+                    }
+                    .overlay(RoundedRectangle(cornerRadius: isCard ? 17 : 10)
+                        .strokeBorder(selected ? Color.accentColor : Color.primary.opacity(0.25),
+                                      lineWidth: selected && isCard ? 2 : 1))
                     .contentShape(Rectangle())
             }
         }
         .buttonStyle(.plain)
         .accessibilityValue(selected ? "Selected" : "")
         .accessibilityAddTraits(selected ? .isSelected : [])
-        .accessibilityHint([item.detail, hint(for: item)].filter { !$0.isEmpty }.joined(separator: ". "))
+        .accessibilityHint([isCard ? "" : item.detail, hint(for: item)].filter { !$0.isEmpty }.joined(separator: ". "))
         .accessibilityFocused($accessibleItem, equals: item.id)
         .accessibilityAction { emit { .activate($0, item.id, .accessibility) } }
         return Group {
-            if layout.style == .fullLabels {
-                // The full title is already visible. Let SwiftUI derive the
+            if layout.style.usesDirectionGuide {
+                // The full text is already visible. Let SwiftUI derive the
                 // accessible name from that text, with decorative icons hidden.
                 button
             } else {

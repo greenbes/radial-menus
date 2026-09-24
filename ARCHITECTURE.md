@@ -220,21 +220,26 @@ submenu navigation. A preference change applies to the next interaction; it
 does not replace the geometry beneath an active pointer or stick selection.
 Preference persistence belongs to the application shell.
 
-Support three presentations of the same menu:
+Support four presentations of the same menu:
 
 - **Pie wedges:** short labels inside selectable sectors.
 - **Full labels:** complete titles in separate buttons outside a compact ring.
   Connect each button to a marker at its controller direction. Highlight the
   selected button, connection, and marker together, with a checkmark in the
   button. Keep Back or Cancel in the center.
+- **Cards:** complete titles and descriptions in separate radial cards. Use a
+  light selection tint, an outline, and a checkmark. Connect each card to its
+  direction marker, and keep Back or Cancel in the center. The whole card,
+  including its description, activates that item.
 - **Selected message:** short radial labels with the selected item's full title
   and description in the center. Before selection, show the menu title and
   instructions. Back or Cancel remains a separate control in the center.
 
-Decorative rings, markers, connecting lines, and explanatory text have no
-action. All styles return the same item identities and outcomes. Full labels
-show every title simultaneously; optional descriptions remain available to
-accessibility, and appear visually in the Selected message style.
+Decorative rings, markers, connecting lines, and the central message text have
+no action. All styles return the same item identities and outcomes. Full labels
+shows every title simultaneously; Cards also shows every description.
+Descriptions remain available to accessibility in all styles, and appear
+visually for the current selection in Selected message.
 
 The immutable application model contains:
 
@@ -646,6 +651,14 @@ the labels outward without changing the compact ring. Measure both normal and
 selected titles, including space for the checkmark and submenu indicator.
 Store marker positions and connection endpoints in the immutable layout; the
 view draws those values without recalculating geometry.
+
+Cards can extend across sector boundaries. Their centers still follow the
+controller directions, but reserve space from their measured rectangles and
+connecting lines rather than requiring every corner to stay within a wedge.
+Choose a common radius that separates every pair of cards and keeps each card
+clear of every other connection. Test these constraints independently with
+rectangle intersection and line clipping. Include empty descriptions, unequal
+card heights, long messages, and the selected font weight in native checks.
 
 In Selected message, separate labels clear the central rectangle and one
 another, while retaining their angular order. Calculate the window from all
