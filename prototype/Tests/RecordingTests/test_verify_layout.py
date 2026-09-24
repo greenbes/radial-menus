@@ -30,6 +30,47 @@ def kinds(value):
 
 
 class LayoutRecordingTests(unittest.TestCase):
+    def test_full_labels_require_correct_connections_and_native_text_evidence(self):
+        value = fixture()
+        value.update(style="fullLabels", stableSelectionLayout=True, stableNavigationControl=True,
+                     nativeFullTitleTextVerified=True, nativeLabelFramesVerified=True,
+                     directionGuide={"radius": 44, "markerRadius": 1, "connections": [
+                         {"id": "0", "marker": [0, -44], "labelEdge": [0, -90]},
+                         {"id": "1", "marker": [44, 0], "labelEdge": [90, 0]},
+                         {"id": "2", "marker": [0, 44], "labelEdge": [0, 90]},
+                         {"id": "3", "marker": [-44, 0], "labelEdge": [-90, 0]}]})
+        self.assertEqual(kinds(value), set())
+        changed = copy.deepcopy(value)
+        changed["directionGuide"]["connections"][0]["marker"] = [44, 0]
+        self.assertIn("markerHasWrongDirection", kinds(changed))
+        for endpoint in ([0, 0], [0, -100], [0, -110], [1, -90], [0, 90]):
+            changed = copy.deepcopy(value)
+            changed["directionGuide"]["connections"][0]["labelEdge"] = endpoint
+            self.assertIn("connectionMissesLabelEdge", kinds(changed))
+        changed = copy.deepcopy(value)
+        changed["directionGuide"]["connections"][0]["labelEdge"] = [0, 100]
+        self.assertIn("connectionCrossesAnotherLabel", kinds(changed))
+        for mutation in ("nativeFullTitleTextVerified", "nativeLabelFramesVerified",
+                         "stableNavigationControl", "stableSelectionLayout", "identity", "center", "panel", "nan"):
+            changed = copy.deepcopy(value)
+            if mutation == "identity":
+                changed["directionGuide"]["connections"][0]["id"] = "1"
+            elif mutation in ("center", "panel", "nan"):
+                changed["directionGuide"]["radius"] = {"center": 40, "panel": 500, "nan": math.nan}[mutation]
+            else:
+                changed[mutation] = False
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                kinds(changed)
+
+    def test_connection_intersection_checks_finite_segments(self):
+        box = [10, 10, 10, 10]
+        for start, end in (([0, 15], [30, 15]), ([15, 30], [15, 0]), ([0, 0], [30, 30]),
+                           ([12, 12], [18, 18])):
+            self.assertTrue(verifier.segment_intersects_box(start, end, box))
+        for start, end in (([0, 0], [9, 9]), ([21, 21], [30, 30]), ([0, 5], [30, 5]),
+                           ([5, 0], [5, 30])):
+            self.assertFalse(verifier.segment_intersects_box(start, end, box))
+
     def test_selected_messages_must_include_neutral_and_every_item_and_fit(self):
         value = fixture()
         value.update(style="selectedMessage", stableSelectionLayout=True, stableNavigationControl=True,

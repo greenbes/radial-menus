@@ -83,7 +83,7 @@ import RadialUI
         if let path = argument("--layout-test") {
             Task { @MainActor in
                 let passed = await NativeLayoutProbe.run(directory: URL(fileURLWithPath: path),
-                    style: CommandLine.arguments.contains("--selected-message") ? .selectedMessage : .pie)
+                    style: requestedStyle ?? .pie)
                 exit(passed ? 0 : 1)
             }
             return
@@ -104,7 +104,7 @@ import RadialUI
         let window: any WindowDriver = shutdownProbe ?? panel
         let usesColors = argument("--smoke-test") != nil || shutdownProbe != nil || CommandLine.arguments.contains("--color-demo")
         store = Store(menu: usesColors ? SampleMenu.definition : DemoMenu.definition,
-                      menuStyle: usesColors && !CommandLine.arguments.contains("--selected-message") ? .pie : .selectedMessage, window: window, controller: controllers,
+                      menuStyle: requestedStyle ?? (usesColors ? .pie : .selectedMessage), window: window, controller: controllers,
                       scheduler: scheduler, movementClock: scheduler)
         panel.content = NSHostingView(rootView: MenuContainer(store: store))
         panel.onNativeObservation = { [weak log] in log?.append("Window: " + $0) }
@@ -138,6 +138,12 @@ import RadialUI
         } else {
             showDiagnostics()
         }
+    }
+
+    private var requestedStyle: RadialCore.MenuStyle? {
+        if CommandLine.arguments.contains("--full-labels") { return .fullLabels }
+        if CommandLine.arguments.contains("--selected-message") { return .selectedMessage }
+        return nil
     }
 
     private func argument(_ flag: String) -> String? {

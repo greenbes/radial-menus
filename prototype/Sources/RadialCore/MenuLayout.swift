@@ -32,25 +32,23 @@ public struct MenuMeasurements: Equatable, Sendable {
     public let wrappingWidth: Double
     public let labels: [LabelMeasurement]
     public let center: Center
-    public var style: MenuStyle {
-        switch center { case .control: .pie; case .messages: .selectedMessage }
+    public let style: MenuStyle
+    public init(fontSize: Double, wrappingWidth: Double, labels: [LabelMeasurement], center: Size, style: MenuStyle = .pie) {
+        self.init(fontSize: fontSize, wrappingWidth: wrappingWidth, labels: labels, content: .control(center), style: style)
     }
-    public init(fontSize: Double, wrappingWidth: Double, labels: [LabelMeasurement], center: Size) {
-        self.init(fontSize: fontSize, wrappingWidth: wrappingWidth, labels: labels, content: .control(center))
-    }
-    public init(fontSize: Double, wrappingWidth: Double, labels: [LabelMeasurement], content: Center) {
+    public init(fontSize: Double, wrappingWidth: Double, labels: [LabelMeasurement], content: Center, style: MenuStyle) {
         self.fontSize = fontSize; self.wrappingWidth = wrappingWidth
-        self.labels = labels; self.center = content
+        self.labels = labels; self.center = content; self.style = style
     }
 
     func centerSize(for menu: Menu) throws -> Size {
         switch center {
         case .control(let size):
-            guard size.isValid else { throw LayoutFailure.invalidMeasurements }
+            guard style != .selectedMessage, size.isValid else { throw LayoutFailure.invalidMeasurements }
             return size
         case .messages(let width, let states):
             let expected = Set([nil] + menu.items.map { Optional($0.id) })
-            guard width.isFinite, width > 0, states.count == expected.count,
+            guard style == .selectedMessage, width.isFinite, width > 0, states.count == expected.count,
                   Set(states.map(\.itemID)) == expected,
                   states.allSatisfy({ $0.size.isValid && $0.size.width <= width }) else {
                 throw LayoutFailure.invalidMeasurements
@@ -124,6 +122,7 @@ public struct MenuLayout: Equatable, Sendable {
     public let centerRadius: Double
     public let sectors: [Sector]
     public let labels: [LabelLayout]
+    public let directionGuide: DirectionGuide?
 
     public static func make(menu: Menu, measurements: MenuMeasurements,
                             settings: LayoutSettings = .standard) throws -> Self {
@@ -146,12 +145,20 @@ public struct MenuLayout: Equatable, Sendable {
         let gap = settings.contentPadding
         let centerRadius = max(settings.minimumInnerRadius - 4,
                                hypot(centerSize.width, centerSize.height) / 2 + gap)
-        let inner = measurements.style == .pie ? centerRadius + 4 : min(centerSize.width, centerSize.height) / 2
+        let markerRadius = 5 * measurements.fontSize / 17
+        let guideRadius = max(74 * measurements.fontSize / 17, centerRadius + gap + markerRadius)
+        let inner: Double
+        switch measurements.style {
+        case .pie: inner = centerRadius + 4
+        case .fullLabels: inner = guideRadius + markerRadius
+        case .selectedMessage: inner = min(centerSize.width, centerSize.height) / 2
+        }
         var radius = settings.minimumLabelRadius
         for (sector, size) in zip(sectors, sizes) {
             let halfWidth = size.width / 2, halfHeight = size.height / 2
-            if measurements.style == .pie {
-                // Wedges must clear the circular center control.
+            if measurements.style != .selectedMessage {
+                // Wedges clear the center control; full labels clear the
+                // compact ring and its direction markers.
                 radius = max(radius, inner + gap + hypot(halfWidth, halfHeight))
             } else {
                 // Two axis-aligned rectangles are disjoint if separated on
@@ -197,7 +204,9 @@ public struct MenuLayout: Equatable, Sendable {
                                        width: centerSize.width, height: centerSize.height),
                     fontSize: measurements.fontSize, wrappingWidth: measurements.wrappingWidth,
                     innerRadius: inner, outerRadius: outer, labelRadius: radius, diameter: diameter,
-                    centerRadius: centerRadius, sectors: sectors, labels: labels)
+                    centerRadius: centerRadius, sectors: sectors, labels: labels,
+                    directionGuide: measurements.style == .fullLabels
+                        ? DirectionGuide.make(radius: guideRadius, markerRadius: markerRadius, sectors: sectors, labels: labels) : nil)
     }
 
     public func placement(in screen: ScreenContext) throws -> Placement {
@@ -208,7 +217,7 @@ public struct MenuLayout: Equatable, Sendable {
     }
 
     public func hit(_ point: Vector) -> Int? {
-        if style == .selectedMessage {
+        if style != .pie {
             guard point.isFinite else { return nil }
             return labels.firstIndex { label in
                 let r = label.bounds

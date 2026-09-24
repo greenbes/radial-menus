@@ -220,11 +220,21 @@ submenu navigation. A preference change applies to the next interaction; it
 does not replace the geometry beneath an active pointer or stick selection.
 Preference persistence belongs to the application shell.
 
-Support pie wedges and a layout with separate radial labels and a central
-message. In the latter, selection determines which full title and description
-appear in the center. Before selection, show the menu title and instructions.
-Back or Cancel remains an explicit control; clicking explanatory text has no
-action. Both styles return the same item identities and outcomes.
+Support three presentations of the same menu:
+
+- **Pie wedges:** short labels inside selectable sectors.
+- **Full labels:** complete titles in separate buttons outside a compact ring.
+  Connect each button to a marker at its controller direction. Highlight the
+  selected button, connection, and marker together, with a checkmark in the
+  button. Keep Back or Cancel in the center.
+- **Selected message:** short radial labels with the selected item's full title
+  and description in the center. Before selection, show the menu title and
+  instructions. Back or Cancel remains a separate control in the center.
+
+Decorative rings, markers, connecting lines, and explanatory text have no
+action. All styles return the same item identities and outcomes. Full labels
+show every title simultaneously; optional descriptions remain available to
+accessibility, and appear visually in the Selected message style.
 
 The immutable application model contains:
 
@@ -600,8 +610,8 @@ selectable. Validate finite radii with `0 <= innerRadius < outerRadius`.
 Rendering and hit testing use the same layout value, including sector order,
 angles, radii, and label positions. Controller direction always uses angular
 selection. Pointer selection follows the visible targets: sectors for pie
-wedges, label button bounds for the separate-label style. The decorative ring
-and central message are not item targets. There is one implementation of each
+wedges, label button bounds for the separate-label styles. Decorative geometry
+and the central message are not item targets. There is one implementation of each
 geometric rule, shared by the view and input interpretation.
 
 The core returns descriptions of sectors, not SwiftUI paths. The rendering
@@ -629,10 +639,18 @@ display. Selection changes content without changing placement or label bounds.
 Reject missing, duplicate, nonfinite, or inconsistent measurements explicitly.
 
 Layout rules depend on style. Pie labels must fit within their angular sectors
-and outside the circular center control. Separate labels must clear the central
-rectangle and one another, while retaining their angular order. Calculate the
-window from all visible bounds, including the guide circle. Neither style may
-clip content or silently shrink text to fit a screen. An unsupported size must
+and outside the circular center control. Full labels clear the compact ring
+and one another. Keep each label in its directional sector so the straight
+connection from its marker cannot cross another label. Longer titles can move
+the labels outward without changing the compact ring. Measure both normal and
+selected titles, including space for the checkmark and submenu indicator.
+Store marker positions and connection endpoints in the immutable layout; the
+view draws those values without recalculating geometry.
+
+In Selected message, separate labels clear the central rectangle and one
+another, while retaining their angular order. Calculate the window from all
+visible bounds, including decorative geometry. No style may clip content or
+silently shrink text to fit a screen. An unsupported size must
 produce an explicit layout failure. Native rendering checks supplement pure
 geometry tests; neither character counts nor estimated text widths prove fit.
 

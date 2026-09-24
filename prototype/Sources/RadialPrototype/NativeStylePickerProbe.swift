@@ -10,7 +10,7 @@ import RadialRuntime
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
         try await probe.wait("diagnostics window") { window.isKeyWindow }
-        for style in [original == .pie ? .selectedMessage : .pie, original] {
+        for style in RadialCore.MenuStyle.allCases.filter({ $0 != original }) + [original] {
             try await Task.sleep(for: .milliseconds(30))
             guard let content = window.contentView else { throw ProbeFailure("Missing diagnostics content") }
             let nodes = NativeAccessibility.elements(in: content)

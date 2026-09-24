@@ -10,10 +10,12 @@ labels, full titles, and descriptions. More commands opens the color menu.
 These choices only report values; the described actions do not execute.
 This is a separate Swift package; it does not import the original app.
 
-Use the **Menu style** dropdown in diagnostics to choose **Selected message**
-or **Pie wedges**. Selected message displays short labels around a ring and
-the selected item's full text in the center. Pie wedges display the short
-labels inside sectors. Both styles use the same content, item order,
+Use the **Menu style** dropdown in diagnostics to choose **Full labels**,
+**Selected message**, or **Pie wedges**. Full labels implements design 1:
+complete titles surround a compact ring, with a line connecting each title
+to its controller direction. Selected message displays short labels around a
+ring and the selected item's full text in the center. Pie wedges display the
+short labels inside sectors. All three styles use the same content, item order,
 navigation, and results. Style changes apply on the next opening and remain in
 memory until quitting. A submenu retains the style of its current interaction.
 See [menu style behavior and validation](MENU_STYLES.md) for details.
@@ -41,6 +43,8 @@ From the repository root:
 ./prototype/scripts/test.sh
 ./prototype/scripts/run.sh
 ```
+
+To start with design 1 selected, use `./prototype/scripts/run.sh --full-labels`.
 
 The run script builds an app bundle, signs it locally with an ad hoc signature,
 and opens its diagnostics window. The menu bar icon provides Open menu, Show
@@ -275,14 +279,16 @@ To reproduce layout validation across item counts and label profiles, run:
 ```sh
 ./prototype/scripts/layout-test.sh
 ./prototype/scripts/layout-test.sh --selected-message
+./prototype/scripts/layout-test.sh --full-labels
 ```
 
-The first command checks 64 pie fixtures; the second checks 66 selected-message
-fixtures, including the richer demo at two text sizes. They capture native
-renderings, check keyboard interaction, and
-validates measured label rectangles against each menu's calculated geometry.
-It also checks native pointer selection and clicking beyond the original ring,
-and injects an undersized screen observation to verify failure before display.
+The commands check 64 pie, 66 selected-message, and 68 full-label fixtures.
+The latter two include the richer demo at two text sizes. Full labels also
+checks titles at the 160-character limit. The probes capture native renderings,
+check keyboard interaction, and validate measured label rectangles against
+each menu's calculated geometry. They also check native pointer selection
+and clicking beyond the original ring, and inject an undersized screen
+observation to verify failure before display.
 The normal prototype must be closed. See
 [LAYOUT_VALIDATION.md](LAYOUT_VALIDATION.md) for observed results.
 
@@ -292,6 +298,7 @@ instance closed:
 ```sh
 ./prototype/scripts/smoke-test.sh
 ./prototype/scripts/smoke-test.sh --selected-message
+./prototype/scripts/smoke-test.sh --full-labels
 ./prototype/scripts/lifecycle-test.sh
 ```
 
@@ -333,11 +340,12 @@ actual-frame acknowledgments, screen changes, and subscription cleanup.
 The test script also runs the Python recording verifier's positive and
 negative fixtures.
 
-For the new layout, open the default demo, select each direction, and check
-that its full message appears without shifting the labels. Use Confirm to
-choose an item, and More commands to enter the color menu. Repeat after
-choosing Pie wedges in diagnostics. Confirm is the bottom button labeled B
-on the GuliKit; Back is the right button labeled A.
+For Full labels, open the demo and check that every full title is visible.
+Select each direction: its label, connection, and ring marker should highlight
+together without moving. Use Confirm to choose an item, and Browse saved
+commands and shortcuts to enter the color menu. Change the dropdown and reopen
+to compare the other styles. Confirm is the bottom button labeled B on the
+GuliKit; Back is the right button labeled A.
 
 For the color regression test, run with `--color-demo`, use Menu, hold the
 stick up, and press Confirm to choose Red. Then open again, hold left and

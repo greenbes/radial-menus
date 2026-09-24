@@ -101,7 +101,7 @@ final class MenuStyleTests: XCTestCase {
         for values in invalid {
             XCTAssertThrowsError(try MenuLayout.make(menu: menu, measurements: MenuMeasurements(
                 fontSize: 17, wrappingWidth: 150, labels: TestPresentation.measurements(menu).labels,
-                content: .messages(wrappingWidth: 300, states: values))))
+                content: .messages(wrappingWidth: 300, states: values), style: .selectedMessage)))
         }
     }
 
@@ -111,7 +111,7 @@ final class MenuStyleTests: XCTestCase {
             labels: menu.items.map { LabelMeasurement(itemID: $0.id, normal: Size(width: 300, height: 160), selected: Size(width: 300, height: 160)) },
             content: .messages(wrappingWidth: 600, states: MenuMessage.all(in: menu).map {
                 MessageMeasurement(itemID: $0.itemID, size: Size(width: 600, height: 380))
-            }))
+            }), style: .selectedMessage)
         let layout = try MenuLayout.make(menu: menu, measurements: measured)
         XCTAssertLessThan(layout.diameter, 1410)
         XCTAssertLessThan(layout.diameter, layout.outerRadius * 2)
@@ -128,7 +128,7 @@ final class MenuStyleTests: XCTestCase {
             MessageMeasurement(itemID: message.itemID, size: Size(width: 300, height: index == 2 ? 280 : 100))
         }
         return MenuMeasurements(fontSize: 17, wrappingWidth: 150, labels: TestPresentation.measurements(menu).labels,
-                                content: .messages(wrappingWidth: 300, states: states))
+                                content: .messages(wrappingWidth: 300, states: states), style: .selectedMessage)
     }
 
     private func prepared(_ model: Model) -> Model {

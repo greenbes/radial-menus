@@ -13,14 +13,33 @@ public struct MenuItemLabel: View {
     }
 
     public var body: some View {
-        VStack(spacing: 4) {
-            Text(item.label).font(.system(size: fontSize, weight: selected ? .bold : .medium))
-            if case .menu = item.destination {
-                Image(systemName: "chevron.right").font(.system(size: fontSize * 0.7))
+        if style == .fullLabels {
+            HStack(spacing: fontSize * 0.5) {
+                Text(item.title)
+                    .font(.system(size: fontSize, weight: selected ? .bold : .medium))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Image(systemName: selected ? "checkmark" : "chevron.right")
+                    .font(.system(size: fontSize * 0.8, weight: .semibold))
+                    .frame(width: fontSize)
+                    .opacity(selected || isSubmenu ? 1 : 0)
+                    .accessibilityHidden(true)
             }
+            .multilineTextAlignment(.leading)
+            .padding(fontSize * 0.7)
+        } else {
+            VStack(spacing: 4) {
+                Text(item.label).font(.system(size: fontSize, weight: selected ? .bold : .medium))
+                if case .menu = item.destination {
+                    Image(systemName: "chevron.right").font(.system(size: fontSize * 0.7))
+                }
+            }
+            .multilineTextAlignment(.center)
+            .padding(style == .selectedMessage ? fontSize * 0.6 : 0)
         }
-        .multilineTextAlignment(.center)
-        .padding(style == .selectedMessage ? fontSize * 0.6 : 0)
+    }
+
+    private var isSubmenu: Bool {
+        if case .menu = item.destination { true } else { false }
     }
 }
 

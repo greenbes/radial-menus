@@ -103,6 +103,15 @@ import RadialUI
                 throw ProbeFailure("Clicking message text activated or cancelled the menu")
             }
         }
+        if let guide = layout.directionGuide {
+            let marker = guide.connections[0].marker
+            store.send(.select(scope, "item-0", .keyboard))
+            try await probe.click(x: marker.x, y: marker.y)
+            try await probe.mouse(at: probe.screenPoint(x: marker.x + 1, y: marker.y))
+            guard store.model.phase.isActive, store.outputs.isEmpty, store.view.selectedID == "item-0" else {
+                throw ProbeFailure("The decorative direction marker activated or cancelled an item")
+            }
+        }
         try await probe.click(x: 0, y: -layout.labelRadius)
         try await probe.wait("expanded native click") { store.model.phase == .idle }
         guard store.outputs == [.completed(scope.session, .selected(Choice(menuPath: ["root"], itemID: "item-0", value: "value-0")))] else {
@@ -139,7 +148,8 @@ import RadialUI
         }
         return ["nativeBackAndCancel": true, "styleSwitching": true, "nativeStylePicker": true, "expandedPointerAndClick": true, "expandedLabelRadius": layout.labelRadius,
                 "smallScreenFailure": true, "smallScreenObservationInjected": true,
-                "messageTextIsNotAButton": style == .selectedMessage]
+                "messageTextIsNotAButton": style == .selectedMessage,
+                "directionGuideIsNotAButton": style == .fullLabels]
     }
 
     private static func checkNavigationControls(style: RadialCore.MenuStyle, directory: URL) async throws {
@@ -189,13 +199,17 @@ import RadialUI
             }
             let width = measurements.map(\.width).max()!, height = measurements.map(\.height).max()!
             let rectangle = layout.labels[index].bounds
-            labels.append(["id": item.id, "label": item.label, "measured": [width, height],
+            labels.append(["id": item.id, "label": item.label, "title": item.title, "measured": [width, height],
                            "rectangle": [rectangle.x, rectangle.y, rectangle.width, rectangle.height],
                            "normal": [measurements[0].width, measurements[0].height],
                            "selected": [measurements[1].width, measurements[1].height]])
         }
         var messages: [[String: Any]] = []
         var navigationFrame: NSRect?
+        if layout.style == .fullLabels {
+            try await Task.sleep(for: .milliseconds(30))
+            navigationFrame = try NativeFullLabelProbe.check(store: store, panel: panel, navigationFrame: nil)
+        }
         if layout.style == .selectedMessage {
             for id in [nil] + items.map({ Optional($0.id) }) {
                 guard let scope = store.view.scope else { throw ProbeFailure("Missing message scope") }
@@ -243,22 +257,34 @@ import RadialUI
                   store.view.layout == layout, panel.frame == originalFrame else {
                 throw ProbeFailure("Selection changed layout or displayed the wrong message")
             }
+            if layout.style == .fullLabels {
+                try await Task.sleep(for: .milliseconds(30))
+                navigationFrame = try NativeFullLabelProbe.check(store: store, panel: panel, navigationFrame: navigationFrame)
+            }
         }
         guard steps == items.count else { throw ProbeFailure("Keyboard did not traverse the complete fixture") }
         store.onTransition = nil
         guard let placement = panel.currentPlacement else { throw ProbeFailure("Missing native placement") }
         let center = NSHostingController(rootView: MenuCenterLabel(canGoBack: store.view.canGoBack,
             fontSize: layout.fontSize).fixedSize()).sizeThatFits(in: NSSize(width: 10000, height: 10000))
-        return ["name": name, "style": layout.style.rawValue,
+        let guide: [String: Any] = layout.directionGuide.map { guide in
+            ["radius": guide.radius, "markerRadius": guide.markerRadius,
+             "connections": guide.connections.map {
+                 ["id": $0.itemID, "marker": [$0.marker.x, $0.marker.y], "labelEdge": [$0.labelEdge.x, $0.labelEdge.y]] as [String: Any]
+             }]
+        } ?? [:]
+        return ["name": name, "style": layout.style.rawValue, "directionGuide": guide,
                 "messages": messages, "stableSelectionLayout": true,
                 "nativeMessageTextVerified": layout.style == .selectedMessage,
-                "stableNavigationControl": layout.style == .selectedMessage,
+                "stableNavigationControl": layout.style != .pie,
+                "nativeFullTitleTextVerified": layout.style == .fullLabels,
+                "nativeLabelFramesVerified": layout.style == .fullLabels,
                 "centerBounds": [layout.centerBounds.x, layout.centerBounds.y, layout.centerBounds.width, layout.centerBounds.height], "count": items.count, "labels": labels,
                 "geometry": ["innerRadius": layout.innerRadius, "outerRadius": layout.outerRadius,
                              "diameter": layout.diameter, "labelRadius": layout.labelRadius,
                              "labelWidth": layout.wrappingWidth, "fontSize": layout.fontSize,
                              "centerRadius": layout.centerRadius],
-                "centerMeasured": layout.style == .pie ? [center.width, center.height] : [layout.centerBounds.width, layout.centerBounds.height],
+                "centerMeasured": layout.style != .selectedMessage ? [center.width, center.height] : [layout.centerBounds.width, layout.centerBounds.height],
                 "keyboardSteps": steps,
                 "backingScale": panel.content?.window?.backingScaleFactor ?? 0,
                 "frame": [placement.frame.x, placement.frame.y, placement.frame.width, placement.frame.height],

@@ -1,10 +1,11 @@
 /// Presentation is chosen independently of a menu's content and destinations.
 public enum MenuStyle: String, CaseIterable, Equatable, Sendable {
-    case pie, selectedMessage
+    case pie, fullLabels, selectedMessage
 
     public var title: String {
         switch self {
         case .pie: "Pie wedges"
+        case .fullLabels: "Full labels"
         case .selectedMessage: "Selected message"
         }
     }

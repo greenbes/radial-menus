@@ -14,7 +14,12 @@ import RadialUI
     }
 
     func measure(menu: RadialCore.Menu, canGoBack: Bool, style: RadialCore.MenuStyle) throws -> MenuMeasurements {
-        let labelWidth = style == .pie ? wrappingWidth : 150 * fontSize / 17
+        let labelWidth: Double
+        switch style {
+        case .pie: labelWidth = wrappingWidth
+        case .fullLabels: labelWidth = 226 * fontSize / 17
+        case .selectedMessage: labelWidth = 150 * fontSize / 17
+        }
         let labels = menu.items.map { item in
             @MainActor func size(selected: Bool) -> RadialCore.Size {
                 measureView(MenuItemLabel(item: item, selected: selected, fontSize: fontSize, style: style)
@@ -29,10 +34,10 @@ import RadialUI
                     size: measureView(MenuMessageCard(message: message, canGoBack: canGoBack, fontSize: fontSize), width: width))
             }
             return MenuMeasurements(fontSize: fontSize, wrappingWidth: labelWidth, labels: labels,
-                                    content: .messages(wrappingWidth: width, states: messages))
+                                    content: .messages(wrappingWidth: width, states: messages), style: style)
         }
         let center = measureView(MenuCenterLabel(canGoBack: canGoBack, fontSize: fontSize).fixedSize(), width: 10000)
-        return MenuMeasurements(fontSize: fontSize, wrappingWidth: wrappingWidth, labels: labels, center: center)
+        return MenuMeasurements(fontSize: fontSize, wrappingWidth: labelWidth, labels: labels, center: center, style: style)
     }
 
     private func measureView<V: View>(_ view: V, width: Double) -> RadialCore.Size {

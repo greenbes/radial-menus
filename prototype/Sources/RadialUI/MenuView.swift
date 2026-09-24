@@ -19,6 +19,10 @@ import RadialCore
 
     private func menu(_ layout: MenuLayout) -> some View {
         ZStack {
+            if let guide = layout.directionGuide {
+                MenuDirectionGuide(guide: guide, diameter: layout.diameter, selectedID: model.selectedID)
+                    .allowsHitTesting(false).accessibilityHidden(true)
+            }
             if layout.style == .selectedMessage {
                 Circle().stroke(Color(nsColor: .windowBackgroundColor).opacity(0.8), lineWidth: 2)
                     .frame(width: layout.labelRadius * 2, height: layout.labelRadius * 2)
@@ -79,7 +83,7 @@ import RadialCore
         let bounds = layout.labels[index].bounds
         let shape = Wedge(sector: layout.sectors[index], fullCircle: model.items.count == 1,
                           outer: layout.outerRadius, inner: layout.innerRadius)
-        return Button {
+        let button = Button {
             emit { .activate($0, item.id, .pointer) }
         } label: {
             if layout.style == .pie {
@@ -108,12 +112,20 @@ import RadialCore
             }
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(item.title)
         .accessibilityValue(selected ? "Selected" : "")
         .accessibilityAddTraits(selected ? .isSelected : [])
         .accessibilityHint([item.detail, hint(for: item)].filter { !$0.isEmpty }.joined(separator: ". "))
         .accessibilityFocused($accessibleItem, equals: item.id)
         .accessibilityAction { emit { .activate($0, item.id, .accessibility) } }
+        return Group {
+            if layout.style == .fullLabels {
+                // The full title is already visible. Let SwiftUI derive the
+                // accessible name from that text, with decorative icons hidden.
+                button
+            } else {
+                button.accessibilityLabel(item.title)
+            }
+        }
     }
 
     private func back() { emit { model.canGoBack ? .back($0) : .cancel($0, .user) } }

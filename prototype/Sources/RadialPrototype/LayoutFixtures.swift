@@ -35,9 +35,20 @@ struct LayoutFixture {
             Item(id: "more", label: "Open recent documents", menu: child),
             Item(id: "done", label: "Done", value: "done")
         ])))
-        if style == .selectedMessage {
+        if style != .pie {
             fixtures.append(Self(name: "rich", menu: DemoMenu.definition))
             fixtures.append(Self(name: "large-type-rich", menu: DemoMenu.definition, fontSize: 34))
+        }
+        if style == .fullLabels {
+            for (name, count, title) in [
+                ("6-full-title", 6, String(String(repeating: "Open recent documents in the research workspace. ", count: 4).prefix(160))),
+                ("4-unicode-title", 4, String(repeating: "界", count: 160))
+            ] {
+                let menu = try Menu(id: "root", title: "Full title limits", items: (0..<count).map {
+                    Item(id: "item-\($0)", label: "Short \($0)", title: title, value: "value-\($0)")
+                })
+                fixtures.append(Self(name: name, menu: menu))
+            }
         }
         return fixtures
     }
