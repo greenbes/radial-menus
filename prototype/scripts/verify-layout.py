@@ -234,16 +234,40 @@ def check_fixture(fixture):
                ("stableSelectionLayout", "stableNavigationControl", "nativeMessageTextVerified", "nativeLabelFramesVerified")):
             raise ValueError("Missing stable layout or native message text evidence")
         cx, cy, cw, ch = numbers(fixture["centerBounds"], 4)
-        if min(cw, ch) <= 0 or [cx, cy] != [-cw / 2, -ch / 2] or [cw, ch] != center:
+        if min(cw, ch) <= 0 or cx != -cw / 2 or [cw, ch] != center:
             raise ValueError("Invalid central message bounds")
-        d = geometry["diameter"]
-        if not contained([cx, cy, cw, ch], [-d / 2, -d / 2, d, d]):
+        radius = geometry["labelRadius"]
+        if not radius / 3 - EPSILON <= cy + ch / 2 <= 2 * radius / 3 + EPSILON:
+            issues.append({"kind": "messageOutsideLowerThird"})
+        if not contained([cx, cy, cw, ch], [-window_size[0] / 2, -window_size[1] / 2, *window_size]):
             issues.append({"kind": "centerOutsidePanel"})
+        back = fixture["messageBackBounds"]
+        if (back is not None) != fixture["canGoBack"]:
+            raise ValueError("Back control does not match menu depth")
+        if back is not None:
+            bx, by, bw, bh = numbers(back, 4)
+            if min(bw, bh) <= 0 or bx != -bw / 2:
+                raise ValueError("Invalid message Back control")
+            if abs(by - cy - ch - geometry["fontSize"] * 0.65) > EPSILON:
+                issues.append({"kind": "backNotBelowCard"})
+        for box in [fixture["centerBounds"]] + ([back] if back is not None else []):
+            x, y, w, h = box
+            if any(math.hypot(xx, yy) > radius - 8 + EPSILON
+                   for xx, yy in itertools.product((x, x + w), (y, y + h))):
+                issues.append({"kind": "messageContentOutsideRing"})
         messages = fixture["messages"]
         expected = {None} | {label["id"] for label in labels}
         if len(messages) != len(expected) or {m["id"] for m in messages} != expected:
             raise ValueError("Missing or duplicated message measurements")
         for message in messages:
+            actual_card = numbers(message["cardBounds"], 4)
+            if any(abs(a - b) >= 1 for a, b in zip(actual_card, fixture["centerBounds"])):
+                issues.append({"kind": "nativeCardPositionMismatch", "item": message["id"]})
+            actual_back = message["backBounds"]
+            if (actual_back is None) != (back is None):
+                raise ValueError("Missing or unexpected native Back control")
+            if back is not None and any(abs(a - b) >= 1 for a, b in zip(numbers(actual_back, 4), back)):
+                issues.append({"kind": "nativeBackPositionMismatch", "item": message["id"]})
             w, h = numbers(message["measured"], 2)
             if min(w, h) <= 0:
                 raise ValueError("Invalid message measurement")

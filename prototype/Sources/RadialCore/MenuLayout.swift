@@ -27,7 +27,7 @@ public struct MenuMeasurements: Equatable, Sendable {
     public enum Center: Equatable, Sendable {
         case empty
         case control(Size)
-        case messages(wrappingWidth: Double, states: [MessageMeasurement])
+        case messages(wrappingWidth: Double, states: [MessageMeasurement], back: Size? = nil)
     }
     public let fontSize: Double
     public let wrappingWidth: Double
@@ -36,34 +36,42 @@ public struct MenuMeasurements: Equatable, Sendable {
     public let style: MenuStyle
     public let icons: [LabelMeasurement]
     public let context: [ContextMeasurement]
+    public let choices: ChoiceListMeasurements?
     public init(fontSize: Double, wrappingWidth: Double, labels: [LabelMeasurement], center: Size, style: MenuStyle = .pie) {
         self.init(fontSize: fontSize, wrappingWidth: wrappingWidth, labels: labels, content: .control(center), style: style)
     }
     public init(fontSize: Double, wrappingWidth: Double, labels: [LabelMeasurement], content: Center, style: MenuStyle,
-                icons: [LabelMeasurement] = [], context: [ContextMeasurement] = []) {
+                icons: [LabelMeasurement] = [], context: [ContextMeasurement] = [], choices: ChoiceListMeasurements? = nil) {
         self.fontSize = fontSize; self.wrappingWidth = wrappingWidth
         self.labels = labels; self.center = content; self.style = style
         self.icons = icons
         self.context = context
+        self.choices = choices
     }
 
     func centerSize(for menu: Menu) throws -> Size {
         switch center {
         case .empty:
-            guard style.hasEmptyCenter else { throw LayoutFailure.invalidMeasurements }
+            guard style.hasEmptyCenter, !style.showsMessageCard else { throw LayoutFailure.invalidMeasurements }
             return Size(width: 0, height: 0)
         case .control(let size):
-            guard style != .selectedMessage, !style.hasEmptyCenter, size.isValid else { throw LayoutFailure.invalidMeasurements }
+            guard !style.showsMessageCard, !style.hasEmptyCenter, size.isValid else { throw LayoutFailure.invalidMeasurements }
             return size
-        case .messages(let width, let states):
+        case .messages(let width, let states, let back):
             let expected = Set([nil] + menu.items.map { Optional($0.id) })
-            guard style == .selectedMessage, width.isFinite, width > 0, states.count == expected.count,
+            guard style.showsMessageCard, width.isFinite, width > 0, states.count == expected.count,
                   Set(states.map(\.itemID)) == expected,
-                  states.allSatisfy({ $0.size.isValid && $0.size.width <= width }) else {
+                  states.allSatisfy({ $0.size.isValid && $0.size.width <= width }),
+                  back?.isValid ?? true else {
                 throw LayoutFailure.invalidMeasurements
             }
             return Size(width: width, height: states.map(\.size.height).max()!)
         }
+    }
+
+    var messageBackSize: Size? {
+        if case .messages(_, _, let back) = center { return back }
+        return nil
     }
 }
 
@@ -129,6 +137,7 @@ public struct LabelLayout: Equatable, Sendable {
 public struct MenuLayout: Equatable, Sendable {
     public let style: MenuStyle
     public let centerBounds: Rect
+    public let messageBackBounds: Rect?
     public let fontSize: Double
     public let wrappingWidth: Double
     public let innerRadius: Double
@@ -143,6 +152,8 @@ public struct MenuLayout: Equatable, Sendable {
     public let directionGuide: DirectionGuide?
     public let iconRing: IconRing?
     public let contextArcs: [ContextArcLayout]
+    public let ringCenter: Vector
+    public let choicePanel: ChoicePanelLayout?
     public var context: [ContextLabelLayout] { contextArcs.flatMap(\.labels) }
 
     public static func make(menu: Menu, measurements: MenuMeasurements,
@@ -165,9 +176,13 @@ public struct MenuLayout: Equatable, Sendable {
         }
         let sectors = Geometry.sectors(count: sizes.count)
         let gap = settings.contentPadding
-        guard measurements.style == .iconLabels || measurements.icons.isEmpty else { throw LayoutFailure.invalidMeasurements }
+        guard measurements.style.usesIconRing || measurements.icons.isEmpty else { throw LayoutFailure.invalidMeasurements }
         guard measurements.style == .recenteredFloatingLabels || (context.isEmpty && measurements.context.isEmpty) else {
             throw LayoutFailure.invalidMeasurements
+        }
+        if measurements.style == .iconLabelsCards {
+            return try IconCardsPlacement.make(menu: menu, measurements: measurements, sizes: sizes, card: centerSize, settings: settings)
+                .addingList(measurements.choices, menu: menu, settings: settings)
         }
         if measurements.style.usesFloatingLabels {
             let placed = TangentPlacement.make(items: menu.items, sizes: sizes,
@@ -182,21 +197,22 @@ public struct MenuLayout: Equatable, Sendable {
                 let r = label.bounds
                 return max(radius, ceil(hypot(max(abs(r.x), abs(r.x + r.width)), max(abs(r.y), abs(r.y + r.height))) + gap))
             }
-            return Self(style: measurements.style, centerBounds: Rect(x: 0, y: 0, width: 0, height: 0),
+            return try Self(style: measurements.style, centerBounds: Rect(x: 0, y: 0, width: 0, height: 0), messageBackBounds: nil,
                         fontSize: measurements.fontSize, wrappingWidth: measurements.wrappingWidth,
                         innerRadius: placed.radius, outerRadius: outer, labelRadius: placed.radius,
                         diameter: max(surrounding.size.width, surrounding.size.height), size: surrounding.size, centerRadius: 0,
-                        sectors: sectors, labels: placed.labels, directionGuide: nil, iconRing: nil, contextArcs: surrounding.arcs)
+                        sectors: sectors, labels: placed.labels, directionGuide: nil, iconRing: nil, contextArcs: surrounding.arcs,
+                        ringCenter: .zero, choicePanel: nil).addingList(measurements.choices, menu: menu, settings: settings)
         }
         let iconRing = measurements.style == .iconLabels
             ? try IconRing.make(menu: menu, measurements: measurements.icons, fontSize: measurements.fontSize, gap: gap) : nil
-        let centerRadius = measurements.style == .iconLabels ? 0 : max(settings.minimumInnerRadius - 4,
+        var centerRadius = measurements.style == .iconLabels ? 0 : max(settings.minimumInnerRadius - 4,
                                hypot(centerSize.width, centerSize.height) / 2 + gap)
         let markerRadius = 5 * measurements.fontSize / 17
         let guideRadius = max(74 * measurements.fontSize / 17, centerRadius + gap + markerRadius)
         let inner: Double
         switch measurements.style {
-        case .floatingLabels, .recenteredFloatingLabels: throw LayoutFailure.invalidMeasurements // Handled above.
+        case .floatingLabels, .recenteredFloatingLabels, .iconLabelsCards: throw LayoutFailure.invalidMeasurements // Handled above.
         case .pie: inner = centerRadius + 4
         case .fullLabels, .cards: inner = guideRadius + markerRadius
         case .iconLabels: inner = iconRing!.radius + iconRing!.badgeRadius
@@ -234,10 +250,26 @@ public struct MenuLayout: Equatable, Sendable {
         }
         // Enlarge the measured message/sector spacing by ten percent, then
         // place each rounded button outside the ring at its tangent direction.
+        let messageSpacing = measurements.fontSize * 0.65
+        let messageMinimum = measurements.style == .selectedMessage
+            ? MessagePlacement.minimumRadius(card: centerSize, back: measurements.messageBackSize,
+                spacing: messageSpacing, padding: gap) : 0
         let tangent = measurements.style == .selectedMessage
             ? TangentPlacement.make(items: menu.items, sizes: sizes, cornerRadius: 10,
-                minimumRadius: radius * 1.1, settings: settings) : nil
+                minimumRadius: max(radius * 1.1, messageMinimum), settings: settings) : nil
         if let tangent { radius = tangent.radius }
+        var centerBounds = Rect(x: -centerSize.width / 2, y: -centerSize.height / 2,
+                                width: centerSize.width, height: centerSize.height)
+        var messageBackBounds: Rect?
+        if measurements.style == .selectedMessage {
+            guard let position = MessagePlacement.make(card: centerSize, back: measurements.messageBackSize,
+                radius: radius, spacing: messageSpacing, padding: gap) else { throw LayoutFailure.invalidMeasurements }
+            centerBounds = position.card
+            messageBackBounds = position.back
+            centerRadius = ([position.card] + [position.back].compactMap { $0 }).reduce(0) { result, bounds in
+                max(result, hypot(bounds.width / 2, bounds.y + bounds.height) + gap)
+            }
+        }
         var outer = max(settings.minimumOuterRadius, centerRadius + 4, tangent?.outerRadius ?? 0)
         let labels = tangent?.labels ?? zip(menu.items.indices, sizes).map { index, size -> LabelLayout in
             let center = Vector(x: sin(sectors[index].center) * radius, y: -cos(sectors[index].center) * radius)
@@ -264,15 +296,14 @@ public struct MenuLayout: Equatable, Sendable {
         guard [radius, inner, outer, diameter].allSatisfy(\.isFinite), outer > inner else {
             throw LayoutFailure.invalidMeasurements
         }
-        return Self(style: measurements.style,
-                    centerBounds: Rect(x: -centerSize.width / 2, y: -centerSize.height / 2,
-                                       width: centerSize.width, height: centerSize.height),
+        return try Self(style: measurements.style, centerBounds: centerBounds, messageBackBounds: messageBackBounds,
                     fontSize: measurements.fontSize, wrappingWidth: measurements.wrappingWidth,
                     innerRadius: inner, outerRadius: outer, labelRadius: radius, diameter: diameter, size: size,
                     centerRadius: centerRadius, sectors: sectors, labels: labels,
                     directionGuide: measurements.style.usesDirectionGuide
                         ? DirectionGuide.make(radius: guideRadius, markerRadius: markerRadius, sectors: sectors, labels: labels) : nil,
-                    iconRing: iconRing, contextArcs: [])
+                    iconRing: iconRing, contextArcs: [], ringCenter: .zero, choicePanel: nil)
+            .addingList(measurements.choices, menu: menu, settings: settings)
     }
 
     public func placement(in screen: ScreenContext) throws -> Placement {
@@ -296,6 +327,6 @@ public struct MenuLayout: Equatable, Sendable {
                 return point.x >= r.x && point.x <= r.x + r.width && point.y >= r.y && point.y <= r.y + r.height
             }
         }
-        return Geometry.hit(point, inner: innerRadius, outer: outerRadius, count: sectors.count)
+        return Geometry.hit(Vector(x: point.x - ringCenter.x, y: point.y - ringCenter.y), inner: innerRadius, outer: outerRadius, count: sectors.count)
     }
 }

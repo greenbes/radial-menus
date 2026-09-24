@@ -59,13 +59,21 @@ public struct Session: Equatable, Sendable {
     public let selection: Selection?
     public let owner: ConnectionID?
     public let layout: MenuLayout?
+    public let choiceID: String?
+    public let browsingChoices: Bool
     public var menu: Menu { path[path.count - 1] }
-    init(scope: InputScope, path: [Menu], selection: Selection?, owner: ConnectionID?, layout: MenuLayout? = nil, style: MenuStyle = .pie) {
+    init(scope: InputScope, path: [Menu], selection: Selection?, owner: ConnectionID?, layout: MenuLayout? = nil, style: MenuStyle = .pie,
+         choiceID: String? = nil, browsingChoices: Bool = false) {
         self.scope = scope; self.path = path; self.selection = selection; self.owner = owner; self.layout = layout; self.style = style
+        self.choiceID = choiceID; self.browsingChoices = browsingChoices
     }
-    func selecting(_ value: Selection?) -> Self { Self(scope: scope, path: path, selection: value, owner: owner, layout: layout, style: style) }
-    func owned(by owner: ConnectionID) -> Self { Self(scope: scope, path: path, selection: selection, owner: owner, layout: layout, style: style) }
-    func prepared(_ layout: MenuLayout) -> Self { Self(scope: scope, path: path, selection: selection, owner: owner, layout: layout, style: style) }
+    func selecting(_ value: Selection?) -> Self {
+        Self(scope: scope, path: path, selection: value, owner: owner, layout: layout, style: style,
+             choiceID: value?.itemID == selection?.itemID ? choiceID : nil,
+             browsingChoices: value?.itemID == selection?.itemID && browsingChoices)
+    }
+    func owned(by owner: ConnectionID) -> Self { Self(scope: scope, path: path, selection: selection, owner: owner, layout: layout, style: style, choiceID: choiceID, browsingChoices: browsingChoices) }
+    func prepared(_ layout: MenuLayout) -> Self { Self(scope: scope, path: path, selection: selection, owner: owner, layout: layout, style: style, choiceID: choiceID, browsingChoices: browsingChoices) }
 }
 
 public enum Phase: Equatable, Sendable {
@@ -144,6 +152,7 @@ public enum Event: Equatable, Sendable {
     case setMenuStyle(MenuStyle)
     case select(InputScope, String?, SelectionSource), step(InputScope, Int)
     case activate(InputScope, String, SelectionSource), confirm(InputScope), back(InputScope)
+    case selectChoice(InputScope, item: String, choice: String)
     case cancel(InputScope, CancellationReason), focusLost(InputScope), layoutUnavailable(InputScope)
     case contentReady(InputScope), presented(OperationID), dismissed(OperationID), recovered(OperationID)
     case prepared(InputScope, OperationID, MenuMeasurements, ScreenContext)
@@ -183,6 +192,9 @@ public struct RenderModel: Equatable, Sendable {
     public let acceptsInput: Bool
     public let canGoBack: Bool
     public let context: [ContextEntry]
+    public let choices: ChoiceList?
+    public let selectedChoice: ListChoice?
+    public let browsingChoices: Bool
     public var message: MenuMessage { MenuMessage.make(title: title, items: items, selectedID: selectedID) }
 }
 
@@ -192,7 +204,9 @@ public func render(_ model: Model) -> RenderModel {
     return RenderModel(scope: session?.scope, title: session?.menu.title ?? "Radial Menu",
                        items: items, layout: session?.layout,
                        selectedID: session?.selection?.itemID, acceptsInput: model.phase.isActive,
-                       canGoBack: (session?.path.count ?? 0) > 1, context: session?.presentation.context ?? [])
+                       canGoBack: (session?.path.count ?? 0) > 1, context: session?.presentation.context ?? [],
+                       choices: session?.choices, selectedChoice: session?.selectedChoice,
+                       browsingChoices: session?.browsingChoices ?? false)
 }
 
 public func subscriptions(_ model: Model) -> Set<Subscription> {

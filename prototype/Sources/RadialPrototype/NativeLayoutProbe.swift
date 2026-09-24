@@ -100,7 +100,7 @@ import RadialUI
             guard store.view.selectedID == nil else { throw ProbeFailure("Pointer on message did not clear pointer selection") }
             store.send(.select(scope, "item-0", .keyboard))
             let beforeClick = store.model.phase
-            try await probe.click(x: 0, y: -layout.centerBounds.height / 2 + layout.fontSize * 2)
+            try await probe.click(x: 0, y: layout.centerBounds.y + layout.fontSize * 2)
             // A following mouse event acts as an ordered barrier for the click events.
             try await probe.mouse(at: probe.screenPoint(x: 1, y: 0))
             guard store.model.phase == beforeClick, store.outputs.isEmpty else {
@@ -333,6 +333,13 @@ import RadialUI
                     throw ProbeFailure("Selected message still displays a Cancel button")
                 }
                 let message = store.view.message
+                guard let panelFrame = panel.frame,
+                      let cardFrame = elements.first(where: { $0.identifier == "selected-message-card" })?.frame else {
+                    throw ProbeFailure("Missing native message card frame")
+                }
+                func localBounds(_ frame: NSRect) -> [Double] {
+                    [frame.minX - panelFrame.midX, panelFrame.midY - frame.maxY, frame.width, frame.height]
+                }
                 let texts = elements.filter { $0.role == .staticText }.compactMap(\.text)
                 let counters = (1...items.count).map { "\($0) of \(items.count)" }
                 guard !texts.contains("Choose an item"), !texts.contains(where: counters.contains) else {
@@ -342,11 +349,12 @@ import RadialUI
                     throw ProbeFailure("Native message text differs from selection: \(texts)")
                 }
                 guard message.itemID == id else { throw ProbeFailure("Displayed message has the wrong identity") }
-                let host = NSHostingController(rootView: MenuMessageCard(message: message,
-                    canGoBack: store.view.canGoBack, fontSize: layout.fontSize))
+                let host = NSHostingController(rootView: MenuMessageCard(message: message, fontSize: layout.fontSize))
                 let size = host.sizeThatFits(in: NSSize(width: layout.centerBounds.width, height: 10000))
                 messages.append(["id": id as Any? ?? NSNull(), "measured": [size.width, size.height],
-                                 "title": message.title, "detail": message.detail])
+                                 "title": message.title, "detail": message.detail,
+                                 "cardBounds": localBounds(cardFrame),
+                                 "backBounds": navigationFrame.map(localBounds) as Any? ?? NSNull()])
                 if name == "rich" || name == "large-type-rich" {
                     try await Task.sleep(for: .milliseconds(30))
                     panel.content?.layoutSubtreeIfNeeded()
@@ -407,6 +415,8 @@ import RadialUI
                 "nativeCardTextVerified": layout.style == .cards,
                 "nativeLabelFramesVerified": layout.style.showsFullTitles || layout.style == .selectedMessage,
                 "centerBounds": [layout.centerBounds.x, layout.centerBounds.y, layout.centerBounds.width, layout.centerBounds.height], "count": items.count, "labels": labels,
+                "canGoBack": store.view.canGoBack,
+                "messageBackBounds": layout.messageBackBounds.map { [$0.x, $0.y, $0.width, $0.height] } as Any? ?? NSNull(),
                 "geometry": ["innerRadius": layout.innerRadius, "outerRadius": layout.outerRadius,
                              "diameter": layout.diameter, "windowSize": [layout.size.width, layout.size.height], "labelRadius": layout.labelRadius,
                              "labelWidth": layout.wrappingWidth, "fontSize": layout.fontSize,

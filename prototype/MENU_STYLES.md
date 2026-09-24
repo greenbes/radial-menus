@@ -8,7 +8,14 @@ highlights the title button, connection, and marker, and shows a checkmark.
 removes connecting lines, and leaves the center empty. Selection fills the icon
 badge and title button with the same accent color and adds a three-point white
 outline inside their bounds. There is no selection checkmark; submenu arrows
-remain visible. **Floating labels** puts the icon inside each title button,
+remain visible. **Labels with icons and cards** uses the same icon ring and
+selection treatment. Its label centers follow an oval with a vertical radius
+64% of its horizontal radius. Labels retain their normal text dimensions. A
+message card sits below every label, with Back below it. A scrolling list stays
+on the right, centered vertically on the ring. The window encloses the complete
+arrangement; an insufficient screen produces a layout failure rather than
+moving the list below the menu. **Floating labels** puts the icon inside each
+title button,
 leaves the center empty, and shows no ring or connections. Each button fits its
 wrapped text and touches an invisible circle at its controller direction.
 **Floating labels — recenter submenus** adds smaller labels for earlier menus
@@ -18,9 +25,10 @@ experiment; the ordinary Floating labels style remains available.
 radial cards. Selection adds
 a light tint, an accent outline, and a checkmark. **Selected message** shows
 short labels outside a ring, with each label's closest rounded boundary point
-tangent to it. Its center shows the selected item's full title and description
-without an item counter. Before selection, it shows the menu title and instructions
-without an extra heading. It has a Back button in submenus and no Cancel button
+tangent to it. A card in the lower third of the ring shows the selected item's
+full title and description without an item counter. Before selection, it shows
+the menu title and instructions without an extra heading. Submenus have a Back
+button centered below the card, outside its background. There is no Cancel button
 at the root. **Pie wedges** shows short labels inside sectors. The default demo
 uses Selected message and six illustrative workspace actions. Selecting an action
 reports its value; it does not perform the described operation.
@@ -30,6 +38,29 @@ its submenus, retains its original style. The preference remains in memory
 until quitting. The prototype does not persist settings between launches.
 
 ## Content and behavior
+
+An item may lead to a list of choices as well as a value or submenu. Each list
+is an immutable snapshot with a title and up to 256 uniquely identified rows.
+A row has a title, optional detail, and result value. Empty snapshots display
+an empty state and cannot produce a result. List content is independent of the
+selected style; every style reserves a panel on the right when needed.
+
+The core owns the selected category, selected row, and whether navigation is
+in the radial menu or list. Confirm first enters the list, then confirms a row.
+Back leaves the list before navigating to an earlier menu. Row navigation stops
+at either end. One vertical stick tilt advances one row; returning to neutral
+arms the next step. The directional pad and keyboard arrows also step rows.
+The selected category remains visible while the pointer crosses empty space
+to the list. Events include both the session scope and category identity, so a
+late row selection from another category cannot change the current list.
+
+Native measurement covers every row in both selection weights and every list
+header. Layout reserves the largest row and header sizes and a viewport showing
+four and a half rows. The final partial row and scrollbar indicate additional
+content. Selection never resizes the window. Scroll position belongs to the
+view, while row selection remains in the core; selecting an offscreen row
+scrolls it into view. Accessibility uses the actual scrolling descendants,
+including their current screen frames.
 
 An immutable item supplies its short label, full title, optional description, a
 semantic built-in icon, and destination. The view layer maps icons to SF
@@ -61,7 +92,10 @@ Before display, the native boundary measures normal and selected labels,
 including padding and submenu indicators. For Selected message it also measures
 every complete message and the neutral instructions at a common width. The core
 requires one measurement per item and one for the neutral state, then reserves
-the largest required height. Item bounds, the window, and any navigation button
+the largest required height. Back is measured separately and placed below that
+reserved rectangle. The card's center stays in the lower third, while all card
+and Back corners stay inside the ring with padding. The ring grows if needed to
+fit this arrangement. Item bounds, the window, and any navigation button
 remain fixed while selection changes.
 
 The geometry remains deterministic. Pie labels clear a circular center; both
@@ -158,9 +192,10 @@ Quit the running prototype first, then use an unlocked macOS desktop:
 ./prototype/scripts/context-test.sh
 ./prototype/scripts/smoke-test.sh --recentered-submenus
 ./prototype/scripts/lifecycle-test.sh
+./prototype/scripts/choices-test.sh
 ```
 
-The layout checks click all seven choices in the actual diagnostics window,
+The layout checks click all eight choices in the actual diagnostics window,
 reopen menus with the chosen style, and exercise native Back and Cancel buttons
 (Delete and Escape for Full labels with icons and Floating labels; Escape at the
 Selected message root). They also
@@ -171,10 +206,13 @@ opening adopts the preference.
 The selected-message matrix checks item counts 1 through 12, several label
 profiles, submenus, and requested text sizes of 17 and 34 points. It measures
 every central message, checks the displayed text through native accessibility
-accessors, verifies that the submenu Back control stays in place, and checks
+accessors, verifies that the card and separate submenu Back control stay in
+place, and checks
 that headings, counters, and the root Cancel button are absent. Native item
 bounds must match the rounded pointer targets; the independent verifier checks
-each label's closest point for tangency at its assigned direction. Real
+each label's closest point for tangency at its assigned direction. It also
+checks native card and Back frames against the lower-third placement and ring
+containment rules. Real
 app-local mouse events check label selection, activation, and inert message
 text. An injected 100-by-100 screen observation checks failure before display.
 

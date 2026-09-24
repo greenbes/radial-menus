@@ -2,17 +2,27 @@ import Foundation
 
 /// Built-in semantic symbols. The presentation layer chooses their artwork.
 public enum ItemIcon: String, CaseIterable, Equatable, Sendable {
-    case item, documents, workspace, writing, history, capture, commands, color
+    case item, documents, workspace, writing, history, capture, commands, color, terminal
 }
 
 public struct Item: Equatable, Sendable {
-    public enum Destination: Equatable, Sendable { case value(String), menu(Menu) }
+    public enum Destination: Equatable, Sendable { case value(String), menu(Menu), choices(ChoiceList) }
     public let id: String
     public let label: String
     public let title: String
     public let detail: String
     public let icon: ItemIcon
     public let destination: Destination
+
+    public var choices: ChoiceList? {
+        if case .choices(let list) = destination { return list }
+        return nil
+    }
+
+    public init(id: String, label: String, title: String? = nil, detail: String = "", icon: ItemIcon = .item, choices: ChoiceList) {
+        self.id = id; self.label = label; self.title = title ?? label; self.detail = detail
+        self.icon = icon; self.destination = .choices(choices)
+    }
 
     public init(id: String, label: String, title: String? = nil, detail: String = "", icon: ItemIcon = .item, value: String) {
         self.icon = icon

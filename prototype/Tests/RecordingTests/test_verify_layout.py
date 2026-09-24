@@ -80,12 +80,34 @@ class LayoutRecordingTests(unittest.TestCase):
     def test_selected_messages_must_include_neutral_and_every_item_and_fit(self):
         value = fixture()
         value.update(style="selectedMessage", stableSelectionLayout=True, stableNavigationControl=True,
-                     nativeMessageTextVerified=True, nativeLabelFramesVerified=True, centerBounds=[-18, -16, 36, 32],
-                     messages=[{"id": item_id, "measured": [36, 32]} for item_id in [None, "0", "1", "2", "3"]])
+                     nativeMessageTextVerified=True, nativeLabelFramesVerified=True, centerBounds=[-18, 50, 36, 32],
+                     canGoBack=False, messageBackBounds=None,
+                     messages=[{"id": item_id, "measured": [36, 32], "cardBounds": [-18, 50, 36, 32], "backBounds": None}
+                               for item_id in [None, "0", "1", "2", "3"]])
         for label, rectangle in zip(value["labels"], [[-10, -120, 20, 20], [100, -10, 20, 20],
                                                      [-10, 100, 20, 20], [-120, -10, 20, 20]]):
             label.update(rectangle=rectangle, cornerRadius=10)
         self.assertEqual(kinds(value), set())
+        shifted = copy.deepcopy(value)
+        shifted["centerBounds"][1] = -16
+        self.assertIn("messageOutsideLowerThird", kinds(shifted))
+        shifted = copy.deepcopy(value)
+        shifted["messages"][0]["cardBounds"][1] -= 10
+        self.assertIn("nativeCardPositionMismatch", kinds(shifted))
+        submenu = copy.deepcopy(value)
+        submenu.update(canGoBack=True, centerBounds=[-18, 24, 36, 32], messageBackBounds=[-15, 67.05, 30, 20])
+        for message in submenu["messages"]:
+            message.update(cardBounds=list(submenu["centerBounds"]), backBounds=list(submenu["messageBackBounds"]))
+        self.assertEqual(kinds(submenu), set())
+        shifted = copy.deepcopy(submenu)
+        shifted["messageBackBounds"][1] -= 15
+        self.assertIn("backNotBelowCard", kinds(shifted))
+        shifted = copy.deepcopy(submenu)
+        shifted["messages"][0]["backBounds"][1] -= 10
+        self.assertIn("nativeBackPositionMismatch", kinds(shifted))
+        shifted = copy.deepcopy(submenu)
+        shifted["messageBackBounds"][3] = 60
+        self.assertIn("messageContentOutsideRing", kinds(shifted))
         for shift in [-6, 6]:
             changed = copy.deepcopy(value)
             changed["labels"][0]["rectangle"][1] += shift

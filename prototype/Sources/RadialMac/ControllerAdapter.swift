@@ -149,6 +149,8 @@ import RadialRuntime
         if state.buttons[GCInputButtonMenu]?.pressedInput.isPressed == true { buttons.insert(.menu) }
         if state.dpads[GCInputDirectionPad]?.left.isPressed == true { buttons.insert(.previous) }
         if state.dpads[GCInputDirectionPad]?.right.isPressed == true { buttons.insert(.next) }
+        if state.dpads[GCInputDirectionPad]?.up.isPressed == true { buttons.insert(.previous) }
+        if state.dpads[GCInputDirectionPad]?.down.isPressed == true { buttons.insert(.next) }
         let stick = state.dpads[GCInputLeftThumbstick]
         let right = state.dpads[GCInputRightThumbstick]
         return ControllerFrame(sequence: sequence, timestamp: state.lastEventTimestamp,

@@ -1,6 +1,6 @@
 /// Presentation is chosen independently of a menu's content and destinations.
 public enum MenuStyle: String, CaseIterable, Equatable, Sendable {
-    case pie, fullLabels, iconLabels, floatingLabels, recenteredFloatingLabels, cards, selectedMessage
+    case pie, fullLabels, iconLabels, floatingLabels, recenteredFloatingLabels, cards, selectedMessage, iconLabelsCards
 
     public var title: String {
         switch self {
@@ -11,13 +11,16 @@ public enum MenuStyle: String, CaseIterable, Equatable, Sendable {
         case .recenteredFloatingLabels: "Floating labels — recenter submenus"
         case .cards: "Cards"
         case .selectedMessage: "Selected message"
+        case .iconLabelsCards: "Labels with icons and cards"
         }
     }
 
     public var usesDirectionGuide: Bool { self == .fullLabels || self == .cards }
     public var usesFloatingLabels: Bool { self == .floatingLabels || self == .recenteredFloatingLabels }
-    public var showsFullTitles: Bool { usesDirectionGuide || self == .iconLabels || usesFloatingLabels }
-    public var hasEmptyCenter: Bool { self == .iconLabels || usesFloatingLabels }
+    public var usesIconRing: Bool { self == .iconLabels || self == .iconLabelsCards }
+    public var showsMessageCard: Bool { self == .selectedMessage || self == .iconLabelsCards }
+    public var showsFullTitles: Bool { usesDirectionGuide || usesIconRing || usesFloatingLabels }
+    public var hasEmptyCenter: Bool { usesIconRing || usesFloatingLabels }
 }
 
 /// The same value supplies native measurement and rendering, including the

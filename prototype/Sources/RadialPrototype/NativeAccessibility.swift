@@ -13,6 +13,7 @@ import AppKit
             case .role: key = "accessibilityRole"
             case .title, .description: key = "accessibilityLabel"
             case .value: key = "accessibilityValue"
+            case .identifier: key = "accessibilityIdentifier"
             case .position, .size: key = "accessibilityFrame"
             default: return nil
             }
@@ -29,6 +30,7 @@ import AppKit
         }
         var label: String? { (attribute(.title) as? String) ?? (attribute(.description) as? String) }
         var text: String? { (attribute(.value) as? String) ?? label }
+        var identifier: String? { attribute(.identifier) as? String }
         var frame: NSRect? {
             guard let position = attribute(.position) as? NSValue, let size = attribute(.size) as? NSValue else { return nil }
             return NSRect(origin: position.pointValue, size: size.sizeValue)

@@ -220,7 +220,7 @@ submenu navigation. A preference change applies to the next interaction; it
 does not replace the geometry beneath an active pointer or stick selection.
 Preference persistence belongs to the application shell.
 
-Support six presentations of the same menu:
+Support these presentations of the same menu:
 
 - **Pie wedges:** short labels inside selectable sectors.
 - **Full labels:** complete titles in separate buttons outside a compact ring.
@@ -243,16 +243,23 @@ Support six presentations of the same menu:
   fills the button and thickens its outline, without adding a checkmark.
   Use the same navigation and accessibility actions as Full labels with icons.
   Clicking the embedded icon activates its item.
+- **Labels with icons and cards:** retain the circular icon ring and complete
+  labels of Full labels with icons. Place label centers on an oval whose
+  vertical radius is 64% of its horizontal radius; keep text and icons at their
+  measured sizes. Put the active item's message card below every label, with
+  Back below the card. Put a scrolling list to the right of all menu content,
+  centered vertically on the ring. Keep that relative placement at every
+  supported screen size; fail explicitly if the complete layout cannot fit.
 - **Cards:** complete titles and descriptions in separate radial cards. Use a
   light selection tint, an outline, and a checkmark. Connect each card to its
   direction marker, and keep Back or Cancel in the center. The whole card,
   including its description, activates that item.
 - **Selected message:** short labels outside a visible ring, with their closest
   rounded boundary points tangent to it. Show the selected item's full title
-  and description in the center, without an item counter. Before selection,
-  show the menu title and instructions without an extra heading.
-  Submenus have a separate Back control
-  in the center; the root has no Cancel control. Controller Back, keyboard
+  and description in a card in the ring's lower third, without an item counter.
+  Before selection, show the menu title and instructions without an extra heading.
+  Submenus have a separate Back control below the card; the root has no Cancel
+  control. Controller Back, keyboard
   Escape, and the named accessibility action remain available for cancellation.
 
 Decorative rings, separate icon badges, markers, connecting lines, and central
@@ -260,7 +267,26 @@ message text have no action. All styles return the same item identities and
 outcomes. Full labels shows every title simultaneously; Cards also shows every
 description.
 Descriptions remain available to accessibility in all styles, and appear
-visually for the current selection in Selected message.
+visually for the current selection in Selected message and Labels with icons
+and cards.
+
+An item can also lead to a finite list of choices. Represent the list as an
+immutable snapshot of identified rows, each containing display text and a
+result value. Obtaining live data belongs to the shell; presentation never
+launches a command or queries an external program. The same list content works
+with any menu style, reserving a panel to the right when present. Empty lists
+have an explicit empty state and cannot be confirmed.
+
+Keep row selection and navigation mode in the application model. Confirm enters
+the selected item's list before it can commit a row; Back leaves that list
+before navigating to a parent menu. Category activation must never accidentally
+commit the previously selected row. Validate each row event against the current
+session revision, category identity, and list contents. Preserve category
+selection while the pointer crosses the gap to its list. Row navigation stops
+at the first and last entries. Scroll position is local view state, derived
+as needed to reveal the selected row, and does not determine which value is
+committed. A committed result follows the existing dismissal and cleanup
+protocol.
 
 The immutable application model contains:
 
@@ -682,6 +708,17 @@ icon identities in the menu definition and platform artwork in the view layer.
 Store icon positions and badge dimensions in the immutable layout. Selection
 changes only their appearance.
 
+For Labels with icons and cards, solve spacing using the measured label
+rectangles along the oval. Keep every label clear of the ring and every other
+label. Reserve the maximum message height below the lowest label. Measure
+list headers and row content before presentation, including selected weights;
+reserve common row bounds and a fixed viewport. The list remains centered on
+the ring rather than on the complete window, which also contains the lower
+message card. Store the ring's offset from the window center explicitly when
+the list makes the window asymmetric. Pointer targets use the same translated
+coordinates as native rendering. Expose live scrolling elements to accessibility
+so their reported frames follow the actual scroll position.
+
 Floating labels use deterministic word wrapping before native measurement.
 Preserve explicit line breaks and whole words; measure the actual icon, wrapped
 text, submenu arrow, and padding at both weights. Reserve each item's maximum
@@ -711,7 +748,15 @@ card heights, long messages, and the selected font weight in native checks.
 In Selected message, separate labels clear the central rectangle and one
 another, while retaining their angular order. Calculate the radius from message
 clearance and sector spacing, increase it by 10%, and use the rounded tangency
-calculation to place the labels outside that ring. Rendering and pointer
+calculation to place the labels outside that ring. Measure the message card and
+Back control separately. Center the card horizontally, aiming its center at
+two-thirds of the radius below the ring center. Move it upward only enough to
+keep every corner of the card and the Back control inside the padded circle.
+The card's center must stay in the lower third: at least one-third of the radius
+below the ring center. Enlarge the ring if the measured content cannot fit at
+that position. Keep the complete message area and Back position fixed through
+selection changes. The upper area remains available for additional information.
+Rendering and pointer
 selection use the same rounded boundaries. Labels may cross sector boundaries;
 their tangent points preserve the controller directions. Calculate the window's
 width and height independently from all

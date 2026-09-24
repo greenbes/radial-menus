@@ -62,7 +62,10 @@ final class MenuStyleTests: XCTestCase {
         let observations = measurements(menu)
         let layout = try MenuLayout.make(menu: menu, measurements: observations)
         XCTAssertEqual(layout.style, .selectedMessage)
-        XCTAssertEqual(layout.centerBounds, Rect(x: -150, y: -140, width: 300, height: 280))
+        XCTAssertEqual(layout.centerBounds.x, -150)
+        XCTAssertEqual(layout.centerBounds.width, 300)
+        XCTAssertEqual(layout.centerBounds.height, 280)
+        XCTAssertGreaterThanOrEqual(layout.centerBounds.y + 140, layout.labelRadius / 3 - 1e-8)
         var model = prepared(update(Model(menu: menu, menuStyle: .selectedMessage), .open(nil)).model)
         for item in menu.items {
             model = update(model, .select(model.phase.session!.scope, item.id, .keyboard)).model

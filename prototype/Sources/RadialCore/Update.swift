@@ -65,10 +65,14 @@ struct Change {
         case .open(let owner): open(owner)
         case .select(let scope, let item, let source): select(scope, item, source)
         case .step(let scope, let direction): step(scope, direction)
+        case .selectChoice(let scope, let item, let choice): selectChoice(scope, item: item, choice: choice)
         case .activate(let scope, let item, let source):
             guard active(scope)?.menu.items.contains(where: { $0.id == item }) == true else { return }
             select(scope, item, source)
-            confirm(scope)
+            if let session = active(scope), session.choices != nil {
+                phase = .active(session.choosing(session.selectedChoice?.id, browsing: true))
+                effects.append(.baseline(scope))
+            } else { confirm(scope) }
         case .confirm(let scope): confirm(scope)
         case .back(let scope): back(scope)
         case .cancel(let scope, let reason): cancel(scope, reason)
@@ -149,12 +153,15 @@ struct Change {
     mutating func select(_ scope: InputScope, _ item: String?, _ source: SelectionSource) {
         guard let session = active(scope) else { return }
         if let item, !session.menu.items.contains(where: { $0.id == item }) { return }
+        // Preserve the chosen category while the pointer crosses the gap to its list.
+        if item == nil, session.choices != nil { return }
         if item == nil, session.selection?.source != source { return }
         phase = .active(session.selecting(item.map { Selection(itemID: $0, source: source) }))
     }
 
     mutating func step(_ scope: InputScope, _ direction: Int) {
         guard let session = active(scope), direction == 1 || direction == -1 else { return }
+        if session.browsingChoices { stepChoice(scope, direction); return }
         let count = session.menu.items.count
         let previous = session.menu.items.firstIndex { $0.id == session.selection?.itemID }
         let index = previous.map { ($0 + direction + count) % count } ?? (direction == 1 ? 0 : count - 1)
@@ -165,6 +172,14 @@ struct Change {
         guard let session = active(scope),
               let item = session.menu.items.first(where: { $0.id == session.selection?.itemID }) else { return }
         switch item.destination {
+        case .choices:
+            guard let choice = session.selectedChoice else { return }
+            if session.browsingChoices {
+                dismiss(session, .selected(Choice(menuPath: session.path.map(\.id), itemID: item.id, value: choice.value)))
+            } else {
+                phase = .active(session.choosing(choice.id, browsing: true))
+                effects.append(.baseline(scope))
+            }
         case .menu(let child): navigate(session, path: session.path + [child])
         case .value(let value):
             dismiss(session, .selected(Choice(menuPath: session.path.map(\.id), itemID: item.id, value: value)))
@@ -173,6 +188,11 @@ struct Change {
 
     mutating func back(_ scope: InputScope) {
         guard let session = active(scope) else { return }
+        if session.browsingChoices {
+            phase = .active(session.choosing(session.choiceID, browsing: false))
+            effects.append(.baseline(scope))
+            return
+        }
         if session.path.count > 1 { navigate(session, path: Array(session.path.dropLast())) }
         else { dismiss(session, .cancelled(.user)) }
     }

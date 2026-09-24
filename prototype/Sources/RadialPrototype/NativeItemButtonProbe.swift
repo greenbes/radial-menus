@@ -58,6 +58,14 @@ import RadialMac
         }
         let control = try NativeAccessibility.button(store.view.canGoBack ? "Back to parent menu" : "Cancel menu", in: content)
         guard let frame = control.frame else { throw ProbeFailure("Missing full-label navigation control") }
+        if layout.style == .selectedMessage {
+            guard let r = layout.messageBackBounds,
+                  abs(frame.minX - panelFrame.midX - r.x) < 1,
+                  abs(frame.minY - (panelFrame.midY - r.y - r.height)) < 1,
+                  abs(frame.width - r.width) < 1, abs(frame.height - r.height) < 1 else {
+                throw ProbeFailure("Native Back button differs from its bounds below the message: expected local \(String(describing: layout.messageBackBounds)), actual \(frame), panel \(panelFrame)")
+            }
+        }
         if let navigationFrame, navigationFrame != frame { throw ProbeFailure("Selection moved the central control") }
         return frame
     }

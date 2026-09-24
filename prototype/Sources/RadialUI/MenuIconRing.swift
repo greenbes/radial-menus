@@ -21,6 +21,7 @@ public struct MenuIconGlyph: View {
         case .capture: "viewfinder"
         case .commands: "square.grid.2x2"
         case .color: "paintpalette"
+        case .terminal: "terminal"
         }
     }
 
@@ -34,13 +35,14 @@ public struct MenuIconGlyph: View {
 struct MenuIconRing: View {
     let ring: IconRing
     let items: [Item]
-    let diameter: Double
+    let size: RadialCore.Size
+    let center: Vector
     let fontSize: Double
     let selectedID: String?
 
     var body: some View {
         Canvas { context, _ in
-            let origin = CGPoint(x: diameter / 2, y: diameter / 2)
+            let origin = CGPoint(x: size.width / 2 + center.x, y: size.height / 2 + center.y)
             let circle = CGRect(x: origin.x - ring.radius, y: origin.y - ring.radius,
                                 width: ring.radius * 2, height: ring.radius * 2)
             context.stroke(Path(ellipseIn: circle), with: .color(Color(nsColor: .windowBackgroundColor)), lineWidth: 2)
@@ -63,6 +65,6 @@ struct MenuIconRing: View {
                     .tag(item.id)
             }
         }
-        .frame(width: diameter, height: diameter)
+        .frame(width: size.width, height: size.height)
     }
 }

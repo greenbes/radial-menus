@@ -12,7 +12,7 @@ This is a separate Swift package; it does not import the original app.
 
 Use the **Menu style** dropdown in diagnostics to choose **Full labels**, **Full
 labels with icons**, **Floating labels**, **Floating labels — recenter submenus**,
-**Cards**, **Selected message**, or
+**Cards**, **Selected message**, **Labels with icons and cards**, or
 **Pie wedges**. Full labels implements design 1: complete titles surround a
 compact ring, with a line
 connecting each title to its controller direction. Full labels with icons places
@@ -36,6 +36,36 @@ styles use the same content, item order, navigation, and results. Style
 changes apply on the next opening and remain in memory until quitting. A submenu
 retains the style of its current interaction. See [menu style behavior and
 validation](MENU_STYLES.md) for details.
+
+**Labels with icons and cards** keeps a circular icon ring and arranges full
+labels on a vertically compressed oval. The active item's message card sits
+below the lowest label, with Back underneath. A vertically scrolling list stays
+to the right, centered on the ring. This layout never moves the list underneath
+the menu. Launch the sample choices with:
+
+```sh
+./prototype/scripts/run.sh --icon-labels-cards
+```
+
+The sample includes 16 TMUX sessions and choices for the other five workspace
+actions. These are illustrative snapshots; the prototype does not discover or
+attach to real TMUX sessions. The style dropdown remains available. Choice lists
+also appear beside the other styles when the menu contains list destinations.
+
+Select a radial label with the left stick, then press Confirm to enter its list.
+Use the directional pad or tilt the left stick vertically, releasing it between
+steps. Confirm chooses the highlighted row. Back returns to radial navigation;
+pressing it again goes to the parent menu or cancels at the root. The right stick
+continues to move the whole menu. Keyboard arrows follow the current navigation
+mode, Return confirms, Delete goes back, and Escape cancels. Clicking a label
+enters its list; clicking a row selects it, and **Choose** completes the choice.
+Scrolling alone does not change the selected row. The selected row scrolls into
+view during keyboard or controller navigation.
+
+Run `./prototype/scripts/choices-test.sh` for native dropdown, geometry,
+keyboard, pointer, scrolling, accessibility-frame, and cleanup checks. Quit the
+interactive prototype first. Physical controller testing and VoiceOver remain
+separate checks.
 
 The original color example remains available with `--color-demo`: Red at the
 top, Blue on the right, Green at the bottom, and More colors on the left.
@@ -113,9 +143,9 @@ does not create a distributable or notarized release.
 | Input | Behavior |
 | --- | --- |
 | Controller Menu | Open the menu, or cancel the current interaction |
-| Left stick | Select the item in that direction |
+| Left stick | Select a radial item, or step through list rows vertically |
 | Right stick | Move the menu across the connected displays |
-| D-pad left / right | Select the previous / next item |
+| D-pad left or up / right or down | Select the previous / next item or row |
 | Confirm button | Confirm the current selection |
 | Back button | Go back one menu, or cancel at the root |
 | Keyboard arrows | Select the previous / next item |
@@ -134,14 +164,18 @@ confirms, and the **right face button labeled A** goes back or cancels. macOS
 reports these as A and B respectively; the diagnostics window uses those
 macOS names. Printed labels can differ from the names reported by macOS.
 
-Keep the stick deflected while pressing Confirm. Returning the stick to its
-center clears a selection made by the stick. It does not clear a selection
-made with the keyboard, D-pad, pointer, or an accessibility action.
+For values and submenus, keep the stick deflected while pressing Confirm.
+Returning the stick to its center clears a selection made by the stick.
+Categories with lists stay selected on release so their choices remain visible.
+Release does not clear selections made with the keyboard, D-pad, pointer, or
+an accessibility action.
 
 Moving the mouse by at least two logical screen points takes selection from
 another input when the pointer is over an item. Smaller movements accumulate
 from the last accepted position. Leaving a selectable target clears only a
-selection made by the pointer. In Pie wedges, the targets are sectors; in the
+selection made by the pointer, except for a category with a list: its selection
+persists while the pointer crosses to the list. In Pie wedges, targets are
+sectors; in the
 other styles, they are the label or card buttons. Rings, separate icon badges,
 connecting lines, and central message text are not selectable. Icons inside
 Floating labels
@@ -219,8 +253,9 @@ Opening and navigation first enter a preparation phase. `SwiftUIMenuMeasurer`
 measures the shared label components at both font weights and measures the
 center control where present. Full labels with icons measures its native symbols
 in both selection states and supplies an explicitly empty center. For Selected
-message it measures every full message and the neutral instructions, including
-the Back button in submenus. Its center has no heading, item counter, or Cancel
+message it measures every full message and the neutral instructions, then
+measures the separate Back button for submenus. Its card has no heading, item
+counter, or Cancel
 button.
 The window adapter supplies those immutable sizes
 with every display's usable rectangle and the desired center point. It does not
@@ -242,6 +277,14 @@ it. Pointer targets follow the same rounded shapes. Its window encloses those
 rectangles and the guide circle with independent width and height. Labels may
 cross sector boundaries; the tangent points preserve their controller directions.
 Selection cannot resize the window or move the labels.
+
+The Selected message card sits in the lower third of the ring. Its preferred
+center is two-thirds of the radius below the ring center; it moves upward as
+needed to keep its full rectangle inside the ring. A submenu's Back button is
+centered below the card, separated by 0.65 times the font size. Both elements
+stay inside the circle with eight points of padding. If this would move the
+card's center above the lower third, the ring grows to fit. Card and Back bounds
+remain fixed while selection changes, leaving space above for future content.
 
 Layout starts with inner radius 46, outer radius 150, and label radius 100,
 then grows as needed. Content padding is 8 points, the center-to-ring gap is

@@ -80,6 +80,13 @@ import RadialUI
     private var shutdownProbe: ShutdownProbe?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if let path = argument("--choices-test") {
+            Task { @MainActor in
+                let passed = await NativeChoiceProbe.run(directory: URL(fileURLWithPath: path))
+                exit(passed ? 0 : 1)
+            }
+            return
+        }
         if let path = argument("--desktop-test") {
             Task { @MainActor in
                 let passed = await NativeDesktopProbe.run(directory: URL(fileURLWithPath: path),
@@ -118,7 +125,8 @@ import RadialUI
         }
         let window: any WindowDriver = shutdownProbe ?? panel
         let usesColors = argument("--smoke-test") != nil || shutdownProbe != nil || CommandLine.arguments.contains("--color-demo")
-        let demo = CommandLine.arguments.contains("--submenu-demo") ? SubmenuDemo.definition : DemoMenu.definition
+        let demo = (CommandLine.arguments.contains("--choices-demo") || requestedStyle == .iconLabelsCards) ? ChoiceDemo.definition :
+            CommandLine.arguments.contains("--submenu-demo") ? SubmenuDemo.definition : DemoMenu.definition
         store = Store(menu: usesColors ? SampleMenu.definition : demo,
                       menuStyle: requestedStyle ?? (usesColors ? .pie : .selectedMessage), window: window, controller: controllers,
                       scheduler: scheduler, movementClock: scheduler)
@@ -157,6 +165,7 @@ import RadialUI
     }
 
     private var requestedStyle: RadialCore.MenuStyle? {
+        if CommandLine.arguments.contains("--icon-labels-cards") { return .iconLabelsCards }
         if CommandLine.arguments.contains("--recentered-submenus") { return .recenteredFloatingLabels }
         if CommandLine.arguments.contains("--floating-labels") { return .floatingLabels }
         if CommandLine.arguments.contains("--icon-labels") { return .iconLabels }

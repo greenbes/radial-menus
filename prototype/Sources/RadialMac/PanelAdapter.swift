@@ -235,8 +235,12 @@ public struct OperationOrder: Sendable {
     }
 
     public func saveRendering(to url: URL) throws {
-        guard let view = panel?.contentView,
-              let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) else {
+        guard let view = panel?.contentView else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        // Redraw unchanged SwiftUI content as well as the changed scrolling list.
+        view.display()
+        guard let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) else {
             throw CocoaError(.fileWriteUnknown)
         }
         view.cacheDisplay(in: view.bounds, to: bitmap)

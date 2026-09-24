@@ -113,6 +113,11 @@ extension Change {
         if edges.contains(.menu) { cancel(session.scope, .user); return }
         if edges.contains(.next) != edges.contains(.previous) {
             step(session.scope, edges.contains(.next) ? 1 : -1)
+        } else if session.browsingChoices {
+            // One row per vertical tilt; neutral release rearms the next step.
+            if moved && !old.analogActive && abs(frame.stick.y) > 0.3 {
+                stepChoice(session.scope, frame.stick.y > 0 ? -1 : 1)
+            }
         } else if moved, let index = Geometry.sector(angle: atan2(frame.stick.x, frame.stick.y),
                                                     count: session.menu.items.count) {
             select(session.scope, session.menu.items[index].id, .stick)
