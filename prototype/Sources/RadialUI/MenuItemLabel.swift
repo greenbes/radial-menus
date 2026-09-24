@@ -81,22 +81,23 @@ public struct MenuMessageCard: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: fontSize * 0.65) {
-                Text(message.heading).font(.system(size: fontSize * 0.7, weight: .semibold)).foregroundStyle(.secondary)
                 Text(message.title).font(.system(size: fontSize * 1.15, weight: .semibold))
                 if !message.detail.isEmpty {
                     Text(message.detail).font(.system(size: fontSize * 0.85)).foregroundStyle(.secondary)
                 }
             }
-            Spacer(minLength: fontSize * 0.65)
-            Button(action: back) {
-                Label(canGoBack ? "Back" : "Cancel", systemImage: canGoBack ? "arrow.left" : "xmark")
-                    .font(.system(size: fontSize * 0.75))
-                    .padding(.horizontal, fontSize * 0.7).padding(.vertical, fontSize * 0.4)
-                    .background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 7))
-                    .contentShape(Rectangle())
+            if canGoBack {
+                Spacer(minLength: fontSize * 0.65)
+                Button(action: back) {
+                    Label("Back", systemImage: "arrow.left")
+                        .font(.system(size: fontSize * 0.75))
+                        .padding(.horizontal, fontSize * 0.7).padding(.vertical, fontSize * 0.4)
+                        .background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 7))
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Back to parent menu")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(canGoBack ? "Back to parent menu" : "Cancel menu")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(height: height.map { $0 - 2 * fontSize }, alignment: .topLeading)

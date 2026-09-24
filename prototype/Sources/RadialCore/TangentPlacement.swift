@@ -1,7 +1,7 @@
 import Foundation
 
 /// Rounded item boundaries touch a common circle at their controller direction.
-/// The circle is a layout constraint; it is never rendered or made interactive.
+/// Rendering decides whether the layout circle is visible.
 enum TangentPlacement {
     struct Result {
         let radius: Double
@@ -10,11 +10,12 @@ enum TangentPlacement {
         let outerRadius: Double
     }
 
-    static func make(items: [Item], sizes: [Size], fontSize: Double, settings: LayoutSettings) -> Result {
+    static func make(items: [Item], sizes: [Size], cornerRadius: Double,
+                     minimumRadius: Double, settings: LayoutSettings) -> Result {
         let directions = Geometry.sectors(count: items.count).map {
             Vector(x: snapped(sin($0.center)), y: snapped(-cos($0.center)))
         }
-        let corners = sizes.map { min(22 * fontSize / 17, $0.width / 2, $0.height / 2) }
+        let corners = sizes.map { min(cornerRadius, $0.width / 2, $0.height / 2) }
         let offsets = sizes.indices.map { index -> Vector in
             let d = directions[index], s = sizes[index], r = corners[index]
             // The inward rounded corner has normal -d. Its boundary is r
@@ -22,7 +23,7 @@ enum TangentPlacement {
             return Vector(x: sign(d.x) * (s.width / 2 - r) + r * d.x,
                           y: sign(d.y) * (s.height / 2 - r) + r * d.y)
         }
-        var radius = settings.minimumLabelRadius
+        var radius = minimumRadius
         for a in sizes.indices {
             for b in sizes.indices where b > a {
                 let horizontal = separationRadius(delta: directions[a].x - directions[b].x,

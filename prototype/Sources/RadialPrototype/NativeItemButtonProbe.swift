@@ -4,8 +4,9 @@ import RadialRuntime
 import RadialMac
 
 @MainActor enum NativeItemButtonProbe {
-    /// These buttons have no explicit accessibility name override, so SwiftUI
-    /// derives their name from the rendered title and (for cards) description.
+    /// Check native item bounds against the core's pointer targets. Full-title
+    /// styles derive names from their text; Selected message names short labels
+    /// with the complete item title for accessibility.
     static func check(store: Store, panel: PanelAdapter, navigationFrame: NSRect?) throws -> NSRect? {
         guard let content = panel.content, let layout = store.view.layout, let panelFrame = panel.frame else {
             throw ProbeFailure("Missing full-label content")
@@ -48,11 +49,11 @@ import RadialMac
                 throw ProbeFailure("Native full-title frame differs from pointer target: \(item.title); expected \(expected); observed \(buttons.map { "\($0.label ?? "?"): \(String(describing: $0.frame))" })")
             }
         }
-        if layout.style.hasEmptyCenter {
+        if layout.style.hasEmptyCenter || (layout.style == .selectedMessage && !store.view.canGoBack) {
             let controls = NativeAccessibility.elements(in: content).filter {
                 $0.role == .button && ["Back to parent menu", "Cancel menu"].contains($0.label ?? "")
             }
-            guard controls.isEmpty else { throw ProbeFailure("Icon labels exposed a central navigation button") }
+            guard controls.isEmpty else { throw ProbeFailure("Unexpected central navigation button") }
             return nil
         }
         let control = try NativeAccessibility.button(store.view.canGoBack ? "Back to parent menu" : "Cancel menu", in: content)

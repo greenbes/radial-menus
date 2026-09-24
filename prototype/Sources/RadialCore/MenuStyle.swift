@@ -24,18 +24,15 @@ public enum MenuStyle: String, CaseIterable, Equatable, Sendable {
 /// neutral state before an item is selected. It contains no view or action.
 public struct MenuMessage: Equatable, Sendable {
     public let itemID: String?
-    public let heading: String
     public let title: String
     public let detail: String
 
     public static func make(title: String, items: [Item], selectedID: String?) -> Self {
-        guard let index = items.firstIndex(where: { $0.id == selectedID }) else {
-            return Self(itemID: nil, heading: "Choose an item", title: title,
+        guard let item = items.first(where: { $0.id == selectedID }) else {
+            return Self(itemID: nil, title: title,
                         detail: "Use the left stick, arrow keys, or pointer to explore the menu.")
         }
-        let item = items[index]
-        return Self(itemID: item.id, heading: "\(index + 1) of \(items.count)",
-                    title: item.title, detail: item.detail)
+        return Self(itemID: item.id, title: item.title, detail: item.detail)
     }
 
     public static func all(in menu: Menu) -> [Self] {

@@ -49,7 +49,6 @@ final class MenuStyleTests: XCTestCase {
         XCTAssertEqual(messages[0].title, "Actions")
         XCTAssertEqual(messages[1].title, item.title)
         XCTAssertEqual(messages[1].detail, item.detail)
-        XCTAssertEqual(messages[1].heading, "1 of 1")
         XCTAssertEqual(MenuMessage.make(title: menu.title, items: menu.items, selectedID: "stale"), messages[0])
         for title in [" ", String(repeating: "a", count: 161)] {
             XCTAssertThrowsError(try Menu(id: "bad", title: "Actions", items: [Item(id: "a", label: "A", title: title, value: "a")]))
@@ -83,7 +82,7 @@ final class MenuStyleTests: XCTestCase {
         for (index, label) in layout.labels.enumerated() {
             let r = label.bounds
             XCTAssertEqual(layout.hit(Vector(x: r.x + r.width / 2, y: r.y + r.height / 2)), index)
-            XCTAssertEqual(layout.hit(Vector(x: r.x, y: r.y)), index)
+            XCTAssertNil(layout.hit(Vector(x: r.x, y: r.y)))
             XCTAssertNil(layout.hit(Vector(x: r.x - 0.01, y: r.y)))
             let c = layout.centerBounds
             XCTAssertTrue(r.x + r.width < c.x || r.x > c.x + c.width ||
@@ -105,6 +104,61 @@ final class MenuStyleTests: XCTestCase {
         }
     }
 
+    func testMessageRingGrowsTenPercentAndCardinalLabelsTouchItsOutside() throws {
+        let menu = SampleMenu.definition
+        let measured = MenuMeasurements(fontSize: 17, wrappingWidth: 80,
+            labels: menu.items.map { LabelMeasurement(itemID: $0.id, normal: Size(width: 80, height: 40),
+                                                      selected: Size(width: 80, height: 40)) },
+            content: .messages(wrappingWidth: 300, states: MenuMessage.all(in: menu).map {
+                MessageMeasurement(itemID: $0.itemID, size: Size(width: 300, height: 100))
+            }), style: .selectedMessage)
+        let layout = try MenuLayout.make(menu: menu, measurements: measured)
+        // Horizontal message half-width 150 + label half-width 40 + padding 8
+        // gives a 198-point baseline. Ten percent larger is 217.8 points.
+        XCTAssertEqual(layout.labelRadius, 217.8, accuracy: 1e-9)
+        XCTAssertEqual(layout.labels[0].bounds.y + 40, -217.8, accuracy: 1e-9)
+        XCTAssertEqual(layout.labels[1].bounds.x, 217.8, accuracy: 1e-9)
+        XCTAssertEqual(layout.labels[2].bounds.y, 217.8, accuracy: 1e-9)
+        XCTAssertEqual(layout.labels[3].bounds.x + 80, -217.8, accuracy: 1e-9)
+        XCTAssertEqual(layout.size, Size(width: 656, height: 576))
+    }
+
+    func testMessageLabelsAreTangentAtEveryDirectionWithStableRoundedTargets() throws {
+        for count in 1...12 {
+            let menu = try Menu(id: "menu", title: "Actions", items: (0..<count).map {
+                Item(id: "\($0)", label: "Item", value: "\($0)")
+            })
+            let measured = MenuMeasurements(fontSize: 17, wrappingWidth: 150,
+                labels: menu.items.enumerated().map { index, item in
+                    LabelMeasurement(itemID: item.id, normal: Size(width: 140, height: Double(40 + index * 8)),
+                                     selected: Size(width: 150, height: Double(44 + index * 8)))
+                }, content: .messages(wrappingWidth: 300, states: MenuMessage.all(in: menu).map {
+                    MessageMeasurement(itemID: $0.itemID, size: Size(width: 300, height: 180))
+                }), style: .selectedMessage)
+            let layout = try MenuLayout.make(menu: menu, measurements: measured)
+            for (index, label) in layout.labels.enumerated() {
+                let r = label.bounds, corner = label.cornerRadius
+                // Project the origin onto the inset box, then onto its rounded
+                // boundary. This checks the actual closest point independently.
+                let qx = min(max(0, r.x + corner), r.x + r.width - corner)
+                let qy = min(max(0, r.y + corner), r.y + r.height - corner)
+                let distance = hypot(qx, qy)
+                let x = qx * (1 - corner / distance), y = qy * (1 - corner / distance)
+                let angle = Double(index) * 2 * .pi / Double(count)
+                XCTAssertEqual(x, sin(angle) * layout.labelRadius, accuracy: 1e-8)
+                XCTAssertEqual(y, -cos(angle) * layout.labelRadius, accuracy: 1e-8)
+                XCTAssertNil(layout.hit(Vector(x: x * 0.99, y: y * 0.99)))
+                XCTAssertEqual(layout.hit(Vector(x: r.x + r.width / 2, y: r.y + r.height / 2)), index)
+                XCTAssertNil(layout.hit(Vector(x: r.x + 0.1, y: r.y + 0.1)))
+                for other in layout.labels.dropFirst(index + 1) {
+                    let b = other.bounds
+                    XCTAssertGreaterThanOrEqual(max(b.x - r.x - r.width, r.x - b.x - b.width,
+                                                    b.y - r.y - r.height, r.y - b.y - b.height), 8 - 1e-8)
+                }
+            }
+        }
+    }
+
     func testSeparateButtonsFitTheirVisibleExtentWithoutReservingAnOuterDisk() throws {
         let menu = try Menu(id: "menu", title: "Actions", items: (0..<6).map { Item(id: "\($0)", label: "Item", value: "\($0)") })
         let measured = MenuMeasurements(fontSize: 34, wrappingWidth: 300,
@@ -113,13 +167,16 @@ final class MenuStyleTests: XCTestCase {
                 MessageMeasurement(itemID: $0.itemID, size: Size(width: 600, height: 380))
             }), style: .selectedMessage)
         let layout = try MenuLayout.make(menu: menu, measurements: measured)
-        XCTAssertLessThan(layout.diameter, 1410)
+        // Larger rings with external labels can exceed a short display. Keep
+        // the requested text size and reject that placement instead of clipping.
+        XCTAssertThrowsError(try layout.placement(in: ScreenContext(revision: 1, screenID: "short",
+            bounds: Rect(x: 0, y: 0, width: 2000, height: 1410), anchor: .zero)))
         XCTAssertLessThan(layout.diameter, layout.outerRadius * 2)
         for rect in layout.labels.map(\.bounds) + [layout.centerBounds] {
-            XCTAssertGreaterThanOrEqual(rect.x, -layout.diameter / 2)
-            XCTAssertGreaterThanOrEqual(rect.y, -layout.diameter / 2)
-            XCTAssertLessThanOrEqual(rect.x + rect.width, layout.diameter / 2)
-            XCTAssertLessThanOrEqual(rect.y + rect.height, layout.diameter / 2)
+            XCTAssertGreaterThanOrEqual(rect.x, -layout.size.width / 2)
+            XCTAssertGreaterThanOrEqual(rect.y, -layout.size.height / 2)
+            XCTAssertLessThanOrEqual(rect.x + rect.width, layout.size.width / 2)
+            XCTAssertLessThanOrEqual(rect.y + rect.height, layout.size.height / 2)
         }
     }
 

@@ -170,7 +170,8 @@ public struct MenuLayout: Equatable, Sendable {
             throw LayoutFailure.invalidMeasurements
         }
         if measurements.style.usesFloatingLabels {
-            let placed = TangentPlacement.make(items: menu.items, sizes: sizes, fontSize: measurements.fontSize, settings: settings)
+            let placed = TangentPlacement.make(items: menu.items, sizes: sizes,
+                cornerRadius: 22 * measurements.fontSize / 17, minimumRadius: settings.minimumLabelRadius, settings: settings)
             guard placed.size.isValid, placed.radius.isFinite, placed.outerRadius.isFinite else {
                 throw LayoutFailure.invalidMeasurements
             }
@@ -219,6 +220,8 @@ public struct MenuLayout: Equatable, Sendable {
             if sizes.count > 1 && measurements.style != .cards {
                 // The rectangle's projection onto each sector boundary normal
                 // determines how far its center must be from the menu center.
+                // Selected message uses this as a spacing baseline; its final
+                // external tangent labels may extend across sector boundaries.
                 let halfAngle = Double.pi / Double(sizes.count)
                 for boundary in [sector.center - halfAngle, sector.center + halfAngle] {
                     let projection = halfWidth * abs(cos(boundary)) + halfHeight * abs(sin(boundary))
@@ -229,8 +232,14 @@ public struct MenuLayout: Equatable, Sendable {
         if measurements.style == .cards {
             radius = max(radius, CardSpacing.minimumRadius(sizes: sizes, sectors: sectors, gap: gap))
         }
-        var outer = max(settings.minimumOuterRadius, centerRadius + 4)
-        let labels = zip(menu.items.indices, sizes).map { index, size -> LabelLayout in
+        // Enlarge the measured message/sector spacing by ten percent, then
+        // place each rounded button outside the ring at its tangent direction.
+        let tangent = measurements.style == .selectedMessage
+            ? TangentPlacement.make(items: menu.items, sizes: sizes, cornerRadius: 10,
+                minimumRadius: radius * 1.1, settings: settings) : nil
+        if let tangent { radius = tangent.radius }
+        var outer = max(settings.minimumOuterRadius, centerRadius + 4, tangent?.outerRadius ?? 0)
+        let labels = tangent?.labels ?? zip(menu.items.indices, sizes).map { index, size -> LabelLayout in
             let center = Vector(x: sin(sectors[index].center) * radius, y: -cos(sectors[index].center) * radius)
             let rect = Rect(x: center.x - size.width / 2, y: center.y - size.height / 2,
                             width: size.width, height: size.height)
@@ -246,7 +255,12 @@ public struct MenuLayout: Equatable, Sendable {
             max($0, abs($1.bounds.x), abs($1.bounds.y),
                 abs($1.bounds.x + $1.bounds.width), abs($1.bounds.y + $1.bounds.height))
         }
-        let diameter = ceil(2 * (max(extent, radius) + settings.windowPadding))
+        let squareSide = ceil(2 * (max(extent, radius) + settings.windowPadding))
+        let size = tangent.map {
+            Size(width: max($0.size.width, ceil(centerSize.width + 2 * settings.windowPadding)),
+                 height: max($0.size.height, ceil(centerSize.height + 2 * settings.windowPadding)))
+        } ?? Size(width: squareSide, height: squareSide)
+        let diameter = max(size.width, size.height)
         guard [radius, inner, outer, diameter].allSatisfy(\.isFinite), outer > inner else {
             throw LayoutFailure.invalidMeasurements
         }
@@ -254,7 +268,7 @@ public struct MenuLayout: Equatable, Sendable {
                     centerBounds: Rect(x: -centerSize.width / 2, y: -centerSize.height / 2,
                                        width: centerSize.width, height: centerSize.height),
                     fontSize: measurements.fontSize, wrappingWidth: measurements.wrappingWidth,
-                    innerRadius: inner, outerRadius: outer, labelRadius: radius, diameter: diameter, size: Size(width: diameter, height: diameter),
+                    innerRadius: inner, outerRadius: outer, labelRadius: radius, diameter: diameter, size: size,
                     centerRadius: centerRadius, sectors: sectors, labels: labels,
                     directionGuide: measurements.style.usesDirectionGuide
                         ? DirectionGuide.make(radius: guideRadius, markerRadius: markerRadius, sectors: sectors, labels: labels) : nil,
@@ -275,7 +289,9 @@ public struct MenuLayout: Equatable, Sendable {
         if style != .pie {
             guard point.isFinite else { return nil }
             return labels.firstIndex { label in
-                if style.usesFloatingLabels { return TangentPlacement.contains(point, label: label) }
+                if style.usesFloatingLabels || style == .selectedMessage {
+                    return TangentPlacement.contains(point, label: label)
+                }
                 let r = label.bounds
                 return point.x >= r.x && point.x <= r.x + r.width && point.y >= r.y && point.y <= r.y + r.height
             }

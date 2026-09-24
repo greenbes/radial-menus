@@ -266,8 +266,10 @@ import RadialUI
         guard store.view.layout?.style == style else { throw ProbeFailure("Style changed during navigation") }
         for label in ["Back to parent menu", "Cancel menu"] {
             try await Task.sleep(for: .milliseconds(30))
-            if style.hasEmptyCenter {
-                _ = try NativeItemButtonProbe.check(store: store, panel: panel, navigationFrame: nil)
+            if style.hasEmptyCenter || (style == .selectedMessage && label == "Cancel menu") {
+                if style.hasEmptyCenter {
+                    _ = try NativeItemButtonProbe.check(store: store, panel: panel, navigationFrame: nil)
+                }
                 probe.key(code: label == "Back to parent menu" ? 51 : 53,
                           characters: label == "Back to parent menu" ? "\u{7F}" : "\u{1B}")
             } else {
@@ -325,15 +327,17 @@ import RadialUI
                 store.send(.select(scope, id, .keyboard))
                 try await Task.sleep(for: .milliseconds(30))
                 panel.content?.layoutSubtreeIfNeeded()
-                let button = try NativeAccessibility.button(store.view.canGoBack ? "Back to parent menu" : "Cancel menu", in: panel.content)
-                guard let frame = button.frame else { throw ProbeFailure("Missing native control frame") }
-                if let navigationFrame, frame != navigationFrame {
-                    throw ProbeFailure("Selection moved the navigation button")
+                navigationFrame = try NativeItemButtonProbe.check(store: store, panel: panel, navigationFrame: navigationFrame)
+                let elements = panel.content.map { NativeAccessibility.elements(in: $0) } ?? []
+                guard !elements.contains(where: { $0.role == .button && $0.label == "Cancel menu" }) else {
+                    throw ProbeFailure("Selected message still displays a Cancel button")
                 }
-                navigationFrame = frame
                 let message = store.view.message
-                let texts = (panel.content.map { NativeAccessibility.elements(in: $0) } ?? []).filter { $0.role == .staticText }
-                    .compactMap(\.text)
+                let texts = elements.filter { $0.role == .staticText }.compactMap(\.text)
+                let counters = (1...items.count).map { "\($0) of \(items.count)" }
+                guard !texts.contains("Choose an item"), !texts.contains(where: counters.contains) else {
+                    throw ProbeFailure("Selected message still displays a heading or item counter")
+                }
                 guard texts.contains(message.title), message.detail.isEmpty || texts.contains(message.detail) else {
                     throw ProbeFailure("Native message text differs from selection: \(texts)")
                 }
@@ -401,7 +405,7 @@ import RadialUI
                 "stableNavigationControl": layout.style != .pie && !layout.style.hasEmptyCenter,
                 "nativeFullTitleTextVerified": layout.style.showsFullTitles,
                 "nativeCardTextVerified": layout.style == .cards,
-                "nativeLabelFramesVerified": layout.style.showsFullTitles,
+                "nativeLabelFramesVerified": layout.style.showsFullTitles || layout.style == .selectedMessage,
                 "centerBounds": [layout.centerBounds.x, layout.centerBounds.y, layout.centerBounds.width, layout.centerBounds.height], "count": items.count, "labels": labels,
                 "geometry": ["innerRadius": layout.innerRadius, "outerRadius": layout.outerRadius,
                              "diameter": layout.diameter, "windowSize": [layout.size.width, layout.size.height], "labelRadius": layout.labelRadius,

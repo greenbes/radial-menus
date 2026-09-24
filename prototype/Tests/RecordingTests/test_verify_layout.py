@@ -80,13 +80,28 @@ class LayoutRecordingTests(unittest.TestCase):
     def test_selected_messages_must_include_neutral_and_every_item_and_fit(self):
         value = fixture()
         value.update(style="selectedMessage", stableSelectionLayout=True, stableNavigationControl=True,
-                     nativeMessageTextVerified=True, centerBounds=[-18, -16, 36, 32],
+                     nativeMessageTextVerified=True, nativeLabelFramesVerified=True, centerBounds=[-18, -16, 36, 32],
                      messages=[{"id": item_id, "measured": [36, 32]} for item_id in [None, "0", "1", "2", "3"]])
+        for label, rectangle in zip(value["labels"], [[-10, -120, 20, 20], [100, -10, 20, 20],
+                                                     [-10, 100, 20, 20], [-120, -10, 20, 20]]):
+            label.update(rectangle=rectangle, cornerRadius=10)
         self.assertEqual(kinds(value), set())
+        for shift in [-6, 6]:
+            changed = copy.deepcopy(value)
+            changed["labels"][0]["rectangle"][1] += shift
+            self.assertIn("labelIsNotTangent", kinds(changed))
+        # A tall external label can cross an angular boundary while remaining
+        # tangent at the correct direction and disjoint from the other labels.
+        tall = copy.deepcopy(value)
+        tall["labels"][1].update(rectangle=[100, -110, 20, 220], measured=[20, 220],
+                                 normal=[20, 220], selected=[20, 220])
+        tall["geometry"].update(outerRadius=200, diameter=440)
+        tall["frame"][2:] = [440, 440]
+        self.assertEqual(kinds(tall), set())
         oversized = copy.deepcopy(value)
         oversized["messages"][2]["measured"][1] = 33
         self.assertIn("messageExceedsCenter", kinds(oversized))
-        for mutation in ("neutral", "item", "duplicate", "nonfinite", "stability", "button", "native_text", "bounds"):
+        for mutation in ("neutral", "item", "duplicate", "nonfinite", "stability", "button", "native_text", "native_frames", "bounds"):
             changed = copy.deepcopy(value)
             if mutation == "neutral":
                 changed["messages"].pop(0)
@@ -102,6 +117,8 @@ class LayoutRecordingTests(unittest.TestCase):
                 changed["stableNavigationControl"] = False
             elif mutation == "native_text":
                 changed["nativeMessageTextVerified"] = False
+            elif mutation == "native_frames":
+                changed["nativeLabelFramesVerified"] = False
             else:
                 changed["centerBounds"][0] = 0
             with self.subTest(mutation=mutation), self.assertRaises(ValueError):

@@ -17,9 +17,12 @@ experiment; the ordinary Floating labels style remains available.
 **Cards** implements design 2: titles and descriptions are visible together in
 radial cards. Selection adds
 a light tint, an accent outline, and a checkmark. **Selected message** shows
-short labels arranged around a ring, with a full title and description in the
-center. **Pie wedges** shows short labels inside sectors. The default demo uses
-Selected message and six illustrative workspace actions. Selecting an action
+short labels outside a ring, with each label's closest rounded boundary point
+tangent to it. Its center shows the selected item's full title and description
+without an item counter. Before selection, it shows the menu title and instructions
+without an extra heading. It has a Back button in submenus and no Cancel button
+at the root. **Pie wedges** shows short labels inside sectors. The default demo
+uses Selected message and six illustrative workspace actions. Selecting an action
 reports its value; it does not perform the described operation.
 
 A style change applies to the next opening. An active interaction, including
@@ -43,7 +46,8 @@ a target clears only pointer-owned selection. Rings, markers, connections, and
 central message
 text do not activate items. A card's description is part of its item button, so
 clicking it chooses that item. Back and Cancel are separate controls except in
-Full labels with icons and Floating labels. These styles use controller Back,
+Full labels with icons, Floating labels, and the Selected message root. These
+styles use controller Back,
 keyboard Delete, or a named accessibility action to go back or cancel at the
 root. Escape cancels the
 whole interaction. Clicking the empty center has no effect. Separate icon badges
@@ -57,13 +61,17 @@ Before display, the native boundary measures normal and selected labels,
 including padding and submenu indicators. For Selected message it also measures
 every complete message and the neutral instructions at a common width. The core
 requires one measurement per item and one for the neutral state, then reserves
-the largest required height. Item bounds, the window, and the navigation button
+the largest required height. Item bounds, the window, and any navigation button
 remain fixed while selection changes.
 
 The geometry remains deterministic. Pie labels clear a circular center; both
 full-label styles and Cards clear a compact ring; Selected message clears a
-central rectangle. Both full-label styles and Selected message stay within their
-sectors. Cards can extend across sector boundaries, but remain disjoint and
+central rectangle and places its rounded labels outside the visible ring. Its
+ring radius is 10% larger than the radius calculated for message clearance and
+sector spacing. Both full-label styles stay within their sectors. Selected
+message labels may cross sector boundaries, but remain disjoint and tangent at
+their controller directions. Cards can extend across sector boundaries, but
+remain disjoint and
 cannot obscure another item's connection. Their centers retain the same
 controller directions. Full-label connections end at the inward edge of each
 label and cannot cross another label. Floating labels uses the closest rounded
@@ -154,7 +162,8 @@ Quit the running prototype first, then use an unlocked macOS desktop:
 
 The layout checks click all seven choices in the actual diagnostics window,
 reopen menus with the chosen style, and exercise native Back and Cancel buttons
-(Delete and Escape for Full labels with icons and Floating labels). They also
+(Delete and Escape for Full labels with icons and Floating labels; Escape at the
+Selected message root). They also
 check a style change during an interaction: the current submenu retains its
 style and the next
 opening adopts the preference.
@@ -162,7 +171,10 @@ opening adopts the preference.
 The selected-message matrix checks item counts 1 through 12, several label
 profiles, submenus, and requested text sizes of 17 and 34 points. It measures
 every central message, checks the displayed text through native accessibility
-accessors, and verifies that the navigation control stays in place. Real
+accessors, verifies that the submenu Back control stays in place, and checks
+that headings, counters, and the root Cancel button are absent. Native item
+bounds must match the rounded pointer targets; the independent verifier checks
+each label's closest point for tangency at its assigned direction. Real
 app-local mouse events check label selection, activation, and inert message
 text. An injected 100-by-100 screen observation checks failure before display.
 

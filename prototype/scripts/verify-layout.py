@@ -231,7 +231,7 @@ def check_fixture(fixture):
         issues.append({"kind": "unexpectedPanelSize"})
     if fixture.get("style", "pie") == "selectedMessage":
         if any(fixture.get(key) is not True for key in
-               ("stableSelectionLayout", "stableNavigationControl", "nativeMessageTextVerified")):
+               ("stableSelectionLayout", "stableNavigationControl", "nativeMessageTextVerified", "nativeLabelFramesVerified")):
             raise ValueError("Missing stable layout or native message text evidence")
         cx, cy, cw, ch = numbers(fixture["centerBounds"], 4)
         if min(cw, ch) <= 0 or [cx, cy] != [-cw / 2, -ch / 2] or [cw, ch] != center:
@@ -262,7 +262,7 @@ def check_fixture(fixture):
         x, y, reserved_width, reserved_height = rectangle
         expected_x = math.sin(angle) * geometry["labelRadius"] - reserved_width / 2
         expected_y = -math.cos(angle) * geometry["labelRadius"] - reserved_height / 2
-        if min(reserved_width, reserved_height) <= 0 or (fixture.get("style") != "floatingLabels" and
+        if min(reserved_width, reserved_height) <= 0 or (fixture.get("style") not in ("floatingLabels", "selectedMessage") and
                 (abs(x - expected_x) > EPSILON or abs(y - expected_y) > EPSILON)):
             raise ValueError("Label position differs from recorded rendering parameters")
         rectangles.append(rectangle)
@@ -278,12 +278,25 @@ def check_fixture(fixture):
             kinds.append("labelOutsideRing")
         closest_x, closest_y = min(max(0, x), x + width), min(max(0, y), y + height)
         if fixture.get("style", "pie") == "selectedMessage":
+            corner = numbers([label["cornerRadius"]], 1)[0]
+            if not 0 < corner <= min(width, height) / 2:
+                raise ValueError("Invalid selected-message corner radius")
+            qx = min(max(0, x + corner), x + width - corner)
+            qy = min(max(0, y + corner), y + height - corner)
+            distance = math.hypot(qx, qy)
+            if distance <= corner:
+                kinds.append("labelTouchesRingInterior")
+            else:
+                nearest = (qx * (1 - corner / distance), qy * (1 - corner / distance))
+                expected = (math.sin(angle) * geometry["labelRadius"], -math.cos(angle) * geometry["labelRadius"])
+                if math.dist(nearest, expected) > EPSILON:
+                    kinds.append("labelIsNotTangent")
             cx, cy, cw, ch = fixture["centerBounds"]
             if min(x + width, cx + cw) - max(x, cx) > -EPSILON and min(y + height, cy + ch) - max(y, cy) > -EPSILON:
                 kinds.append("labelTouchesCenter")
         elif fixture.get("style") != "floatingLabels" and math.hypot(closest_x, closest_y) <= geometry["innerRadius"] + EPSILON:
             kinds.append("labelTouchesCenter")
-        if count > 1 and fixture.get("style") not in ("cards", "floatingLabels"):
+        if count > 1 and fixture.get("style") not in ("cards", "floatingLabels", "selectedMessage"):
             differences = [math.remainder(math.atan2(cx, -cy) - angle, 2 * math.pi) for cx, cy in corners]
             if any(abs(difference) > math.pi / count + EPSILON for difference in differences):
                 kinds.append("labelOutsideOwnSector")

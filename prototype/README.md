@@ -29,7 +29,8 @@ white outline. Launch it with
 radial card shows its full title and description, with a tinted outline and
 checkmark on selection.
 Clicking anywhere on the card, including the description, chooses that item.
-Selected message displays short labels around a ring and the selected item's
+Selected message displays short labels tangent to the outside of a ring and the
+selected item's
 full text in the center. Pie wedges display the short labels inside sectors. All
 styles use the same content, item order, navigation, and results. Style
 changes apply on the next opening and remain in memory until quitting. A submenu
@@ -219,7 +220,9 @@ measures the shared label components at both font weights and measures the
 center control where present. Full labels with icons measures its native symbols
 in both selection states and supplies an explicitly empty center. For Selected
 message it measures every full message and the neutral instructions, including
-the Back or Cancel button. The window adapter supplies those immutable sizes
+the Back button in submenus. Its center has no heading, item counter, or Cancel
+button.
+The window adapter supplies those immutable sizes
 with every display's usable rectangle and the desired center point. It does not
 choose radii.
 
@@ -233,8 +236,12 @@ outer radius encloses every rectangle with padding. The same immutable layout
 controls drawing, pointer selection, and window size;
 controller selection uses its shared angular geometry. Selected message instead
 separates each label rectangle from the central message rectangle and reserves
-the maximum message height. Its window encloses those rectangles and the guide
-circle. Selection cannot resize the window or move the labels.
+the maximum message height. It increases the calculated ring radius by 10% and
+places the closest rounded boundary point of each label on that ring, outside
+it. Pointer targets follow the same rounded shapes. Its window encloses those
+rectangles and the guide circle with independent width and height. Labels may
+cross sector boundaries; the tangent points preserve their controller directions.
+Selection cannot resize the window or move the labels.
 
 Layout starts with inner radius 46, outer radius 150, and label radius 100,
 then grows as needed. Content padding is 8 points, the center-to-ring gap is

@@ -247,9 +247,13 @@ Support six presentations of the same menu:
   light selection tint, an outline, and a checkmark. Connect each card to its
   direction marker, and keep Back or Cancel in the center. The whole card,
   including its description, activates that item.
-- **Selected message:** short radial labels with the selected item's full title
-  and description in the center. Before selection, show the menu title and
-  instructions. Back or Cancel remains a separate control in the center.
+- **Selected message:** short labels outside a visible ring, with their closest
+  rounded boundary points tangent to it. Show the selected item's full title
+  and description in the center, without an item counter. Before selection,
+  show the menu title and instructions without an extra heading.
+  Submenus have a separate Back control
+  in the center; the root has no Cancel control. Controller Back, keyboard
+  Escape, and the named accessibility action remain available for cancellation.
 
 Decorative rings, separate icon badges, markers, connecting lines, and central
 message text have no action. All styles return the same item identities and
@@ -705,7 +709,12 @@ rectangle intersection and line clipping. Include empty descriptions, unequal
 card heights, long messages, and the selected font weight in native checks.
 
 In Selected message, separate labels clear the central rectangle and one
-another, while retaining their angular order. Calculate the window from all
+another, while retaining their angular order. Calculate the radius from message
+clearance and sector spacing, increase it by 10%, and use the rounded tangency
+calculation to place the labels outside that ring. Rendering and pointer
+selection use the same rounded boundaries. Labels may cross sector boundaries;
+their tangent points preserve the controller directions. Calculate the window's
+width and height independently from all
 visible bounds, including decorative geometry. No style may clip content or
 silently shrink text to fit a screen. An unsupported size must
 produce an explicit layout failure. Native rendering checks supplement pure

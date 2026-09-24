@@ -107,7 +107,8 @@ import RadialCore
         let selectedOutline: Color = layout.style.hasEmptyCenter ? .white : .accentColor
         let outlineWidth: Double = selected ? (layout.style.hasEmptyCenter ? 3 : isCard ? 2 : 1) : 1
         let bounds = layout.labels[index].bounds
-        let cornerRadius = layout.style.usesFloatingLabels ? layout.labels[index].cornerRadius : isCard ? 17.0 : 10.0
+        let roundedTarget = layout.style.usesFloatingLabels || layout.style == .selectedMessage
+        let cornerRadius = roundedTarget ? layout.labels[index].cornerRadius : isCard ? 17.0 : 10.0
         let labelShape = RoundedRectangle(cornerRadius: cornerRadius, style: .circular)
         let shape = Wedge(sector: layout.sectors[index], fullCircle: model.items.count == 1,
                           outer: layout.outerRadius, inner: layout.innerRadius)
@@ -139,7 +140,7 @@ import RadialCore
                     .overlay(labelShape
                         .strokeBorder(selected ? selectedOutline : Color.primary.opacity(0.25),
                                       lineWidth: outlineWidth))
-                    .contentShape(RoundedRectangle(cornerRadius: layout.style.usesFloatingLabels ? cornerRadius : 0, style: .circular))
+                    .contentShape(RoundedRectangle(cornerRadius: roundedTarget ? cornerRadius : 0, style: .circular))
             }
         }
         .buttonStyle(.plain)
