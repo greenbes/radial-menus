@@ -165,7 +165,8 @@ held buttons establish its initial state. Release them before pressing Menu
 or Confirm again. An unrelated controller disconnecting does not cancel the
 owner's menu. A choice already committed before disconnection is preserved.
 
-Right-stick deflection controls speed. Releasing it stops movement. The menu
+Right-stick deflection controls speed: small tilts move slowly, and pushing
+toward the edge increases speed more rapidly. Releasing it stops movement. The menu
 stays inside its assigned screen's usable area and does not cross onto another
 screen. Moving the menu preserves selection. Navigation stops movement until
 the right stick has returned to neutral. If the assigned screen disappears,
@@ -286,10 +287,14 @@ position, a 64-observation native buffer, a 256-event runtime input limit,
 and a three-second native-operation deadline. These are prototype choices,
 not performance measurements or a completed usability study.
 
-Movement has separately validated settings: a radial dead zone of 0.2,
-maximum speed of 600 logical screen points per second, and a maximum elapsed
-step of 0.1 seconds. Diagonal input cannot exceed the maximum speed. These
-values are initial tuning choices, not measured usability results.
+Movement has separately validated settings: a radial dead zone of 0.1,
+maximum speed of 2,400 logical screen points per second, and a maximum elapsed
+step of 0.1 seconds. Beyond the dead zone, the remaining stick travel is mapped
+to 0–1 and squared to determine the fraction of maximum speed. At 32.5%, 55%,
+77.5%, and 100% of full deflection, speeds are 150, 600, 1,350, and 2,400 points
+per second. Diagonal input cannot exceed the maximum speed. Speed depends on
+deflection, not how long the stick is held. These values are tuning choices,
+not measured usability results.
 
 The core owns the desired frame, velocity, last integration time, and current
 movement identity. Input receipt times and movement ticks use the same

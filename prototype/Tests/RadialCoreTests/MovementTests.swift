@@ -51,6 +51,68 @@ private struct MovementRun {
 }
 
 final class MovementTests: XCTestCase {
+    func testStandardSpeedRisesProgressivelyWithDeflection() {
+        // Stick deflection includes the central 10% dead zone. These speeds
+        // specify the response independently of its implementation.
+        let samples: [(Double, Double)] = [(0, 0), (0.05, 0), (0.1, 0), (0.325, 150),
+                                           (0.55, 600), (0.775, 1350), (1, 2400)]
+        for (deflection, speed) in samples {
+            for direction in [Vector(x: 1, y: 0), Vector(x: -1, y: 0), Vector(x: 0, y: 1),
+                              Vector(x: 0, y: -1), Vector(x: 0.6, y: 0.8)] {
+                let input = Vector(x: direction.x * deflection, y: direction.y * deflection)
+                let velocity = MovementSettings.standard.velocity(for: input)
+                XCTAssertEqual(velocity.x, direction.x * speed, accuracy: 1e-8)
+                XCTAssertEqual(velocity.y, direction.y * speed, accuracy: 1e-8)
+            }
+        }
+    }
+
+    func testSpeedIncreasesContinuouslyOutsideDeadZoneAndCapsDiagonals() {
+        let settings = MovementSettings.standard
+        var previous = 0.0
+        for step in 101...1000 {
+            let speed = settings.velocity(for: Vector(x: Double(step) / 1000, y: 0)).magnitude
+            XCTAssertGreaterThan(speed, previous)
+            XCTAssertLessThan(speed - previous, 5.34)
+            previous = speed
+        }
+        for input in [Vector(x: 1, y: 1), Vector(x: -1, y: 1), Vector(x: 1, y: -1), Vector(x: -1, y: -1)] {
+            XCTAssertEqual(settings.velocity(for: input).magnitude, 2400, accuracy: 1e-8)
+        }
+        for input in [Vector(x: .nan, y: 0), Vector(x: 0, y: .infinity), Vector(x: 1.01, y: 0)] {
+            XCTAssertEqual(settings.velocity(for: input), .zero)
+        }
+    }
+
+    func testChangingDeflectionChangesSpeedImmediatelyAndReleaseStops() {
+        var run = MovementRun()
+        run.input(Vector(x: 0.325, y: 0), at: 1)
+        run.input(Vector(x: 0.55, y: 0), at: 1.1)
+        XCTAssertEqual(run.model.movement.placement!.frame.x, 415, accuracy: 1e-8)
+        run.input(Vector(x: 0.775, y: 0), at: 1.2)
+        XCTAssertEqual(run.model.movement.placement!.frame.x, 475, accuracy: 1e-8)
+        run.input(Vector(x: 1, y: 0), at: 1.3)
+        XCTAssertEqual(run.model.movement.placement!.frame.x, 610, accuracy: 1e-8)
+        run.input(Vector(x: 0.325, y: 0), at: 1.4)
+        XCTAssertEqual(run.model.movement.placement!.frame.x, 850, accuracy: 1e-8)
+        let clock = run.movementID
+        run.input(.zero, at: 1.5)
+        XCTAssertEqual(run.model.movement.placement!.frame.x, 865, accuracy: 1e-8)
+        XCTAssertNil(run.model.movement.activity)
+        let stopped = run.model
+        run.send(.movementTick(clock, 2))
+        XCTAssertEqual(run.model, stopped)
+    }
+
+    func testMovementStartsInsideFormerDeadZoneAndStopsAtNewBoundary() {
+        var run = MovementRun()
+        run.input(Vector(x: 0.15, y: 0), at: 1)
+        XCTAssertNotNil(run.model.movement.activity)
+        run.input(Vector(x: 0.1, y: 0), at: 1.1)
+        XCTAssertEqual(run.model.movement.placement!.frame.x, 400 + 20.0 / 27, accuracy: 1e-8)
+        XCTAssertNil(run.model.movement.activity)
+    }
+
     func testDeviceTimestampDoesNotControlMovementIntegrationTime() {
         var run = MovementRun()
         run.send(.controllerFrame(run.owner, run.scope,
@@ -58,7 +120,7 @@ final class MovementTests: XCTestCase {
                             rightStick: Vector(x: 1, y: 0), observedAt: 1), true))
         run.send(.controllerFrame(run.owner, run.scope,
             ControllerFrame(sequence: 3, timestamp: 1000.5, stick: .zero, buttons: [], observedAt: 1.05), true))
-        XCTAssertEqual(run.model.movement.placement!.frame.x, 430, accuracy: 1e-8)
+        XCTAssertEqual(run.model.movement.placement!.frame.x, 520, accuracy: 1e-8)
         XCTAssertNil(run.model.movement.activity)
     }
 
@@ -106,7 +168,7 @@ final class MovementTests: XCTestCase {
         XCTAssertEqual(settings.velocity(for: .zero), .zero)
         XCTAssertEqual(settings.velocity(for: Vector(x: 0.2, y: 0)), .zero)
         XCTAssertEqual(settings.velocity(for: Vector(x: 1, y: 0)), Vector(x: 600, y: 0))
-        XCTAssertEqual(settings.velocity(for: Vector(x: 0.6, y: 0)).x, 300, accuracy: 1e-10)
+        XCTAssertEqual(settings.velocity(for: Vector(x: 0.6, y: 0)).x, 150, accuracy: 1e-10)
         XCTAssertEqual(settings.velocity(for: Vector(x: 1, y: 1)).magnitude, 600, accuracy: 1e-10)
         XCTAssertThrowsError(try MovementSettings(speed: .nan, deadZone: 0.2, maximumStep: 0.1))
         XCTAssertThrowsError(try MovementSettings(speed: 600, deadZone: 1, maximumStep: 0.1))
@@ -122,7 +184,7 @@ final class MovementTests: XCTestCase {
             run.input(Vector(x: 1, y: 0), at: 10)
             let id = run.movementID
             for elapsed in trace { run.send(.movementTick(id, 10 + elapsed)) }
-            XCTAssertEqual(run.model.movement.placement!.frame.x, 1000, accuracy: 1e-8)
+            XCTAssertEqual(run.model.movement.placement!.frame.x, 2800, accuracy: 1e-8)
             XCTAssertEqual(run.model.movement.placement!.frame.y, 300)
         }
     }
@@ -132,8 +194,8 @@ final class MovementTests: XCTestCase {
         run.input(Vector(x: 1, y: 0), at: 1)
         run.input(Vector(x: 0, y: 1), at: 1.05)
         run.input(.zero, at: 1.1)
-        XCTAssertEqual(run.model.movement.placement!.frame.x, 430, accuracy: 1e-8)
-        XCTAssertEqual(run.model.movement.placement!.frame.y, 330, accuracy: 1e-8)
+        XCTAssertEqual(run.model.movement.placement!.frame.x, 520, accuracy: 1e-8)
+        XCTAssertEqual(run.model.movement.placement!.frame.y, 420, accuracy: 1e-8)
         XCTAssertNil(run.model.movement.activity)
         XCTAssertFalse(subscriptions(run.model).contains { if case .movement = $0 { true } else { false } })
     }
@@ -148,9 +210,9 @@ final class MovementTests: XCTestCase {
             XCTAssertEqual(run.model, before)
         }
         run.send(.movementTick(id, 30))
-        XCTAssertEqual(run.model.movement.placement!.frame.x, 460, accuracy: 1e-8)
+        XCTAssertEqual(run.model.movement.placement!.frame.x, 640, accuracy: 1e-8)
         run.send(.movementTick(id, 30.05))
-        XCTAssertEqual(run.model.movement.placement!.frame.x, 490, accuracy: 1e-8)
+        XCTAssertEqual(run.model.movement.placement!.frame.x, 760, accuracy: 1e-8)
     }
 
     func testWholeMenuClampsAtAllEdgesIncludingNegativeDesktopCoordinates() {
@@ -245,10 +307,10 @@ final class MovementTests: XCTestCase {
         run.send(.movementTick(run.movementID, 1.1))
         let observed = Placement(layout: 1, screenID: "screen",
             bounds: run.model.movement.placement!.bounds,
-            frame: Rect(x: 429, y: 300, width: 360, height: 360))
+            frame: Rect(x: 519, y: 300, width: 360, height: 360))
         run.send(.moved(run.scope, pending.operation, observed))
-        XCTAssertEqual(run.model.movement.placement!.frame.x, 429)
-        XCTAssertEqual(run.model.movement.pending!.target.x, 459, accuracy: 1e-8)
+        XCTAssertEqual(run.model.movement.placement!.frame.x, 519)
+        XCTAssertEqual(run.model.movement.pending!.target.x, 639, accuracy: 1e-8)
         XCTAssertEqual(run.effects.count, 1)
     }
 

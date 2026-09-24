@@ -1,4 +1,5 @@
 public struct MovementSettings: Equatable, Sendable {
+    /// Maximum movement speed at full stick deflection, in logical points per second.
     public let speed: Double
     public let deadZone: Double
     public let maximumStep: Double
@@ -13,7 +14,7 @@ public struct MovementSettings: Equatable, Sendable {
 
     public struct InvalidSettings: Error {}
     public static let standard: Self = {
-        do { return try Self(speed: 600, deadZone: 0.2, maximumStep: 0.1) }
+        do { return try Self(speed: 2400, deadZone: 0.1, maximumStep: 0.1) }
         catch { preconditionFailure("Invalid built-in movement settings") }
     }()
 
@@ -22,7 +23,10 @@ public struct MovementSettings: Equatable, Sendable {
         guard stick.isFinite, abs(stick.x) <= 1, abs(stick.y) <= 1 else { return .zero }
         let magnitude = stick.magnitude
         guard magnitude > deadZone else { return .zero }
-        let rate = speed * ((min(magnitude, 1) - deadZone) / (1 - deadZone))
+        // Rescale the usable travel to 0...1, then increase speed quadratically:
+        // small deflections permit fine positioning; the edge moves quickly.
+        let deflection = (min(magnitude, 1) - deadZone) / (1 - deadZone)
+        let rate = speed * deflection * deflection
         return Vector(x: stick.x / magnitude * rate, y: stick.y / magnitude * rate)
     }
 }

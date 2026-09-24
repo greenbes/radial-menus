@@ -43,9 +43,9 @@ def verify(records, controller_name):
             )
             if physical:
                 magnitude = math.hypot(*record.get("rightStick", [0, 0]))
-                if magnitude > 0.2 and record.get("moving") is True:
+                if magnitude > 0.1 and record.get("moving") is True:
                     session["physicalMovement"] = True
-                if (session["moves"] and magnitude <= 0.2 and record.get("moving") is False
+                if (session["moves"] and magnitude <= 0.1 and record.get("moving") is False
                         and record.get("phase") == "Active"):
                     session["neutral"] = True
                 if "confirm" in record.get("buttons", []) and record.get("phase") == "Dismissing":

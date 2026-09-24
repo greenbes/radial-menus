@@ -30,6 +30,17 @@ class RecordingTests(unittest.TestCase):
     def test_complete_movement_release_confirmation_and_dismissal_passes(self):
         self.assertTrue(verifier.verify(fixture(), "Physical fixture")["passed"])
 
+    def test_movement_between_old_and_new_thresholds_and_release_at_boundary_passes(self):
+        records = fixture()
+        records[1]["rightStick"] = [0.15, 0]
+        records[3]["rightStick"] = [0.1, 0]
+        self.assertTrue(verifier.verify(records, "Physical fixture")["passed"])
+
+    def test_stopped_above_new_dead_zone_is_not_neutral(self):
+        records = fixture()
+        records[3]["rightStick"] = [0.15, 0]
+        self.assertFalse(verifier.verify(records, "Physical fixture")["passed"])
+
     def test_missing_or_inconsistent_evidence_fails(self):
         mutations = [
             (1, "rightStick", [0, 0]),

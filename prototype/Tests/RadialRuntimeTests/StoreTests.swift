@@ -182,7 +182,7 @@ final class StoreTests: XCTestCase {
             let deliver = clock.movement[movement]!
             XCTAssertEqual(clock.movement.count, 1)
             deliver(.movementTick(movement, 1.05))
-            XCTAssertEqual(store.model.movement.placement!.frame.x, 430, accuracy: 1e-8)
+            XCTAssertEqual(store.model.movement.placement!.frame.x, 520, accuracy: 1e-8)
             store.send(.controllerFrame(id, scope, frame(3, 1.1, .zero), true))
             XCTAssertTrue(clock.movement.isEmpty)
             XCTAssertTrue(clock.scheduled.isEmpty)
